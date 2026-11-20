@@ -18,6 +18,7 @@ class PixelParams:
     target_height: int | None = None       # sprite height in art px; used when no grid is detected
     alpha_threshold: float = 0.5
     speck_px: int = 16                     # source-pixel speck removal before downscale
+    despill: str = "edge"                  # edge (rule 11) | all
     saliency: bool = True
     hysteresis: float = 0.03               # Oklab distance a new colour must win by
     loop: bool = False
@@ -43,9 +44,9 @@ class PixelResult:
         return out
 
 
-def _ensure_rgba(f: np.ndarray, speck_px: int) -> np.ndarray:
+def _ensure_rgba(f: np.ndarray, speck_px: int, despill: str = "edge") -> np.ndarray:
     if f.shape[2] == 3 or (f[..., 3] == 255).all():
-        f = chroma.key(f[..., :3])
+        f = chroma.key(f[..., :3], despill=despill)
     else:
         f = f.copy()
         f[..., 3] = np.where(f[..., 3] >= 128, 255, 0)
@@ -67,7 +68,7 @@ def _fallback_grid(frames: list[np.ndarray], target_height: int | None) -> tuple
 
 
 def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams()) -> PixelResult:
-    rgba = [_ensure_rgba(f, p.speck_px) for f in frames]
+    rgba = [_ensure_rgba(f, p.speck_px, p.despill) for f in frames]
 
     if p.pixel_size:
         g = gridmod.Grid(size=p.pixel_size, ox=p.grid_offset[0], oy=p.grid_offset[1], source="override")

@@ -91,7 +91,7 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
     frames = video.load([src[i] for i in union])
     params = PixelParams(palette=profile.palette if isinstance(profile.palette, list) else (palette or profile.palette_size),
                          pixel_size=profile.pixel_size, target_height=profile.sprite_height_px,
-                         loop=rep["loop"], outline=profile.outline)
+                         loop=rep["loop"], outline=profile.outline, despill=profile.despill)
     res = pixelize(frames, params)
     pos = {s: k for k, s in enumerate(union)}
     out = job.stage_dir("04_pixel") / facing / action

@@ -151,3 +151,12 @@ def test_fallback_grid_hits_target_height():
     res = pixelize([img], PixelParams(palette=4, target_height=40))
     ys = np.where((res.indices[0] >= 0).any(1))[0]
     assert res.grid.source == "fallback" and abs((ys[-1] - ys[0] + 1) - 40) <= 1
+
+
+def test_despill_all_clamps_interior_tint_but_edge_mode_keeps_it():
+    img = np.zeros((40, 40, 3), np.uint8); img[:] = (0, 255, 0)
+    img[8:32, 8:32] = (90, 60, 40)
+    img[20, 20] = (8, 102, 45)                 # green-tinted outline pixel deep inside
+    assert chroma.key(img)[20, 20, 1] == 102
+    px = chroma.key(img, despill="all")[20, 20]
+    assert px[3] == 255 and px[1] <= max(px[0], px[2])

@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 1 code done, e2e green on synthetic clip. Next: generate a real H3 walk clip in ComfyUI → `spritewaffle run` → verify .aseprite in Unity importer.
+NEXT: Real H3 clip passes end to end (jobs/knight/h3_002, despill=all). Open: despill default (Ronan), verify .aseprite in Unity importer.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -28,3 +28,10 @@ NEXT: Phase 1 code done, e2e green on synthetic clip. Next: generate a real H3 w
   6-colour synthetic sprite).
 - 2026-11-20 Phase 1 e2e green on synthetic clip (`spritewaffle run`). NOT yet accepted: needs a
   real H3 clip (generate via ComfyUI; templates not exported yet) and .aseprite check in Unity.
+- 2026-11-20 First real H3 clip: anchor = H3 Image t2i 2048² (17.7 s), clip = H3 I2V 800², 56 f
+  @24 fps, 20 steps, no turbo LoRA (66 s). Knight stayed pinned and marched in place. Grid not
+  detectable on video → fallback to sprite_height 48 (pixel size 6). QA pass on 12f and 24f.
+- 2026-11-20 H3 tints dark outline/shadow pixels green deep inside the sprite (e.g. (8,102,45),
+  ≥9 px from the edge) → green entered the palette with edge-only despill. Added profile
+  `despill: edge|all`; default stays `edge` (rule 11). `all` fixes the knight but would grey out
+  deliberately green parts — default is Ronan's call.

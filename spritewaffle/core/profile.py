@@ -25,6 +25,7 @@ class GameProfile:
     default_frames: int = 12
     fps_per_action: dict[str, int] = field(default_factory=lambda: {"idle": 8, "walk": 12, "run": 14, "attack": 12})
     pixel_size: int | None = None          # manual grid override (source px per art px)
+    despill: str = "edge"                  # edge (rule 11) | all (video tints outlines green)
 
     def __post_init__(self):
         if self.projection not in PROJECTIONS:

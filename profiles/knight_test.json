@@ -1,0 +1,20 @@
+{
+  "name": "knight_test",
+  "projection": "side",
+  "cell_size": 64,
+  "sprite_height_px": 48,
+  "palette": 16,
+  "outline": "none",
+  "light_dir": "top_left",
+  "directions": 8,
+  "mirror_allowed": true,
+  "default_frames": 12,
+  "fps_per_action": {
+    "idle": 8,
+    "walk": 12,
+    "run": 14,
+    "attack": 12
+  },
+  "pixel_size": null,
+  "despill": "all"
+}

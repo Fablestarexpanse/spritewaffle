@@ -20,8 +20,12 @@ def background_color(rgb: np.ndarray, max_dist: float = 90) -> np.ndarray:
     return med if np.abs(med - KEY).max() <= max_dist else KEY
 
 
-def key(rgb: np.ndarray, loose_tol: float = 70, strict_tol: float = 30, despill_px: int = 2) -> np.ndarray:
-    """RGB uint8 (H,W,3) -> RGBA uint8 with hard alpha and despilled edges."""
+def key(rgb: np.ndarray, loose_tol: float = 70, strict_tol: float = 30, despill_px: int = 2,
+        despill: str = "edge") -> np.ndarray:
+    """RGB uint8 (H,W,3) -> RGBA uint8 with hard alpha and despilled edges.
+
+    despill='all' clamps green on every opaque pixel (video models tint dark outlines green deep
+    inside the sprite); it also greys out deliberately green parts, so 'edge' is the default."""
     rgb = np.ascontiguousarray(rgb[..., :3])
     bg = background_color(rgb)
     dist = np.abs(rgb.astype(float) - bg).max(-1)
@@ -35,6 +39,8 @@ def key(rgb: np.ndarray, loose_tol: float = 70, strict_tol: float = 30, despill_
     if despill_px > 0:
         k = np.ones((3, 3), np.uint8)
         band = cv2.dilate(keyed.astype(np.uint8), k, iterations=despill_px).astype(bool) & ~keyed
+        if despill == "all":
+            band = ~keyed
         r, g, b = (out[..., i].astype(int) for i in range(3))
         cap = np.maximum(r, b)
         out[..., 1] = np.where(band & (g > cap), cap, g).astype(np.uint8)
