@@ -54,8 +54,13 @@ def flatten_background(img: Image.Image, dest: Path) -> Path:
 # --- anchor ---------------------------------------------------------------------------------
 
 def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, description: str | None = None,
-           image: str | Path | None = None, seed: int | None = None) -> Path:
-    """Generate the anchor from a description, or import an existing image. Not approved yet."""
+           image: str | Path | None = None, seed: int | None = None, asset_type: str = "character",
+           style_ref: str | Path | None = None) -> Path:
+    """Generate the anchor from a description, or import an existing image. Not approved yet.
+
+    style_ref: an approved hero anchor (path or job folder). The new anchor is drawn in the hero's
+    style through the image-edit template ("hero asset first, then reference it")."""
+    builder.asset(asset_type)
     dest = job.stage_dir("01_anchor") / "anchor.png"
     if image:
         flatten_background(Image.open(image).convert("RGB"), dest)
@@ -63,9 +68,22 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
     else:
         if not description:
             raise ValueError("anchor needs --describe or --image")
-        _run(client or ComfyClient(), job, "anchor_still",
-             {"prompt": builder.anchor(description, profile), "seed": _seed(seed)}, dest)
-    job.update_inputs(description=description)
+        client = client or ComfyClient()
+        if style_ref:
+            ref = Path(style_ref)
+            if ref.is_dir():
+                hero = Job.open(ref)
+                _require_approved(hero, "anchor")
+                ref = hero.root / "01_anchor" / "anchor.png"
+            if not ref.exists():
+                raise FileNotFoundError(f"style reference {ref} not found")
+            _run(client, job, "facing_multiref",
+                 {"prompt": builder.anchor_from_hero(description, profile, asset_type), "ref_images": [ref],
+                  "seed": _seed(seed)}, dest)
+        else:
+            _run(client, job, "anchor_still",
+                 {"prompt": builder.anchor(description, profile, asset_type=asset_type), "seed": _seed(seed)}, dest)
+    job.update_inputs(description=description, asset_type=asset_type, style_ref=str(style_ref) if style_ref else None)
     job.set_stage("anchor", "review")
     return dest
 

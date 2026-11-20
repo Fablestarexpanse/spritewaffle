@@ -86,7 +86,8 @@ def cmd_run(a):
 
 def cmd_anchor(a):
     from .core import generate
-    print(generate.anchor(_job(a.job), _profile(a), description=a.describe, image=a.image, seed=a.seed))
+    print(generate.anchor(_job(a.job), _profile(a), description=a.describe, image=a.image, seed=a.seed,
+                          asset_type=a.asset_type, style_ref=a.style_ref))
 
 
 def cmd_approve(a):
@@ -170,6 +171,14 @@ def cmd_ui(a):
     serve(a.base, a.port)
 
 
+def cmd_mcp(a):
+    import os
+    if a.root:
+        os.chdir(a.root)          # templates/ and profiles/ resolve relative to the project root
+    from .mcp_server import main as mcp_main
+    mcp_main(a.base)
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -234,6 +243,7 @@ def build() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_run)
     p = sub.add_parser("anchor"); p.add_argument("--job", required=True); p.add_argument("--profile")
     p.add_argument("--describe"); p.add_argument("--image"); p.add_argument("--seed", type=int)
+    p.add_argument("--asset-type", default="character"); p.add_argument("--style-ref", help="approved hero job folder or anchor png")
     p.set_defaults(fn=cmd_anchor)
     p = sub.add_parser("approve"); p.add_argument("stage"); p.add_argument("--job", required=True)
     p.set_defaults(fn=cmd_approve)
@@ -268,6 +278,8 @@ def build() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_worker)
     p = sub.add_parser("ui"); p.add_argument("--base", default="jobs"); p.add_argument("--port", type=int, default=8765)
     p.set_defaults(fn=cmd_ui)
+    p = sub.add_parser("mcp", help="MCP server on stdio"); p.add_argument("--root", help="project folder")
+    p.add_argument("--base", default="jobs"); p.set_defaults(fn=cmd_mcp)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

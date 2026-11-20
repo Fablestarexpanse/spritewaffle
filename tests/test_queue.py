@@ -87,11 +87,17 @@ def test_crash_recovery_and_worker_lock(env):
     base, job, q = env
     t = q.submit(job.root, "action", {"n": "x"})
     q.update(t["id"], status="running", started="then")         # worker died mid-task
-    (q.dir / "worker.lock").write_text("pid 1")
-    rec = Recorder(0.01)
-    with pytest.raises(RuntimeError, match="another worker"):
-        Worker(q, registry=rec.registry()).run_until_idle()
-    Worker(q, poll=0.02, registry=rec.registry()).run_until_idle(force=True, timeout=10)
+    import subprocess, sys
+    live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (q.dir / "worker.lock").write_text(f"pid {live.pid} since now")
+        rec = Recorder(0.01)
+        with pytest.raises(RuntimeError, match="another worker"):
+            Worker(q, registry=rec.registry()).run_until_idle()
+    finally:
+        live.kill(); live.wait()
+    # holder is dead now -> taken over without --force
+    Worker(q, poll=0.02, registry=rec.registry()).run_until_idle(timeout=10)
     assert q.get(t["id"])["status"] == "done" and not (q.dir / "worker.lock").exists()
 
 

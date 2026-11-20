@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 2 done (generation stages, queue, web UI). Next: Phase 3 (MCP server generate/animate/status, agent skill, TARA motion library).
+NEXT: Phase 3 step 1 done (MCP server + skill + presets + hero style_ref). Blocked: TARA unknown on ComfyUI (ask Ronan). Then optional optical-flow motion transfer.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -80,3 +80,20 @@ NEXT: Phase 2 done (generation stages, queue, web UI). Next: Phase 3 (MCP server
   re-roll SW facing (GPU, 27 s, drift 0.141 → 0.106), then approve — all from the page.
   Bug found + fixed: Windows time_ns ties made same-millisecond tasks list out of order → queue seq
   is now strictly increasing.
+- 2026-11-20 Phase 3 step 1: MCP server (`spritewaffle mcp --root <repo>`, stdio) with tools
+  generate (anchor|facings), animate (action pipeline), status (wait + images), approve (relay the
+  human's yes only). Agent skill in skill/spritewaffle/SKILL.md. Asset-type presets (character,
+  creature, prop) and hero style_ref (approved hero anchor -> edit template).
+- 2026-11-20 Deps: mcp 1.9.4 needs a pinned set — starlette 0.41.3 (fastapi 0.115.5), pydantic
+  2.10.6, sse-starlette 2.1.3; `pip check` clean. FastMCP 1.9 can't read string annotations, so
+  mcp_server.py has no `from __future__ import annotations`.
+- 2026-11-20 Worker lock: stale holder (dead pid) is now taken over automatically (Windows check via
+  OpenProcess/GetExitCodeProcess — os.kill(pid, 0) would terminate the process on Windows).
+- 2026-11-20 Gotcha found in the real run: a long-running worker (web UI) keeps running the code it
+  was started with — a task queued via MCP was rendered by the UI's stale worker and silently
+  ignored style_ref. Restart `spritewaffle ui` / `worker` after updating SpriteWaffle.
+- 2026-11-20 Real stdio MCP run: goblin creature with style_ref=knight/p2_002 → anchor in review,
+  provenance records style_ref. Effect of style_ref vs prompt-only is modest on this pair (both
+  already share the chunky style); not proven useful yet.
+- 2026-11-20 OPEN: "H3 TARA" (motion library, Phase 3) — no node class matching "tara" on the live
+  ComfyUI (2777 nodes). Needs Ronan: what TARA is / where it comes from.

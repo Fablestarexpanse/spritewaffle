@@ -22,6 +22,29 @@ from .profile import resolve
 STATUSES = ("queued", "running", "done", "failed", "cancelled")
 
 
+def pid_alive(pid: int) -> bool:
+    """True if a process with this pid is running. (On Windows os.kill(pid, 0) would kill it.)"""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(0x1000, False, pid)            # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+        k32.CloseHandle(h)
+        return bool(ok) and code.value == 259               # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -37,7 +60,8 @@ def _stages():
             raise ValueError(f"missing args {missing}")
 
     def anchor(job, prof, a):
-        return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed")))
+        return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed"),
+                                   asset_type=a.get("asset_type", "character"), style_ref=a.get("style_ref")))
 
     def facings(job, prof, a):
         return generate.facings(job, prof, only=a.get("only"), seed=a.get("seed"),
@@ -184,9 +208,11 @@ class Worker:
         try:
             fd = os.open(self._lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            if not force:
-                raise RuntimeError(f"another worker holds {self._lockfile} ({self._lockfile.read_text()}); "
-                                   "stop it, or pass --force if it crashed")
+            holder = self._lockfile.read_text().split()
+            pid = int(holder[1]) if len(holder) > 1 and holder[0] == "pid" and holder[1].isdigit() else -1
+            if not force and pid_alive(pid) and pid != os.getpid():
+                raise RuntimeError(f"another worker holds {self._lockfile} ({' '.join(holder)}); "
+                                   "stop it, or pass --force")
             self._lockfile.unlink()
             fd = os.open(self._lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         os.write(fd, f"pid {os.getpid()} since {_now()}".encode())

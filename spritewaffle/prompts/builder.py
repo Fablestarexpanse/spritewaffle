@@ -37,10 +37,40 @@ STYLE = {
 }
 
 
-def anchor(description: str, profile: GameProfile, facing: str = "S") -> str:
-    return (f"Full-body video game character sprite: {description.strip().rstrip('.')}. "
-            f"Standing in a relaxed idle pose, {VIEW[facing]}, arms at sides, feet slightly apart. "
+# Per-asset-type presets: subject wording, idle pose, and which actions make sense.
+ASSET_TYPES = {
+    "character": {"subject": "Full-body video game character sprite",
+                  "pose": "Standing in a relaxed idle pose, {view}, arms at sides, feet slightly apart.",
+                  "actions": ["idle", "walk", "run", "attack", "jump"]},
+    "creature": {"subject": "Full-body video game creature sprite",
+                 "pose": "Standing in a neutral idle stance, {view}, all limbs visible.",
+                 "actions": ["idle", "walk", "run", "attack"]},
+    "prop": {"subject": "Single video game prop sprite",
+             "pose": "Resting upright on its base, {view}, the whole object visible.",
+             "actions": ["idle"]},
+}
+
+
+def asset(asset_type: str) -> dict:
+    if asset_type not in ASSET_TYPES:
+        raise ValueError(f"unknown asset type '{asset_type}'; known: {sorted(ASSET_TYPES)}")
+    return ASSET_TYPES[asset_type]
+
+
+def anchor(description: str, profile: GameProfile, facing: str = "S", asset_type: str = "character") -> str:
+    a = asset(asset_type)
+    return (f"{a['subject']}: {description.strip().rstrip('.')}. {a['pose'].format(view=VIEW[facing])} "
             f"{STYLE[profile.projection]} {FRAMING}")
+
+
+def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "character") -> str:
+    """'Hero asset first, then reference it': a new anchor drawn in the approved hero's style."""
+    a = asset(asset_type)
+    return ("<Picture 1> shows the approved hero sprite of this game. "
+            f"Draw a new, different {a['subject'].lower()}: {description.strip().rstrip('.')}. "
+            "Use exactly the same art style as <Picture 1>: same pixel size, outline weight, shading and "
+            "palette feel, and the same scale on the canvas. Do not copy the hero's design. "
+            f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
 
 def facing(target: str, refs: list[str], first: str = "S") -> str:

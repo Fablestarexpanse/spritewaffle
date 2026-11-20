@@ -1,0 +1,167 @@
+"""SpriteWaffle MCP server (stdio): generate, animate, status, approve.
+
+Tools only queue work; the queue worker runs inside this process unless another worker (the web
+UI or `spritewaffle worker`) already holds the queue. Approval stays a human decision: the
+approve tool is for relaying a yes the human gave after looking at the output.
+"""
+
+import io
+import json
+import time
+from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP, Image
+from PIL import Image as PILImage
+
+from .core import generate as gen
+from .core.job import Job
+from .core.queue import Queue, Worker
+from .prompts import builder
+
+ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
+
+
+def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
+    base = Path(base).resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    q = Queue(base)
+    mcp = FastMCP("spritewaffle", instructions=(
+        "Turns a character description into game-ready pixel-art sprite sets via the local ComfyUI. "
+        "Order: generate(stage='anchor') -> show the anchor to the human -> approve('anchor') only after "
+        "they say yes -> generate(stage='facings') -> human approves -> approve('facings') -> animate(...) "
+        "per facing/action. Use status(wait_seconds=...) to wait for queued work and include_images to see "
+        "results. Hero asset first: make and approve one hero, then pass its job as style_ref for others."))
+
+    def job_for(character: str, job_id: str) -> Job:
+        root = (base / character / job_id).resolve()
+        if base not in root.parents or not (root / "job.json").exists():
+            raise ValueError(f"no job {character}/{job_id}")
+        return Job(root)
+
+    def thumb(p: Path, size: int = 512) -> Image:
+        im = PILImage.open(p).convert("RGBA")
+        im.thumbnail((size, size), PILImage.NEAREST)
+        buf = io.BytesIO()
+        im.save(buf, "PNG")
+        return Image(data=buf.getvalue(), format="png")
+
+    def open_tasks(job: Job | None = None) -> list[dict]:
+        ts = q.list()
+        if job:
+            ts = [t for t in ts if Path(t["job"]).resolve() == job.root]
+        return [t for t in ts if t["status"] in ("queued", "running")]
+
+    @mcp.tool()
+    def generate(character: str, stage: str = "anchor", description: str | None = None,
+                 job_id: str | None = None, asset_type: str = "character", style_ref: str | None = None,
+                 image: str | None = None, seed: int | None = None, only: list[str] | None = None) -> dict:
+        """Queue a still-image stage.
+
+        stage='anchor': creates the job when job_id is omitted. Needs `description` (or `image`, a path
+        to import). asset_type: character | creature | prop. style_ref: an approved hero as
+        'character/job_id' (or an image path) to draw this asset in the hero's style.
+        stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
+        Returns the job and queued task ids; call status(...) to follow progress."""
+        if stage not in ("anchor", "facings"):
+            raise ValueError("stage must be 'anchor' or 'facings'")
+        if stage == "anchor":
+            builder.asset(asset_type)
+            job = job_for(character, job_id) if job_id else Job.create(character, base=base)
+            args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type}
+            if style_ref:
+                ref = base / style_ref if "/" in style_ref and not Path(style_ref).exists() else Path(style_ref)
+                args["style_ref"] = str(ref)
+        else:
+            if not job_id:
+                raise ValueError("facings needs job_id")
+            job = job_for(character, job_id)
+            args = {"seed": seed, "only": only}
+        t = q.submit(job.root, stage, {k: v for k, v in args.items() if v is not None})
+        return {"character": character, "job_id": job.root.name, "tasks": [t["id"]]}
+
+    @mcp.tool()
+    def animate(character: str, job_id: str, facing: str, action: str, seconds: float = 2.0,
+                seed: int | None = None, reprocess_only: bool = False) -> dict:
+        """Queue an action for one facing: transition pose -> H3 clip -> frame selection -> pixelize ->
+        QA -> export (PNG strip, .aseprite with tag, GIF). Needs approved facings.
+        facing: S E N W SE NE NW SW. action: idle walk run attack jump.
+        reprocess_only=True re-runs selection..export on the existing clip without a new render."""
+        job = job_for(character, job_id)
+        if facing not in ORDER:
+            raise ValueError(f"facing must be one of {ORDER}")
+        builder.action_spec(action)
+        if not reprocess_only and job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
+            raise ValueError("facings are not approved yet; show them to the human first")
+        args = {"seconds": seconds, **({"seed": seed} if seed is not None else {})}
+        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, **args)
+        return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
+
+    @mcp.tool()
+    def approve(character: str, job_id: str, stage: str) -> dict:
+        """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
+        the output (status with include_images) and said yes; never approve on your own judgement."""
+        gen.approve(job_for(character, job_id), stage)
+        return {"approved": stage}
+
+    @mcp.tool()
+    def status(character: str | None = None, job_id: str | None = None, wait_seconds: float = 0,
+               include_images: bool = False) -> list:
+        """Without a job: list jobs and open queue tasks. With character+job_id: stage statuses,
+        output file paths, facing drift, per-action QA verdicts, open/failed tasks.
+        wait_seconds (max 900): block until this job has no queued or running tasks.
+        include_images: also return the anchor / facings sheet / action previews as images."""
+        if not (character and job_id):
+            jobs = [{"character": p.parent.parent.name, "job_id": p.parent.name,
+                     "stages": {k: v["status"] for k, v in json.loads(p.read_text())["stages"].items()}}
+                    for p in sorted(base.glob("*/*/job.json"))]
+            return [json.dumps({"jobs": jobs, "open_tasks": open_tasks()}, indent=1)]
+        job = job_for(character, job_id)
+        deadline = time.time() + min(max(wait_seconds, 0), 900)
+        while open_tasks(job) and time.time() < deadline:
+            time.sleep(2)
+        meta = job.read_meta()
+        r = job.root
+        fr = r / "02_facings" / "facings_report.json"
+        actions = {}
+        for d in sorted((r / "03_actions").glob("*/*")):
+            if d.is_dir():
+                key = f"{d.parent.name}/{d.name}"
+                qa = {}
+                for n in ("12f", "24f"):
+                    rp = r / "05_qa" / d.parent.name / d.name / n / "report.json"
+                    if rp.exists():
+                        rep = json.loads(rp.read_text())
+                        qa[n] = {k: rep[k] for k in ("status", "errors", "warnings", "reroll")}
+                exp = r / "06_export" / d.parent.name / d.name
+                actions[key] = {"qa": qa, "exports": sorted(str(p) for p in exp.glob("*/*") if p.suffix in (".png", ".aseprite", ".gif", ".json"))}
+        failed = [t for t in q.list("failed") if Path(t["job"]).resolve() == r][-5:]
+        out = {"character": character, "job_id": job_id, "inputs": meta["inputs"],
+               "stages": {k: v["status"] for k, v in meta["stages"].items()},
+               "anchor": str(r / "01_anchor" / "anchor.png") if (r / "01_anchor" / "anchor.png").exists() else None,
+               "facings": json.loads(fr.read_text())["facings"] if fr.exists() else {},
+               "actions": actions, "open_tasks": [{k: t[k] for k in ("id", "stage", "status", "args")} for t in open_tasks(job)],
+               "recent_failures": [{k: t[k] for k in ("id", "stage", "error")} for t in failed]}
+        result: list = [json.dumps(out, indent=1, default=str)]
+        if include_images:
+            for p in [r / "01_anchor" / "anchor.png", r / "02_facings" / "facings_sheet.png"]:
+                if p.exists():
+                    result.append(thumb(p))
+            for gif in sorted(r.glob("06_export/*/*/12f/*_preview.gif"))[:6]:
+                result.append(thumb(gif, 256))
+        return result
+
+    return mcp, q
+
+
+def main(base: str = "jobs") -> None:
+    mcp, q = build(base)
+    worker = Worker(q)
+    try:
+        worker.start()
+    except RuntimeError:
+        worker = None                      # the web UI or a CLI worker already runs the queue
+    try:
+        mcp.run("stdio")
+    finally:
+        if worker:
+            worker.stop()
