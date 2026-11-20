@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: TARA tested: timing OK, identity leaks -> not wired in. Open choice for Ronan: try a neutral grey-mannequin driving clip, or park TARA. Optical-flow motion transfer (optional) still unbuilt.
+NEXT: Mannequin-driven TARA keeps identity (drift 0.35 at 768) but is borderline. Ronan to choose: wire TARA in as an experimental motion-library stage, or park.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -130,3 +130,12 @@ NEXT: TARA tested: timing OK, identity leaks -> not wired in. Open choice for Ro
   Verdict: timing transfer works; identity binding is not reliable enough for sprites -> TARA NOT
   wired into the pipeline. Template kept (validates) for further experiments. Untested idea: an
   identity-neutral driving clip (plain grey mannequin) so there is no competing identity to leak.
+- 2026-11-20 TARA with an identity-neutral driving clip (Ronan: "try mannequin"). Mannequin =
+  jobs/mannequin/m1 (plain grey featureless chibi figure, anchor seed 9; S walk FL2VA seed 11, 56 f,
+  not frozen; it half-turns sideways in frames 3–7, 32–34, 44–47 — a library clip would need a
+  re-roll). Goblin via TARA, colour drift vs goblin anchor (facing-drift metric) / timing corr:
+    knight-driven    4 st 544²: 0.46 / 0.81     mannequin-driven 4 st 544²: 0.39 / 0.75
+    knight-driven    8 st 768²: 0.62 / 0.61 (became the knight)
+    mannequin-driven 8 st 768²: 0.35 / 0.57 (goblin kept, olive skin back, crispest of all)
+  Verdict: a neutral driving clip removes the identity takeover; best result sits on the facing
+  re-roll line (0.35) and timing is weaker at 768². Promising, not proven: still not wired in.
