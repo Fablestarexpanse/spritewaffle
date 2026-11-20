@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 2 step 3 done (queue + worker). Next: step 4 local web UI (FastAPI + one page, approve/re-roll per stage, runs the Worker in-process).
+NEXT: Phase 2 done (generation stages, queue, web UI). Next: Phase 3 (MCP server generate/animate/status, agent skill, TARA motion library).
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -71,3 +71,12 @@ NEXT: Phase 2 step 3 done (queue + worker). Next: step 4 local web UI (FastAPI +
 - 2026-11-20 Real queue run on knight: 14 tasks (N walk + S idle full pipelines, E walk re-process).
   GPU strictly serial (N 2m09s, then S idle 4m00s); CPU chains ran during GPU renders; all QA pass.
   S idle FL2VA (facing as first+last frame, no transition) NOT frozen (diff 4.36).
+- 2026-11-20 Phase 2 step 4 (web UI): `spritewaffle ui` = FastAPI on 127.0.0.1:8765 + one static
+  page; runs the queue Worker in-process (takes over the worker lock). JSON-only POSTs, files served
+  only from inside jobs/. Job page: anchor (generate/import/approve), 8 facings with drift +
+  per-facing re-roll + approve, actions (transition, 12f/24f GIF + QA errors/warnings/re-roll
+  target, source contact sheet, re-roll clip / re-process). Re-rolling a stage resets its approval.
+- 2026-11-20 Verified in the browser pane on knight/p2_002: re-process E walk (4 CPU tasks, 9 s) and
+  re-roll SW facing (GPU, 27 s, drift 0.141 → 0.106), then approve — all from the page.
+  Bug found + fixed: Windows time_ns ties made same-millisecond tasks list out of order → queue seq
+  is now strictly increasing.

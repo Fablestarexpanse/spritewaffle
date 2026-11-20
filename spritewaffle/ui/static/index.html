@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpriteWaffle</title>
+<style>
+  :root {
+    --bg: #15161a; --panel: #1e2026; --line: #2e313a; --text: #e6e6e9; --muted: #9a9ca5;
+    --accent: #f2b33d; --ok: #4fbf73; --bad: #e0554f; --warn: #e3a63a; --run: #5aa2e8;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f4f6; --panel: #fff; --line: #dcdde2; --text: #1d1e22; --muted: #666a75; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text);
+         display: grid; grid-template-columns: 220px 1fr 340px; height: 100vh; }
+  aside, main, #queue { overflow: auto; padding: 14px; }
+  aside { border-right: 1px solid var(--line); }
+  #queue { border-left: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0 0 12px; } h1 b { color: var(--accent); }
+  h2 { font-size: 15px; margin: 0 0 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  h3 { font-size: 13px; margin: 10px 0 6px; color: var(--muted); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  button { background: var(--line); color: var(--text); border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; }
+  button:hover { filter: brightness(1.2); } button.primary { background: var(--accent); color: #1d1e22; }
+  button:disabled { opacity: .4; cursor: default; }
+  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+  textarea { width: 100%; min-height: 54px; }
+  .jobs a { display: block; padding: 6px 8px; border-radius: 6px; color: inherit; text-decoration: none; }
+  .jobs a.on, .jobs a:hover { background: var(--panel); }
+  .jobs small { color: var(--muted); display: block; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--line); color: var(--muted); }
+  .badge.approved, .badge.pass, .badge.done { background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); }
+  .badge.review, .badge.queued { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
+  .badge.fail, .badge.failed { background: color-mix(in srgb, var(--bad) 25%, transparent); color: var(--bad); }
+  .badge.running { background: color-mix(in srgb, var(--run) 25%, transparent); color: var(--run); }
+  img.pix { max-width: 100%; height: auto; }
+  .pix { image-rendering: pixelated; background: repeating-conic-gradient(#8884 0 25%, transparent 0 50%) 0 0/16px 16px; border-radius: 4px; display: block; }
+  .grid8 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card { border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+  .card img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .warn { color: var(--warn); font-size: 12px; }
+  .err { color: var(--bad); font-size: 12px; white-space: pre-wrap; }
+  .action { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+  .action .imgs { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .action .contact { max-width: 420px; width: 100%; }
+  .task { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 12px; }
+  .task code { color: var(--muted); }
+  .empty { color: var(--muted); padding: 30px; text-align: center; }
+  @media (max-width: 1100px) { body { grid-template-columns: 1fr; height: auto; } aside, #queue { border: 0; } }
+</style>
+</head>
+<body>
+<aside>
+  <h1><b>Sprite</b>Waffle</h1>
+  <div class="row" style="margin:0 0 10px">
+    <input id="newChar" placeholder="character" style="width:110px">
+    <button id="newJob">New job</button>
+  </div>
+  <div class="jobs" id="jobs"></div>
+</aside>
+<main id="main"><div class="empty">Pick or create a job.</div></main>
+<div id="queue"><h2>Queue</h2><div id="tasks"></div></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+let current = null;   // {character, job_id}
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} :
+    {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  if (!r.ok) { const t = await r.text(); alert(t); throw new Error(t); }
+  return r.json();
+}
+const jobPath = () => `/api/jobs/${encodeURIComponent(current.character)}/${encodeURIComponent(current.job_id)}`;
+const run = (stage, args = {}) => api(jobPath() + "/run", {stage, args}).then(refreshAll);
+const approve = stage => api(jobPath() + "/approve", {stage}).then(refreshAll);
+const badge = s => s ? `<span class="badge ${esc(s)}">${esc(s)}</span>` : "";
+const img = (src, cls = "") => src ? `<img class="pix ${cls}" src="${esc(src)}" alt="">` : `<div class="muted">not generated</div>`;
+
+async function loadJobs() {
+  const jobs = await api("/api/jobs");
+  $("#jobs").innerHTML = jobs.map(j => {
+    const on = current && current.character === j.character && current.job_id === j.job_id;
+    const n = Object.keys(j.stages).length;
+    return `<a href="#" class="${on ? "on" : ""}" data-c="${esc(j.character)}" data-j="${esc(j.job_id)}">
+      ${esc(j.character)} <small>${esc(j.job_id)} · ${n} stage${n === 1 ? "" : "s"}</small></a>`;
+  }).join("") || `<div class="muted">No jobs yet.</div>`;
+  for (const a of $("#jobs").querySelectorAll("a")) a.onclick = e => {
+    e.preventDefault(); current = {character: a.dataset.c, job_id: a.dataset.j};
+    location.hash = `${a.dataset.c}/${a.dataset.j}`; refreshAll();
+  };
+}
+
+function renderJob(j) {
+  const st = k => j.stages[k]?.status;
+  const facingsDone = j.facings.filter(f => f.image).length;
+  const fr = j.facings_report || {};
+  $("#main").innerHTML = `
+  <section>
+    <h2>1 · Anchor ${badge(st("anchor"))}</h2>
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px">
+      <div>${img(j.anchor)}</div>
+      <div>
+        <textarea id="desc" placeholder="describe the character (outfit, colours)">${esc(j.inputs.description || "")}</textarea>
+        <div class="row">
+          <button id="genAnchor">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
+          <input id="importPath" placeholder="or import image path" style="flex:1">
+          <button id="importAnchor">Import</button>
+          <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve</button>
+        </div>
+        <p class="muted">Rule 2: everything references one approved anchor. Re-rolling resets approval.</p>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>2 · Facings ${badge(st("facings"))} <span class="muted">${facingsDone}/8 · diagonals: ${esc(fr.diagonals || "nearest")}</span></h2>
+    <div class="grid8">${j.facings.map(f => `
+      <div class="card">${img(f.image)}
+        <div class="row" style="justify-content:space-between">
+          <b>${f.facing}</b>
+          <span class="muted">${f.drift ? `drift ${f.drift.color} · h×${f.drift.height_ratio}` : ""}${f.mirrored ? " · mirrored" : ""}</span>
+        </div>
+        ${f.facing !== "S" && st("anchor") === "approved" ? `<div class="row"><button data-reroll="${f.facing}">Re-roll</button></div>` : ""}
+      </div>`).join("")}
+    </div>
+    ${(fr.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
+    <div class="row">
+      <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>Generate all facings</button>
+      <button class="primary" id="apFacings" ${facingsDone === 8 && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button>
+    </div>
+  </section>
+  <section>
+    <h2>3 · Actions</h2>
+    <div class="row" style="margin-top:0">
+      <select id="aFacing">${j.facings.filter(f => f.image).map(f => `<option>${f.facing}</option>`).join("")}</select>
+      <select id="aAction">${j.known_actions.map(a => `<option>${a}</option>`).join("")}</select>
+      <label class="muted">seconds <input id="aSec" type="number" value="2" step="0.5" min="1" style="width:60px"></label>
+      <button class="primary" id="genAction" ${st("facings") === "approved" ? "" : "disabled"}>Generate + process</button>
+    </div>
+    ${j.actions.map(a => `
+      <div class="action">
+        <h2>${esc(a.facing)} · ${esc(a.action)} ${badge(a.status)}
+          ${a.report?.fallback ? `<span class="warn">${esc(a.report.fallback)}</span>` : ""}</h2>
+        <div class="imgs">
+          ${a.transition ? `<div><h3>transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:120px"></div>` : ""}
+          ${["12f", "24f"].map(n => `<div><h3>${n} ${badge(a.sets[n].qa?.status)}</h3>
+            ${a.sets[n].preview ? `<img class="pix" src="${esc(a.sets[n].preview)}" style="width:160px">` : `<div class="muted">not exported</div>`}
+            ${(a.sets[n].qa?.errors || []).map(e => `<div class="err">${esc(e)}</div>`).join("")}
+            ${(a.sets[n].qa?.warnings || []).map(e => `<div class="warn">${esc(e)}</div>`).join("")}
+            ${a.sets[n].qa?.reroll?.length ? `<div class="muted">re-roll: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}
+          </div>`).join("")}
+          ${a.contact ? `<div><h3>source frames</h3><a href="${esc(a.contact)}" target="_blank"><img class="contact" src="${esc(a.contact)}"></a></div>` : ""}
+        </div>
+        <div class="row">
+          <button data-regen="${esc(a.facing)}|${esc(a.action)}" ${st("facings") === "approved" ? "" : "disabled"}>Re-roll clip</button>
+          <button data-reproc="${esc(a.facing)}|${esc(a.action)}">Re-process frames</button>
+        </div>
+      </div>`).join("") || `<p class="muted">No actions yet. Approve the facings, then generate one.</p>`}
+  </section>`;
+
+  $("#genAnchor").onclick = () => {
+    const d = $("#desc").value.trim();
+    if (!d) return alert("Describe the character first.");
+    run("anchor", {describe: d});
+  };
+  $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim()});
+  $("#apAnchor").onclick = () => approve("anchor");
+  $("#genFacings").onclick = () => run("facings");
+  $("#apFacings").onclick = () => approve("facings");
+  for (const b of $("#main").querySelectorAll("[data-reroll]")) b.onclick = () => run("facings", {only: [b.dataset.reroll]});
+  $("#genAction").onclick = () => run("pipeline", {facing: $("#aFacing").value, action: $("#aAction").value,
+                                                  seconds: parseFloat($("#aSec").value) || 2});
+  for (const b of $("#main").querySelectorAll("[data-regen]")) b.onclick = () => {
+    const [facing, action] = b.dataset.regen.split("|"); run("pipeline", {facing, action});
+  };
+  for (const b of $("#main").querySelectorAll("[data-reproc]")) b.onclick = () => {
+    const [facing, action] = b.dataset.reproc.split("|"); run("pipeline", {facing, action, generate: false});
+  };
+}
+
+let lastSig = "";
+async function loadJob() {
+  if (!current) return;
+  const j = await api(jobPath());
+  const sig = JSON.stringify(j);
+  if (sig === lastSig) return;          // don't re-render (and wipe typed text) when nothing changed
+  const desc = $("#desc")?.value;
+  lastSig = sig; renderJob(j);
+  if (desc !== undefined && desc !== j.inputs.description) $("#desc").value = desc;
+}
+
+async function loadQueue() {
+  const ts = await api("/api/queue");
+  $("#tasks").innerHTML = ts.map(t => `
+    <div class="task">${badge(t.status)} <b>${esc(t.stage)}</b> <span class="muted">${esc(t.resource)}</span>
+      <div><code>${esc(t.job.split(/[\\/]/).slice(-2).join("/"))} ${esc(Object.entries(t.args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" "))}</code></div>
+      ${t.started ? `<div class="muted">${esc(t.started.slice(11))}${t.finished ? " → " + esc(t.finished.slice(11)) : ""}</div>` : ""}
+      ${t.error && t.status === "failed" ? `<div class="err">${esc(t.error)}</div>` : ""}
+      ${t.status === "queued" ? `<button data-cancel="${esc(t.id)}">Cancel</button>` : ""}
+    </div>`).join("") || `<div class="muted">Empty.</div>`;
+  for (const b of $("#tasks").querySelectorAll("[data-cancel]")) b.onclick = () => api(`/api/queue/${b.dataset.cancel}/cancel`, {}).then(loadQueue);
+}
+
+async function refreshAll() { await Promise.all([loadJobs(), loadJob(), loadQueue()]); }
+
+$("#newJob").onclick = async () => {
+  const c = $("#newChar").value.trim();
+  if (!c) return;
+  current = await api("/api/jobs", {character: c});
+  location.hash = `${current.character}/${current.job_id}`; lastSig = ""; refreshAll();
+};
+function fromHash() {
+  const [c, j] = decodeURIComponent(location.hash.slice(1)).split("/");
+  current = c && j ? {character: c, job_id: j} : null;
+  lastSig = "";
+}
+window.addEventListener("hashchange", () => { fromHash(); refreshAll(); });
+fromHash();
+refreshAll();
+setInterval(() => { loadQueue(); loadJob(); }, 2000);
+</script>
+</body>
+</html>

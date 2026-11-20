@@ -89,6 +89,12 @@ class Queue:
         self.dir = Path(base) / "_queue"
         self.dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._last_seq = 0
+
+    def _next_seq(self) -> int:
+        """Strictly increasing order key (Windows time_ns ticks coarsely, so equal stamps happen)."""
+        self._last_seq = max(time.time_ns(), self._last_seq + 1)
+        return self._last_seq
 
     def _path(self, tid: str) -> Path:
         return self.dir / f"{tid}.json"
@@ -109,7 +115,7 @@ class Queue:
                 tasks.append(json.loads(p.read_text()))
             except (json.JSONDecodeError, OSError):
                 continue
-        tasks.sort(key=lambda t: (t["created"], t["seq"]))
+        tasks.sort(key=lambda t: t["seq"])
         return [t for t in tasks if status is None or t["status"] == status]
 
     def submit(self, job: str | Path, stage: str, args: dict | None = None, profile: str | None = None,
@@ -120,7 +126,7 @@ class Queue:
             if not self._path(a).exists():
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
-            t = {"id": uuid.uuid4().hex[:10], "seq": time.time_ns(), "job": str(job), "stage": stage,
+            t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
                  "resource": "gpu" if stage in ("anchor", "facings", "action", "bridge") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}

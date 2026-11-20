@@ -164,6 +164,12 @@ def cmd_worker(a):
         w.stop()
 
 
+def cmd_ui(a):
+    from .ui.server import serve
+    print(f"SpriteWaffle UI on http://127.0.0.1:{a.port}  (Ctrl-C to stop)")
+    serve(a.base, a.port)
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -260,6 +266,8 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--once", action="store_true", help="drain the queue and exit")
     p.add_argument("--force", action="store_true", help="take over a stale worker lock")
     p.set_defaults(fn=cmd_worker)
+    p = sub.add_parser("ui"); p.add_argument("--base", default="jobs"); p.add_argument("--port", type=int, default=8765)
+    p.set_defaults(fn=cmd_ui)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)
