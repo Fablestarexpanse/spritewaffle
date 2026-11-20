@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 2 step 1 done (anchor + 8 facings, diagonals=nearest per Ronan). Next: step 2 — transition pose, H3 action, bridge frames.
+NEXT: Phase 2 step 2 done (transition, FL2VA+frozen fallback, bridge). Next: step 3 job queue, step 4 web UI.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -53,3 +53,13 @@ NEXT: Phase 2 step 1 done (anchor + 8 facings, diagonals=nearest per Ronan). Nex
   Implemented `--diagonals nearest|multi`. Ronan 2026-11-20: default = nearest (ruling, overrides rule 4).
 - 2026-11-20 Knight run (jobs/knight/p2_002): 8 facings, all drift ≤0.21 colour, height within 2%,
   no mirroring needed. Anchor flagged asymmetric (plume) → mirrored facings would flip it.
+- 2026-11-20 Phase 2 step 2 (actions). Templates: h3_action_fl2va = i2v graph + LoadImage on
+  MiniMaxH3ImageToVideo.last_frame; transition_pose / bridge_frame = facing edit graph as own slots.
+  H3 video prompts follow the H3 guide structure (alignment line + integrated_multimodal_description /
+  overall_soundscape / non_diegetic_music) with a short literal body (rule 6).
+- 2026-11-20 Knight E walk (jobs/knight/p2_002): transition pose = clear first step; FL2VA with the
+  transition as first AND last frame was NOT frozen (mean diff 8.36) → no I2V fallback needed;
+  56 frames, QA pass 12f/24f, seam 0.068, height CV 0.016.
+- 2026-11-20 Bridge frames: H3 Image Edit with two poses copies Picture 2 (same pose-copying as
+  multi-ref diagonals). Default bridge = 1 s FL2VA clip A→B, middle frame kept (a true in-between,
+  measured on idle→transition). Image-edit bridge kept as --method image.

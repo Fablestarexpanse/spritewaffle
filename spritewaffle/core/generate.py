@@ -167,3 +167,105 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
                   cols=4, cell=256)
     job.set_stage("facings", "review", mirrored=list(report["mirrored"]), warnings=report["warnings"])
     return report
+
+
+
+# --- actions (Phase 2 step 2) ----------------------------------------------------------------
+
+def _run_video(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> dict:
+    tmp = dest.parent / f".{dest.stem}_tmp"
+    prov = client.run_template(slot, values, tmp)
+    vids = [Path(f) for f in prov["files"] if Path(f).suffix.lower() in (".mp4", ".webm", ".mov")]
+    if not vids:
+        raise RuntimeError(f"{slot} produced no video: {prov['files']}")
+    dest.unlink(missing_ok=True)
+    shutil.move(str(vids[0]), dest)
+    shutil.rmtree(tmp, ignore_errors=True)
+    prov["files"] = [str(dest.relative_to(job.root))]
+    prov["values"] = {k: str(v) if isinstance(v, Path) else v for k, v in prov["values"].items()}
+    job.log_provenance(str(dest.relative_to(job.root)), **prov)
+    return prov
+
+
+def _video_frames(path: Path) -> list[np.ndarray]:
+    import cv2
+    cap, out = cv2.VideoCapture(str(path)), []
+    while True:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        out.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    cap.release()
+    return out
+
+
+def action(job: Job, profile: GameProfile, facing: str, action_name: str, client: ComfyClient | None = None,
+           seconds: float = 2.0, mode: str = "fl2va", seed: int | None = None) -> dict:
+    """Transition pose (rule 5) -> H3 clip -> frozen check with I2V fallback (rule 7) -> extract.
+
+    Cyclic actions use the transition pose as first AND last frame; one-shot actions end on the
+    idle facing. Every still is flattened to exact #00FF00 first."""
+    from ..frames import analysis
+    from . import stages
+    _require_approved(job, "facings")
+    client = client or ComfyClient()
+    spec = builder.action_spec(action_name)
+    face = job.root / "02_facings" / f"{facing}.png"
+    if not face.exists():
+        raise FileNotFoundError(f"facing {facing} not generated")
+    d = job.action_dir(facing, action_name)
+    report = {"facing": facing, "action": action_name, "mode": mode, "seconds": seconds}
+
+    first = face
+    if spec["transition"]:
+        first = d / "transition.png"
+        _run(client, job, "transition_pose", {"prompt": builder.transition(action_name, facing),
+                                              "ref_images": [face], "seed": _seed(seed)}, first)
+    last = first if spec["cyclic"] else face
+    frames = round(seconds * 24)
+    raw = d / "raw.mp4"
+    if mode == "fl2va":
+        _run_video(client, job, "h3_action_fl2va",
+                   {"prompt": builder.action_video(action_name, facing, seconds, True), "first_frame": first,
+                    "last_frame": last, "frames": frames, "seed": _seed(seed)}, raw)
+        frozen, diff = analysis.is_frozen(_video_frames(raw))
+        report["fl2va_frozen"] = {"frozen": frozen, "mean_diff": round(diff, 3)}
+        if frozen:                                   # rule 7: same first/last frame can freeze the clip
+            kept = d / "raw_frozen_fl2va.mp4"
+            kept.unlink(missing_ok=True)
+            raw.rename(kept)
+            mode = "i2v"
+            report["fallback"] = "frozen FL2VA -> regenerated as I2V; ending picked from footage (loop search)"
+    if mode == "i2v":
+        _run_video(client, job, "h3_action_i2v",
+                   {"prompt": builder.action_video(action_name, facing, seconds, False), "first_frame": first,
+                    "frames": frames, "seed": _seed(seed)}, raw)
+    report["extract"] = stages.extract(job, raw, facing, action_name)
+    report["mode_used"] = mode
+    (d / "action_report.json").write_text(json.dumps(report, indent=2, default=str))
+    job.set_stage(f"action:{facing}/{action_name}", "review", mode=mode, frozen=report["extract"]["frozen"])
+    return report
+
+
+def bridge(job: Job, a: Path, b: Path, dest: Path, client: ComfyClient | None = None, seed: int | None = None,
+           method: str = "video", seconds: float = 1.0) -> Path:
+    """In-between pose of two stills (e.g. last selected frame -> first, or action end -> idle).
+
+    method='video' (default): a short FL2VA clip from A to B, middle frame kept. Measured: the image
+    edit ('image', bridge_frame slot) copies Picture 2's pose instead of interpolating."""
+    client = client or ComfyClient()
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if method == "image":
+        _run(client, job, "bridge_frame",
+             {"prompt": builder.bridge(), "ref_images": [Path(a), Path(b)], "seed": _seed(seed)}, dest)
+        return dest
+    clip = dest.with_suffix(".mp4")
+    _run_video(client, job, "h3_action_fl2va", {"prompt": builder.bridge_video(seconds), "first_frame": Path(a),
+                                                "last_frame": Path(b), "frames": round(seconds * 24),
+                                                "seed": _seed(seed)}, clip)
+    frames = _video_frames(clip)
+    flatten_background(Image.fromarray(frames[len(frames) // 2]), dest)
+    job.log_provenance(str(dest.relative_to(job.root)), bridge_clip=str(clip.relative_to(job.root)),
+                       frame=len(frames) // 2, of=len(frames))
+    return dest

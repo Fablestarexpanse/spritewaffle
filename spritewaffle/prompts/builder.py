@@ -54,3 +54,87 @@ def facing(target: str, refs: list[str], first: str = "S") -> str:
         "Keep the identical outfit, colors, proportions, size, pixel-art style and outline as <Picture 1>. "
         "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
     return " ".join(parts)
+
+
+# --- actions (rules 5, 6) ---------------------------------------------------------------------
+# motion: short and literal; transition: a small step away from idle, never the extreme pose.
+ACTIONS = {
+    "idle": {"cyclic": True, "transition": None,
+             "motion": "breathes gently while standing still, with a small up-and-down body bob",
+             "sound": "Near silence with soft breathing."},
+    "walk": {"cyclic": True,
+             "transition": "just beginning to march in place: one foot lifted slightly off the ground, arms barely moving",
+             "motion": "marches in place: left foot up, right foot up, steady rhythm, arms swinging a little",
+             "sound": "Soft footstep taps in a steady rhythm."},
+    "run": {"cyclic": True,
+            "transition": "just beginning to run in place: one knee lifted slightly, leaning forward a little",
+            "motion": "runs in place with quick high-knee strides and pumping arms",
+            "sound": "Quick light footstep taps."},
+    "attack": {"cyclic": False,
+               "transition": "just beginning an attack: weapon or fists raised slightly from the idle pose",
+               "motion": "makes one forward strike and then returns to the starting pose",
+               "sound": "A short swoosh and a soft impact."},
+    "jump": {"cyclic": False,
+             "transition": "just beginning to jump: knees bent slightly, arms drawn back a little",
+             "motion": "crouches, jumps straight up in place and lands back on the same spot",
+             "sound": "A soft push-off and a light landing thud."},
+}
+
+HOLD = {"S": "keeps facing the viewer", "N": "keeps its back to the viewer",
+        "E": "keeps facing screen right in side view", "W": "keeps facing screen left in side view",
+        "SE": "keeps the three-quarter front view toward screen right",
+        "SW": "keeps the three-quarter front view toward screen left",
+        "NE": "keeps the three-quarter back view toward screen right",
+        "NW": "keeps the three-quarter back view toward screen left"}
+
+
+def action_spec(action: str) -> dict:
+    if action not in ACTIONS:
+        raise ValueError(f"no preset for action '{action}'; known: {sorted(ACTIONS)}")
+    return ACTIONS[action]
+
+
+def transition(action: str, facing_: str) -> str:
+    """Image-edit prompt: the transition pose that becomes the video's first frame (rule 5)."""
+    return (f"<Picture 1> shows the character, {VIEW[facing_]}, in its idle pose. "
+            f"Draw this exact character in the same facing, {action_spec(action)['transition']}. "
+            "This is only a small step away from the idle pose, not the extreme pose. "
+            "Keep the identical outfit, colors, proportions, size, pixel-art style and outline. "
+            "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
+
+
+def action_video(action: str, facing_: str, seconds: float, last_frame: bool) -> str:
+    """H3 video prompt (FL2VA when last_frame, else I2VA), structured per the H3 prompt guide;
+    body short and literal (rule 6)."""
+    spec = action_spec(action)
+    if last_frame:
+        head = ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with "
+                f"the 0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the {seconds:.2f}-second "
+                "mark of the target video.")
+        end = " At the end of the shot it settles into the pose and position established by Picture 2."
+    else:
+        head = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced."
+        end = ""
+    body = (f"[Shot 1] 2D pixel-art game sprite with a locked camera: no zoom, no pan. The character begins in the pose "
+            f"and position established by Picture 1, pinned to the center of the frame, and {spec['motion']}. "
+            f"It {HOLD[facing_]}; it must not turn or move across the screen. The flat #00FF00 background stays "
+            f"unchanged for the whole shot, and the chunky pixel-art look stays the same.{end}")
+    return (f"{head}\n\nintegrated_multimodal_description: {body}\n\n"
+            f"overall_soundscape: {spec['sound']}\n\nnon_diegetic_music: None.")
+
+
+def bridge_video(seconds: float) -> str:
+    """FL2VA prompt for a short clip that moves from Picture 1's pose to Picture 2's pose."""
+    return ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the "
+            f"0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the {seconds:.2f}-second mark "
+            "of the target video.\n\nintegrated_multimodal_description: [Shot 1] 2D pixel-art game sprite with a "
+            "locked camera: no zoom, no pan. The character begins in the pose and position established by Picture 1, "
+            "pinned to the center of the frame, and moves smoothly and evenly into the pose established by Picture 2. "
+            "It keeps the same facing and must not move across the screen. The flat #00FF00 background stays "
+            "unchanged for the whole shot.\n\noverall_soundscape: Near silence.\n\nnon_diegetic_music: None.")
+
+
+def bridge() -> str:
+    return ("<Picture 1> and <Picture 2> show the same character in two poses with the same facing. "
+            "Draw the single in-between pose exactly halfway between them. Keep the identical outfit, colors, "
+            "proportions, size, pixel-art style and outline, same scale and same position in the frame. " + FRAMING)

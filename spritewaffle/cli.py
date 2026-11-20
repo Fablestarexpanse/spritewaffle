@@ -102,6 +102,18 @@ def cmd_facings(a):
                             diagonals=a.diagonals))
 
 
+def cmd_action(a):
+    from .core import generate
+    _print(generate.action(_job(a.job), _profile(a), a.facing, a.action, seconds=a.seconds, mode=a.mode, seed=a.seed))
+
+
+def cmd_bridge(a):
+    from .core import generate
+    job = _job(a.job)
+    dest = job.action_dir(a.facing, a.action) / "bridges" / f"{a.name}.png"
+    print(generate.bridge(job, a.a, a.b, dest, seed=a.seed, method=a.method))
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -173,6 +185,15 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--only", help="e.g. E,N"); p.add_argument("--seed", type=int)
     p.add_argument("--mirror", choices=("auto", "none"), default="auto")
     p.add_argument("--diagonals", choices=("nearest", "multi"), default="nearest"); p.set_defaults(fn=cmd_facings)
+    p = sub.add_parser("action"); p.add_argument("--job", required=True); p.add_argument("--profile")
+    p.add_argument("--facing", required=True); p.add_argument("--action", required=True)
+    p.add_argument("--seconds", type=float, default=2.0)
+    p.add_argument("--mode", choices=("fl2va", "i2v"), default="fl2va")
+    p.add_argument("--seed", type=int); p.set_defaults(fn=cmd_action)
+    p = sub.add_parser("bridge"); p.add_argument("--job", required=True); p.add_argument("--facing", required=True)
+    p.add_argument("--action", required=True); p.add_argument("--a", required=True); p.add_argument("--b", required=True)
+    p.add_argument("--name", default="bridge"); p.add_argument("--seed", type=int)
+    p.add_argument("--method", choices=("video", "image"), default="video"); p.set_defaults(fn=cmd_bridge)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

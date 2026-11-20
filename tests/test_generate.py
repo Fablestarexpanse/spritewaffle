@@ -88,3 +88,80 @@ def test_drifting_facing_is_mirrored_from_partner(job):
 def test_prompts_use_semantic_diagonal_text():
     assert "mostly back, plus left side" in builder.facing("NW", [], "N")
     assert "#00FF00" in builder.anchor("a knight", GameProfile(name="p"))
+
+
+# --- step 2: actions + bridges ----------------------------------------------------------------
+import cv2
+from synth import write_clip
+
+
+class VideoStub(StubClient):
+    """Image slots as StubClient; h3_* slots write an mp4 (frozen for FL2VA when frozen_fl2va)."""
+
+    def __init__(self, frozen_fl2va=False):
+        super().__init__()
+        self.frozen_fl2va = frozen_fl2va
+
+    def run_template(self, slot, values, out_dir):
+        if not slot.startswith("h3_"):
+            return super().run_template(slot, values, out_dir)
+        self.calls.append((slot, values))
+        out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+        p = out_dir / "clip.mp4"
+        if slot == "h3_action_fl2va" and self.frozen_fl2va:
+            img = cv2.cvtColor(render(draw_sprite(0), scale=8, offset=(60, 40), canvas=(256, 256)), cv2.COLOR_RGB2BGR)
+            vw = cv2.VideoWriter(str(p), cv2.VideoWriter_fourcc(*"mp4v"), 24, (256, 256))
+            for _ in range(24):
+                vw.write(img)
+            vw.release()
+        else:
+            write_clip(p, frames=24, canvas=(320, 320))
+        return {"slot": slot, "prompt_id": "v", "values": values, "files": [str(p)]}
+
+
+@pytest.fixture
+def ready(job):
+    generate.approve(job, "anchor")
+    generate.facings(job, GameProfile(name="p"), client=StubClient())
+    return job
+
+
+def test_action_requires_approved_facings(ready):
+    with pytest.raises(RuntimeError, match="facings"):
+        generate.action(ready, GameProfile(name="p"), "E", "walk", client=VideoStub())
+
+
+def test_cyclic_action_transition_first_and_last(ready):
+    generate.approve(ready, "facings")
+    c = VideoStub()
+    rep = generate.action(ready, GameProfile(name="p"), "E", "walk", client=c)
+    slots = [s for s, _ in c.calls[-2:]]
+    assert slots == ["transition_pose", "h3_action_fl2va"]
+    v = c.calls[-1][1]
+    assert Path(v["first_frame"]).name == Path(v["last_frame"]).name == "transition.png"
+    assert v["prompt"].startswith("How the reference pictures align") and "marches in place" in v["prompt"]
+    assert rep["mode_used"] == "fl2va" and (ready.root / "03_actions/E/walk/extracted").is_dir()
+
+
+def test_frozen_fl2va_falls_back_to_i2v(ready):
+    generate.approve(ready, "facings")
+    c = VideoStub(frozen_fl2va=True)
+    rep = generate.action(ready, GameProfile(name="p"), "E", "walk", client=c)
+    assert rep["fl2va_frozen"]["frozen"] and rep["mode_used"] == "i2v"
+    assert c.calls[-1][0] == "h3_action_i2v" and "last_frame" not in c.calls[-1][1]
+    assert (ready.root / "03_actions/E/walk/raw_frozen_fl2va.mp4").exists()
+
+
+def test_one_shot_action_ends_on_idle_facing(ready):
+    generate.approve(ready, "facings")
+    c = VideoStub()
+    generate.action(ready, GameProfile(name="p"), "E", "attack", client=c)
+    assert Path(c.calls[-1][1]["last_frame"]).name == "E.png"
+
+
+def test_video_bridge_keeps_middle_frame(ready):
+    c = VideoStub()
+    f = ready.root / "02_facings"
+    out = generate.bridge(ready, f / "E.png", f / "W.png", ready.root / "b" / "x.png", client=c)
+    assert c.calls[-1][0] == "h3_action_fl2va" and out.exists()
+    assert tuple(np.array(Image.open(out))[0, 0]) == (0, 255, 0)

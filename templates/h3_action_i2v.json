@@ -2,7 +2,7 @@
   "92": {
     "class_type": "SaveVideo",
     "inputs": {
-      "filename_prefix": "video/MiniMax_H3",
+      "filename_prefix": "spritewaffle/i2v",
       "format": "auto",
       "format.codec": "auto",
       "codec": "auto",
