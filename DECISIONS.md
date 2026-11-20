@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 3 step 1 done (MCP server + skill + presets + hero style_ref). Blocked: TARA unknown on ComfyUI (ask Ronan). Then optional optical-flow motion transfer.
+NEXT: TARA LoRA installed; next = flat h3_tara_transfer template (ref2va + TARA node, no upscale pass) and a test: knight walk as driving clip -> goblin.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -112,3 +112,10 @@ NEXT: Phase 3 step 1 done (MCP server + skill + presets + hero style_ref). Block
   US$1M revenue. My "tara" search missed it because the class name says NativeTemporal.
   Fit for SpriteWaffle: a motion library = a few approved driving clips (walk, run, attack) reused
   across the whole cast, so timing matches between characters. Unproven on pixel art.
+- 2026-11-20 Ronan OK'd the TARA download. Installed: F:\Stability Matrix\Models\Lora\MiniMax H3\
+  minimax_h3_motion_transfer_tara_v1.0_ref2va.safetensors (126,417,912 B; valid safetensors, 416 BF16
+  tensors, metadata has native_temporal_attention); ComfyUI lists it. Example workflow kept as data in
+  samples/downloads/tara/ (gitignored). Validation on this install: SetNode/GetNode are KJNodes
+  frontend-only (expected, not real errors); real gaps = `minimax/` path prefixes on CLIP + 2 VAEs,
+  DMD ref2va 8-step turbo LoRA missing (have 4-step ref2v turbo), SolAttnPatch node missing,
+  second-pass upscaler models + LMS LoRA missing (pass not needed for sprites -> bypass).
