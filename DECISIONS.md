@@ -203,3 +203,11 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   Job.require_approved, one 04_pixel writer); mirror stage (W/NW/SW from E/NE/SE in code) and batch
   animate that mirrors when the partner is in the batch. Tests now get their own jobs folder
   (conftest) — the old e2e test had silently written jobs/dude into the real jobs folder.
+- 2026-11-20 Audit pass 2 (UI): web app rebuilt — header with live ComfyUI/worker/queue status,
+  searchable job list (newest first, cropped thumbnails, step progress), job header with profile
+  selector + archive, step tabs (character: Anchor/Facings/Animations/Export; prop:
+  Anchor/Sprite stack/Export), batch animate with a compass facing picker, compact result grids with
+  a detail dialog (QA, re-render, re-process, add to motion library), Export tab with export-character
+  and download links, queue drawer (filters, retry, cancel, clear), motion library dialog, toasts
+  instead of alert(). Server: /api/status, settings, archive, export_character, motions, queue
+  retry/clear, cropped images. Verified in the browser at 1440 px and 390 px; README added.

@@ -6,248 +6,549 @@
 <title>SpriteWaffle</title>
 <style>
   :root {
-    --bg: #15161a; --panel: #1e2026; --line: #2e313a; --text: #e6e6e9; --muted: #9a9ca5;
-    --accent: #f2b33d; --ok: #4fbf73; --bad: #e0554f; --warn: #e3a63a; --run: #5aa2e8;
+    --bg: #121317; --panel: #1b1d23; --panel2: #23262e; --line: #2f333d; --text: #e7e7ea; --muted: #9a9daa;
+    --accent: #f2b33d; --accent-ink: #1d1e22; --ok: #4fbf73; --bad: #e0554f; --warn: #e3a63a; --run: #5aa2e8;
+    --radius: 8px; --shadow: 0 8px 30px rgba(0, 0, 0, .35);
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg: #f4f4f6; --panel: #fff; --line: #dcdde2; --text: #1d1e22; --muted: #666a75; }
+    :root { --bg: #f3f3f6; --panel: #fff; --panel2: #f6f6f9; --line: #dcdde3; --text: #1c1d21; --muted: #646876; --shadow: 0 8px 30px rgba(0, 0, 0, .12); }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text);
-         display: grid; grid-template-columns: 220px 1fr 340px; height: 100vh; }
-  aside, main, #queue { overflow: auto; padding: 14px; }
-  aside { border-right: 1px solid var(--line); }
-  #queue { border-left: 1px solid var(--line); }
-  h1 { font-size: 18px; margin: 0 0 12px; } h1 b { color: var(--accent); }
-  h2 { font-size: 15px; margin: 0 0 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  h3 { font-size: 13px; margin: 10px 0 6px; color: var(--muted); }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
-  button { background: var(--line); color: var(--text); border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; }
-  button:hover { filter: brightness(1.2); } button.primary { background: var(--accent); color: #1d1e22; }
-  button:disabled { opacity: .4; cursor: default; }
-  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
-  textarea { width: 100%; min-height: 54px; }
-  .jobs a { display: block; padding: 6px 8px; border-radius: 6px; color: inherit; text-decoration: none; }
-  .jobs a.on, .jobs a:hover { background: var(--panel); }
-  .jobs small { color: var(--muted); display: block; }
-  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--line); color: var(--muted); }
-  .badge.approved, .badge.pass, .badge.done { background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); }
-  .badge.review, .badge.queued { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
-  .badge.fail, .badge.failed { background: color-mix(in srgb, var(--bad) 25%, transparent); color: var(--bad); }
-  .badge.running { background: color-mix(in srgb, var(--run) 25%, transparent); color: var(--run); }
-  img.pix { max-width: 100%; height: auto; }
-  .pix { image-rendering: pixelated; background: repeating-conic-gradient(#8884 0 25%, transparent 0 50%) 0 0/16px 16px; border-radius: 4px; display: block; }
-  .grid8 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .card { border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
-  .card img { width: 100%; aspect-ratio: 1; object-fit: contain; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .warn { color: var(--warn); font-size: 12px; }
-  .err { color: var(--bad); font-size: 12px; white-space: pre-wrap; }
-  .action { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
-  .action .imgs { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
-  .action .contact { max-width: 420px; width: 100%; }
-  .task { border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 12px; }
-  .task code { color: var(--muted); }
-  .empty { color: var(--muted); padding: 30px; text-align: center; }
-  @media (max-width: 1100px) { body { grid-template-columns: 1fr; height: auto; } aside, #queue { border: 0; } }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text);
+         display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 260px 1fr auto; grid-template-areas: "top top top" "side main queue"; }
+  header { grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 17px; margin: 0 12px 0 0; letter-spacing: .2px; } header h1 b { color: var(--accent); }
+  header .ver { color: var(--muted); font-size: 12px; margin-right: auto; }
+  aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); }
+  main { grid-area: main; overflow: auto; padding: 18px 22px 40px; }
+  #queue { grid-area: queue; width: 340px; border-left: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); }
+  #queue.hidden { display: none; }
+  h2 { font-size: 15px; margin: 0 0 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  h3 { font-size: 12px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  section, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  button.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  textarea { width: 100%; min-height: 70px; resize: vertical; }
+  label { color: var(--muted); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 4px; } .field > span { color: var(--muted); font-size: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .spacer { flex: 1; }
+  .muted { color: var(--muted); font-size: 12px; } .warn { color: var(--warn); font-size: 12px; } .err { color: var(--bad); font-size: 12px; white-space: pre-wrap; }
+  .hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+  /* pills & badges */
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); } .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.run { background: var(--run); }
+  .badge { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  .badge.approved, .badge.pass, .badge.done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+  .badge.review, .badge.queued, .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .badge.fail, .badge.failed { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+  .badge.running { color: var(--run); border-color: color-mix(in srgb, var(--run) 45%, transparent); }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 4px; background: var(--panel2); color: var(--muted); }
+  /* images */
+  img.pix { image-rendering: pixelated; max-width: 100%; height: auto; display: block; border-radius: 4px;
+            background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/16px 16px; }
+  .ph { display: grid; place-items: center; aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; color: var(--muted); font-size: 12px; }
+  /* sidebar jobs */
+  .newjob { display: grid; gap: 6px; padding: 10px; background: var(--panel2); border-radius: var(--radius); margin: 8px 0; }
+  .job { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 8px; border-radius: 6px; color: inherit; text-decoration: none; }
+  .job:hover, .job.on { background: var(--panel2); } .job.on { outline: 1px solid var(--line); }
+  .job img, .job .noimg { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; background: var(--bg); image-rendering: pixelated; }
+  .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: 11px; }
+  /* job header + tabs */
+  .jobhead { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .jobhead img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: var(--panel); border-radius: 6px; border: 1px solid var(--line); }
+  .jobhead h2 { margin: 0; font-size: 19px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+  .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tab .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--panel2); }
+  .tab .n.ok { background: var(--ok); color: #fff; }
+  /* grids */
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .card img, .card .ph { aspect-ratio: 1; object-fit: contain; width: 100%; }
+  .compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
+  .compass .center { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+  .compass.small { max-width: 420px; gap: 8px; } .compass.small .card { padding: 6px; gap: 4px; }
+  .compass.small .ph { font-size: 11px; border-color: color-mix(in srgb, var(--line) 60%, transparent); }
+  .pick { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
+  .pick label { justify-content: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; height: 32px; color: var(--text); cursor: pointer; }
+  .pick label:has(input:checked) { border-color: var(--accent); color: var(--accent); }
+  .pick input { display: none; }
+  .actrow { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+  .anim { cursor: pointer; } .anim:hover { border-color: var(--muted); }
+  .drift-ok { color: var(--ok); } .drift-warn { color: var(--warn); } .drift-bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  /* queue */
+  .task { border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 12px; }
+  .task code { color: var(--muted); word-break: break-all; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 4px 10px; } .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  /* dialog + toast */
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow); padding: 20px; width: min(900px, 94vw); max-height: 88vh; }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
+  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 420px; }
+  .toast.bad { border-left-color: var(--bad); }
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty h2 { justify-content: center; font-size: 20px; color: var(--text); }
+  main, aside, #queue { min-width: 0; }
+  @media (max-width: 1100px) {
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; grid-template-areas: "top" "side" "main" "queue"; height: auto; }
+    header { flex-wrap: wrap; padding: 8px 16px; row-gap: 6px; } header .ver { margin-right: 0; } header h1 { margin-right: auto; }
+    aside { max-height: 260px; } #queue { width: auto; } .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    main { padding: 14px 16px 30px; }
+    .jobhead { flex-wrap: wrap; } .tabs { overflow-x: auto; } .tab { white-space: nowrap; }
+    #pane section > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  }
 </style>
 </head>
 <body>
+<header>
+  <h1><b>Sprite</b>Waffle</h1><span class="ver" id="ver"></span>
+  <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
+  <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
+  <span class="pill" id="pQueue">Queue</span>
+  <button id="btnLib">Motion library</button>
+  <button id="btnQueue">Queue</button>
+</header>
+
 <aside>
-  <h1><b>Sprite</b>Waffle</h1>
-  <div class="row" style="margin:0 0 10px">
-    <input id="newChar" placeholder="character" style="width:110px">
-    <button id="newJob">New job</button>
+  <div class="row" style="margin:0">
+    <input id="search" placeholder="Search jobs" style="flex:1">
+    <button class="primary" id="btnNew">New</button>
   </div>
-  <div class="jobs" id="jobs"></div>
+  <div class="newjob" id="newForm" hidden>
+    <input id="nName" placeholder="name, e.g. knight">
+    <select id="nType"></select>
+    <select id="nProfile"></select>
+    <div class="row" style="margin:0"><button class="primary" id="nCreate">Create job</button><button class="ghost" id="nCancel">Cancel</button></div>
+  </div>
+  <div id="jobs"></div>
 </aside>
-<main id="main"><div class="empty">Pick or create a job.</div></main>
-<div id="queue"><h2>Queue</h2><div id="tasks"></div></div>
+
+<main id="main"></main>
+
+<div id="queue">
+  <h2>Queue <span class="spacer"></span>
+    <span class="seg" id="qFilter"><button data-f="all" class="on">All</button><button data-f="active">Active</button><button data-f="failed">Failed</button></span></h2>
+  <div class="row" style="margin:0 0 6px"><button class="ghost" id="qClear">Clear finished</button></div>
+  <div id="tasks"></div>
+</div>
+
+<dialog id="dlg"></dialog>
+<div id="toasts"></div>
 
 <script>
+"use strict";
 const $ = (s, el = document) => el.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
-let current = null;   // {character, job_id}
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
+const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
+               prop: ["anchor", "stack", "export"]};
+const TITLES = {anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
 
+let status = {profiles: [], actions: [], asset_types: []};
+let jobsCache = [];
+let current = null, tab = null, job = null, lastSig = "", qFilter = "all";
+const form = {facings: new Set(["S", "E", "N", "W", "SE", "NE", "NW", "SW"]), actions: new Set(["idle", "walk"]),
+              seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24};
+
+// --- plumbing ----------------------------------------------------------------------------
+function toast(msg, bad = false) {
+  const t = document.createElement("div");
+  t.className = "toast" + (bad ? " bad" : ""); t.textContent = msg;
+  $("#toasts").append(t); setTimeout(() => t.remove(), bad ? 7000 : 3500);
+}
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} :
     {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
-  if (!r.ok) { const t = await r.text(); alert(t); throw new Error(t); }
+  if (!r.ok) {
+    let msg = await r.text();
+    try { msg = JSON.parse(msg).detail || msg; } catch {}
+    toast(msg, true); throw new Error(msg);
+  }
   return r.json();
 }
 const jobPath = () => `/api/jobs/${encodeURIComponent(current.character)}/${encodeURIComponent(current.job_id)}`;
-const run = (stage, args = {}) => api(jobPath() + "/run", {stage, args}).then(refreshAll);
-const approve = stage => api(jobPath() + "/approve", {stage}).then(refreshAll);
-const badge = s => s ? `<span class="badge ${esc(s)}">${esc(s)}</span>` : "";
-const img = (src, cls = "") => src ? `<img class="pix ${cls}" src="${esc(src)}" alt="">` : `<div class="muted">not generated</div>`;
+async function run(stage, args = {}, ok = "Queued") {
+  const ids = await api(jobPath() + "/run", {stage, args});
+  toast(`${ok} (${ids.length} task${ids.length === 1 ? "" : "s"})`); refreshAll();
+}
+async function approve(stage) { await api(jobPath() + "/approve", {stage}); toast(`${TITLES[stage] || stage} approved`); refreshAll(); }
+const badge = (s, label) => s ? `<span class="badge ${esc(s)}">${esc(label || s)}</span>` : "";
+const img = (src, alt = "") => src ? `<img class="pix" src="${esc(src)}" alt="${esc(alt)}" loading="lazy">` : `<div class="ph">not yet</div>`;
+const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+const driftCls = d => !d ? "" : (d.color > 0.35 || Math.abs(d.height_ratio - 1) > 0.12) ? "drift-bad" : d.color > 0.25 ? "drift-warn" : "drift-ok";
 
+// --- header ------------------------------------------------------------------------------
+async function loadStatus() {
+  status = await api("/api/status");
+  $("#ver").textContent = "v" + status.version;
+  $("#pComfy .dot").className = "dot " + (status.comfy.ok ? "ok" : "bad");
+  $("#pComfy").title = status.comfy.detail;
+  $("#pComfy").lastChild.textContent = status.comfy.ok ? status.comfy.detail : "ComfyUI offline";
+  $("#pWorker .dot").className = "dot " + (status.worker ? (status.queue.running ? "run" : "ok") : "bad");
+  $("#pWorker").lastChild.textContent = status.worker ? (status.queue.running ? `Working (${status.queue.running})` : "Worker idle") : "Worker stopped";
+  const q = status.queue;
+  $("#pQueue").innerHTML = `Queue ${q.queued} waiting${q.failed ? ` · <span style="color:var(--bad)">${q.failed} failed</span>` : ""}`;
+}
+
+// --- sidebar -----------------------------------------------------------------------------
+function fillNewForm() {
+  $("#nType").innerHTML = status.asset_types.map(t => `<option ${t === "character" ? "selected" : ""}>${t}</option>`).join("");
+  $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
+}
 async function loadJobs() {
-  const jobs = await api("/api/jobs");
-  $("#jobs").innerHTML = jobs.map(j => {
+  jobsCache = await api("/api/jobs");
+  const q = $("#search").value.trim().toLowerCase();
+  const list = jobsCache.filter(j => !q || (j.character + " " + j.job_id).toLowerCase().includes(q));
+  $("#jobs").innerHTML = list.map(j => {
     const on = current && current.character === j.character && current.job_id === j.job_id;
-    const n = Object.keys(j.stages).length;
-    return `<a href="#" class="${on ? "on" : ""}" data-c="${esc(j.character)}" data-j="${esc(j.job_id)}">
-      ${esc(j.character)} <small>${esc(j.job_id)} · ${n} stage${n === 1 ? "" : "s"}</small></a>`;
-  }).join("") || `<div class="muted">No jobs yet.</div>`;
-  for (const a of $("#jobs").querySelectorAll("a")) a.onclick = e => {
-    e.preventDefault(); current = {character: a.dataset.c, job_id: a.dataset.j};
-    location.hash = `${a.dataset.c}/${a.dataset.j}`; refreshAll();
-  };
+    const done = (STEPS[j.asset_type] || STEPS.character).filter(s => stepDone(s, j.stages)).length;
+    return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""}">
+      ${j.thumb ? `<img src="${esc(j.thumb)}" alt="">` : `<div class="noimg"></div>`}
+      <div><div class="name">${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span></div>
+      <small>${esc(j.job_id)} · step ${done}/${(STEPS[j.asset_type] || STEPS.character).length}</small></div></a>`;
+  }).join("") || `<p class="muted" style="padding:8px">${q ? "No match." : "No jobs yet. Click New."}</p>`;
+}
+function stepDone(step, stages) {
+  const st = k => stages[k]?.status ?? stages[k];
+  if (step === "anchor") return st("anchor") === "approved";
+  if (step === "facings") return st("facings") === "approved";
+  if (step === "animations") return Object.keys(stages).some(k => k.startsWith("export:") && k !== "export:character");
+  if (step === "stack") return st("stack") === "done";
+  if (step === "export") return st("export:character") === "done" || st("stack") === "done";
+  return false;
 }
 
-function renderJob(j) {
-  const st = k => j.stages[k]?.status;
-  const facingsDone = j.facings.filter(f => f.image).length;
-  const fr = j.facings_report || {};
+// --- job page ----------------------------------------------------------------------------
+function renderJob() {
+  const j = job, st = k => j.stages[k]?.status, steps = STEPS[j.asset_type] || STEPS.character;
+  if (!steps.includes(tab)) tab = steps.find(s => !stepDone(s, j.stages)) || steps[0];
+  const thumb = j.thumb;
   $("#main").innerHTML = `
-  <section>
-    <h2>1 · Anchor ${badge(st("anchor"))}</h2>
-    <div style="display:grid;grid-template-columns:200px 1fr;gap:14px">
-      <div>${img(j.anchor)}</div>
+    <div class="jobhead">
+      ${thumb ? `<img src="${esc(thumb)}" alt="">` : ""}
+      <div><h2>${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span></h2>
+        <div class="muted">${esc(j.job_id)}</div></div>
+      <span class="spacer"></span>
+      <label>Profile <select id="jProfile"><option value="">default</option>
+        ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+      <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
+    </div>
+    <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
+      <span class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
+    <div id="pane"></div>`;
+  ({anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
+  $$(".tab").forEach(b => b.onclick = () => { tab = b.dataset.tab; setHash(); renderJob(); });
+  $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
+  $("#jArchive").onclick = async () => {
+    if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
+    await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };
+}
+
+function paneAnchor(j, st) {
+  const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
+  $("#pane").innerHTML = `<section>
+    <h2>Anchor ${badge(st("anchor"))}</h2>
+    <div style="display:grid;grid-template-columns:minmax(200px,320px) 1fr;gap:20px">
+      <div>${j.anchor ? `<a href="${esc(j.anchor_full)}" target="_blank" title="open full image">${img(j.anchor, "anchor")}</a>` : img(null)}</div>
       <div>
-        <textarea id="desc" placeholder="describe the character (outfit, colours)">${esc(j.inputs.description || "")}</textarea>
+        <div class="field"><span>Description</span>
+          <textarea id="desc" placeholder="what it looks like: outfit, colours, props">${esc(j.inputs.description || "")}</textarea></div>
         <div class="row">
-          <button id="genAnchor">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
-          <input id="importPath" placeholder="or import image path" style="flex:1">
-          <button id="importAnchor">Import</button>
-          <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve</button>
+          <label>Style reference <select id="styleRef"><option value="">none (this is the hero)</option>
+            ${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}" ${j.inputs.style_ref?.endsWith(h.job_id) ? "selected" : ""}>${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</select></label>
+          <label>Seed <input id="seed" type="number" placeholder="random" style="width:110px"></label>
         </div>
-        <p class="muted">Rule 2: everything references one approved anchor. Re-rolling resets approval.</p>
+        <div class="row">
+          <button class="primary" id="genAnchor">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
+          <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve anchor</button>
+        </div>
+        <div class="row"><input id="importPath" placeholder="…or import an existing image (full path)" style="flex:1"><button id="importAnchor">Import</button></div>
+        <p class="hint">Everything else is built from the approved anchor, so get this one right. Re-rolling resets approval.
+          ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
       </div>
-    </div>
-  </section>
-  <section>
-    <h2>2 · Facings ${badge(st("facings"))} <span class="muted">${facingsDone}/8 · diagonals: ${esc(fr.diagonals || "nearest")}</span></h2>
-    <div class="grid8">${j.facings.map(f => `
-      <div class="card">${img(f.image)}
-        <div class="row" style="justify-content:space-between">
-          <b>${f.facing}</b>
-          <span class="muted">${f.drift ? `drift ${f.drift.color} · h×${f.drift.height_ratio}` : ""}${f.mirrored ? " · mirrored" : ""}</span>
-        </div>
-        ${f.facing !== "S" && st("anchor") === "approved" ? `<div class="row"><button data-reroll="${f.facing}">Re-roll</button></div>` : ""}
-      </div>`).join("")}
-    </div>
-    ${(fr.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
-    <div class="row">
-      <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>Generate all facings</button>
-      <button class="primary" id="apFacings" ${facingsDone === 8 && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button>
-    </div>
-  </section>
-  ${j.inputs.asset_type === "prop" || Object.values(j.stack.views).some(Boolean) ? `
-  <section>
-    <h2>Sprite stack ${badge(st("stack"))} ${badge(st("ortho"))}
-      ${j.stack.info ? `<span class="muted">${j.stack.info.slices} slices · ${j.stack.info.slice_size.join("×")} px · ${j.stack.info.voxels} voxels</span>` : ""}</h2>
-    <div class="grid8">${["front", "back", "right", "top"].map(v => `<div class="card">${img(j.stack.views[v])}<b>${v}</b></div>`).join("")}</div>
-    <div class="row">
-      <button id="genOrtho" ${st("anchor") === "approved" ? "" : "disabled"}>Generate views + build</button>
-      <label class="muted">slices <input id="stH" type="number" value="${j.stack.info?.slices || 24}" min="4" max="96" style="width:60px"></label>
-      <button id="buildStack" ${j.stack.views.top ? "" : "disabled"}>Rebuild stack</button>
-    </div>
-    ${j.stack.turntable ? `<div class="row" style="align-items:flex-start">
-      <img class="pix" src="${esc(j.stack.turntable)}" style="width:160px">
-      <img class="pix" src="${esc(j.stack.rotations)}" style="max-width:calc(100% - 180px)"></div>` : ""}
-    <p class="muted">Rigid props only: hollows come out solid; the left side mirrors the right.</p>
-  </section>` : ""}
-  <section>
-    <h2>3 · Actions</h2>
-    <div class="row" style="margin-top:0">
-      <select id="aFacing">${j.facings.filter(f => f.image).map(f => `<option>${f.facing}</option>`).join("")}</select>
-      <select id="aAction">${j.known_actions.map(a => `<option>${a}</option>`).join("")}</select>
-      <label class="muted">seconds <input id="aSec" type="number" value="2" step="0.5" min="1" style="width:60px"></label>
-      <select id="aSrc" title="render source"><option value="">H3 render</option>${j.motions.map(m => `<option value="tara|${esc(m)}">TARA: ${esc(m)} (experimental)</option><option value="flow|${esc(m)}">pixel-exact flow: ${esc(m)} (experimental)</option>`).join("")}</select>
-      <button class="primary" id="genAction" ${st("facings") === "approved" ? "" : "disabled"}>Generate + process</button>
-    </div>
-    ${j.actions.map(a => `
-      <div class="action">
-        <h2>${esc(a.facing)} · ${esc(a.action)} ${badge(a.status)}
-          ${a.report?.fallback ? `<span class="warn">${esc(a.report.fallback)}</span>` : ""}
-          ${a.report?.experimental ? `<span class="badge review">${a.report.mode_used === "flow" ? "flow" : "TARA"} · ${esc(a.report.motion)}${a.report.identity_drift ? " · identity drift " + a.report.identity_drift.mean : ""}</span>` : ""}
-          ${(a.report?.warnings || []).map(w => `<span class="warn">${esc(w)}</span>`).join("")}</h2>
-        <div class="imgs">
-          ${a.transition ? `<div><h3>transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:120px"></div>` : ""}
-          ${["12f", "24f"].map(n => `<div><h3>${n} ${badge(a.sets[n].qa?.status)}</h3>
-            ${a.sets[n].preview ? `<img class="pix" src="${esc(a.sets[n].preview)}" style="width:160px">` : `<div class="muted">not exported</div>`}
-            ${(a.sets[n].qa?.errors || []).map(e => `<div class="err">${esc(e)}</div>`).join("")}
-            ${(a.sets[n].qa?.warnings || []).map(e => `<div class="warn">${esc(e)}</div>`).join("")}
-            ${a.sets[n].qa?.reroll?.length ? `<div class="muted">re-roll: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}
-          </div>`).join("")}
-          ${a.contact ? `<div><h3>source frames</h3><a href="${esc(a.contact)}" target="_blank"><img class="contact" src="${esc(a.contact)}"></a></div>` : ""}
-        </div>
-        <div class="row">
-          <button data-regen="${esc(a.facing)}|${esc(a.action)}" ${st("facings") === "approved" ? "" : "disabled"}>Re-roll clip</button>
-          <button data-reproc="${esc(a.facing)}|${esc(a.action)}">Re-process frames</button>
-        </div>
-      </div>`).join("") || `<p class="muted">No actions yet. Approve the facings, then generate one.</p>`}
-  </section>`;
-
+    </div></section>`;
   $("#genAnchor").onclick = () => {
-    const d = $("#desc").value.trim();
-    if (!d) return alert("Describe the character first.");
-    run("anchor", {describe: d});
+    const describe = $("#desc").value.trim();
+    if (!describe) return toast("Describe the asset first", true);
+    const args = {describe, asset_type: j.asset_type};
+    if ($("#styleRef").value) args.style_ref = status.jobs + "/" + $("#styleRef").value;
+    if ($("#seed").value) args.seed = +$("#seed").value;
+    run("anchor", args, "Anchor queued");
   };
-  $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim()});
   $("#apAnchor").onclick = () => approve("anchor");
-  $("#genFacings").onclick = () => run("facings");
-  if ($("#genOrtho")) {
-    $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: parseInt($("#stH").value) || 24});
-    $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: parseInt($("#stH").value) || 24});
-  }
+  $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim(), asset_type: j.asset_type}, "Import queued");
+}
+
+function paneFacings(j, st) {
+  const done = j.facings.filter(f => f.image).length, fr = j.facings_report || {};
+  $("#pane").innerHTML = `<section>
+    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/8 · diagonals from the nearest cardinal</span>
+      <span class="spacer"></span>
+      <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? "Re-generate all" : "Generate facings"}</button>
+      <button class="primary" id="apFacings" ${done === 8 && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
+    ${st("anchor") !== "approved" ? `<p class="warn">Approve the anchor first.</p>` : ""}
+    <div class="compass">${COMPASS.map(f => {
+      if (!f) return `<div class="center">compass<br>view</div>`;
+      const x = j.facings.find(y => y.facing === f);
+      return `<div class="card">${x.image ? `<a href="${esc(x.full)}" target="_blank" title="open full image">${img(x.image, f)}</a>` : img(null)}
+        <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
+          <span class="muted ${driftCls(x.drift)}">${x.drift ? `drift ${x.drift.color}` : ""}${x.mirrored ? " · mirrored" : ""}</span></div>
+        ${f !== "S" && st("anchor") === "approved" ? `<button data-reroll="${f}">Re-roll</button>` : ""}</div>`;
+    }).join("")}</div>
+    ${(fr.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
+    <p class="hint">S is the anchor. Drift compares colours and height with it: green is fine, amber borderline, red re-roll.</p></section>`;
+  $("#genFacings").onclick = () => run("facings", {}, "Facings queued");
   $("#apFacings").onclick = () => approve("facings");
-  for (const b of $("#main").querySelectorAll("[data-reroll]")) b.onclick = () => run("facings", {only: [b.dataset.reroll]});
-  $("#genAction").onclick = () => {
-    const [method, motion] = $("#aSrc").value.split("|");
-    run("pipeline", motion ? {facing: $("#aFacing").value, action: $("#aAction").value, motion, method}
-                           : {facing: $("#aFacing").value, action: $("#aAction").value, seconds: parseFloat($("#aSec").value) || 2});
+  $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
+}
+
+function paneAnimations(j, st) {
+  const ready = st("facings") === "approved";
+  const byAction = {};
+  j.actions.forEach(a => (byAction[a.action] ??= {})[a.facing] = a);
+  const n = form.facings.size * form.actions.size;
+  const mirrored = form.mirror && !form.source.startsWith("tara") ? [...form.facings].filter(f => ["W", "NW", "SW"].includes(f) && form.facings.has({W: "E", NW: "NE", SW: "SE"}[f])).length * form.actions.size : 0;
+  $("#pane").innerHTML = `<section>
+    <h2>Animate ${ready ? "" : `<span class="warn">approve the facings first</span>`}</h2>
+    <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+      <div class="field"><span>Facings</span><div class="pick">${COMPASS.map(f => f ? `<label><input type="checkbox" data-f="${f}" ${form.facings.has(f) ? "checked" : ""}>${f}</label>` : `<span></span>`).join("")}</div>
+        <div class="row" style="margin-top:6px"><button class="ghost" id="fAll">all</button><button class="ghost" id="fNone">none</button></div></div>
+      <div class="field"><span>Actions</span>${status.actions.map(a => `<label><input type="checkbox" data-a="${a}" ${form.actions.has(a) ? "checked" : ""}> ${a}</label>`).join("")}</div>
+      <div class="field" style="gap:10px">
+        <label>Source <select id="src"><option value="">H3 render</option>
+          ${j.motions.map(m => `<option value="flow|${esc(m)}" ${form.source === "flow|" + m ? "selected" : ""}>flow · ${esc(m)} (experimental)</option>
+            <option value="tara|${esc(m)}" ${form.source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
+        <label>Clip length <input id="secs" type="number" value="${form.seconds}" min="1" max="8" step="0.5" style="width:70px"> s</label>
+        <label><input type="checkbox" id="mirror" ${form.mirror ? "checked" : ""}> Mirror W / NW / SW from E / NE / SE</label>
+        <button class="primary" id="queueAnim" ${ready && n ? "" : "disabled"}>Queue ${n} animation${n === 1 ? "" : "s"}</button>
+        <span class="muted">${mirrored ? `${mirrored} by mirroring (no render)` : ""}</span>
+      </div>
+    </div></section>
+    ${Object.keys(byAction).sort().map(action => `<section>
+      <h2>${esc(action)}</h2>
+      <div class="compass small">${COMPASS.map(f => {
+        if (!f) return `<div class="center">${esc(action)}</div>`;
+        const a = byAction[action][f];
+        if (!a) return `<div class="ph">${f}</div>`;
+        const qa = a.sets["12f"].qa, mode = a.report?.mode_used || "";
+        return `<div class="card anim" data-detail="${esc(f)}|${esc(action)}">
+          ${a.sets["12f"].preview ? img(a.sets["12f"].preview, f + " " + action) : `<div class="ph">${a.has_clip ? "processing" : "rendering"}</div>`}
+          <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
+            <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${badge(qa?.status)}</span></div></div>`;
+      }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}`;
+  $$("[data-f]").forEach(c => c.onchange = () => { c.checked ? form.facings.add(c.dataset.f) : form.facings.delete(c.dataset.f); renderJob(); });
+  $$("[data-a]").forEach(c => c.onchange = () => { c.checked ? form.actions.add(c.dataset.a) : form.actions.delete(c.dataset.a); renderJob(); });
+  $("#fAll").onclick = () => { COMPASS.filter(Boolean).forEach(f => form.facings.add(f)); renderJob(); };
+  $("#fNone").onclick = () => { form.facings.clear(); renderJob(); };
+  $("#src").onchange = e => { form.source = e.target.value; renderJob(); };
+  $("#secs").onchange = e => form.seconds = +e.target.value || 2;
+  $("#mirror").onchange = e => { form.mirror = e.target.checked; renderJob(); };
+  $("#queueAnim").onclick = () => {
+    const [method, motion] = form.source.split("|");
+    const args = {facings: [...form.facings], actions: [...form.actions], mirror: form.mirror};
+    if (motion) Object.assign(args, {motion, method}); else args.seconds = form.seconds;
+    run("animate", args, "Animations queued");
   };
-  for (const b of $("#main").querySelectorAll("[data-regen]")) b.onclick = () => {
-    const [facing, action] = b.dataset.regen.split("|"); run("pipeline", {facing, action});
-  };
-  for (const b of $("#main").querySelectorAll("[data-reproc]")) b.onclick = () => {
-    const [facing, action] = b.dataset.reproc.split("|"); run("pipeline", {facing, action, generate: false});
+  $$("[data-detail]").forEach(c => c.onclick = () => { const [f, a] = c.dataset.detail.split("|"); showAnim(byAction[a][f]); });
+}
+
+function showAnim(a) {
+  const r = a.report || {}, d = $("#dlg");
+  d.innerHTML = `<h2>${esc(a.facing)} · ${esc(a.action)} ${badge(a.status)} ${r.mode_used ? `<span class="chip">${esc(r.mode_used)}</span>` : ""}
+      <span class="spacer"></span><button class="ghost" id="dClose">Close</button></h2>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+      ${a.transition ? `<div><h3>Transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:140px"></div>` : ""}
+      ${["12f", "24f"].map(n => `<div><h3>${n} ${badge(a.sets[n].qa?.status)}</h3>
+        ${a.sets[n].preview ? `<img class="pix" src="${esc(a.sets[n].preview)}" style="width:200px">` : `<div class="ph" style="width:200px">not exported</div>`}
+        ${(a.sets[n].qa?.errors || []).map(e => `<div class="err">${esc(e)}</div>`).join("")}
+        ${(a.sets[n].qa?.warnings || []).map(e => `<div class="warn">${esc(e)}</div>`).join("")}
+        ${a.sets[n].qa?.reroll?.length ? `<div class="muted">suggested re-roll: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}</div>`).join("")}
+    </div>
+    ${(r.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
+    ${r.fallback ? `<p class="warn">${esc(r.fallback)}</p>` : ""}
+    ${r.identity_drift ? `<p class="muted">identity drift ${r.identity_drift.mean} (max ${r.identity_drift.max})</p>` : ""}
+    ${a.contact ? `<h3>Source frames</h3><a href="${esc(a.contact)}" target="_blank"><img class="pix" src="${esc(a.contact)}" style="max-width:100%"></a>` : ""}
+    <div class="row">
+      <button id="dRegen" ${job.stages.facings?.status === "approved" ? "" : "disabled"}>Re-render clip</button>
+      <button id="dReproc" ${a.has_clip ? "" : "disabled"}>Re-process frames</button>
+      <span class="spacer"></span>
+      <input id="dLibName" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
+      <button id="dLib" ${a.has_clip ? "" : "disabled"} title="Reuse this clip's motion for other characters">Add to motion library</button>
+    </div>`;
+  d.showModal();
+  $("#dClose").onclick = () => d.close();
+  $("#dRegen").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action}, "Re-render queued"); };
+  $("#dReproc").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action, generate: false}, "Re-processing queued"); };
+  $("#dLib").onclick = async () => {
+    await api("/api/motions", {name: $("#dLibName").value.trim(), character: job.character, job_id: job.job_id, facing: a.facing, action: a.action});
+    toast("Added to the motion library (approve it there)"); d.close();
   };
 }
 
-let lastSig = "";
-async function loadJob() {
-  if (!current) return;
-  const j = await api(jobPath());
-  const sig = JSON.stringify(j);
-  if (sig === lastSig) return;          // don't re-render (and wipe typed text) when nothing changed
-  const desc = $("#desc")?.value;
-  lastSig = sig; renderJob(j);
-  if (desc !== undefined && desc !== j.inputs.description) $("#desc").value = desc;
+function paneExport(j) {
+  const groups = {};
+  j.exports.forEach(e => (groups[e.group] ??= []).push(e));
+  const ch = j.stages["export:character"];
+  $("#pane").innerHTML = `${j.asset_type !== "prop" ? `<section>
+    <h2>Export character ${badge(ch?.status)}</h2>
+    <p class="muted" style="margin-top:0">One .aseprite with a tag per animation (Unity's Aseprite Importer turns each tag into a clip) plus an atlas PNG + JSON.
+      Animations that failed QA are left out unless you include them.</p>
+    <div class="row">
+      <label>Frames <select id="eSet"><option ${form.set === "12f" ? "selected" : ""}>12f</option><option ${form.set === "24f" ? "selected" : ""}>24f</option></select></label>
+      <label><input type="checkbox" id="eFailed" ${form.includeFailed ? "checked" : ""}> include QA failures</label>
+      <button class="primary" id="eGo">Export character</button>
+    </div>
+    ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})
+      ${(ch.skipped || []).length ? `<br><span class="warn">skipped: ${esc(ch.skipped.join("; "))}</span>` : ""}</p>` : ""}
+    </section>` : ""}
+    <section><h2>Files</h2>
+    ${Object.keys(groups).length ? Object.entries(groups).map(([g, files]) => `<h3>${esc(g)}</h3>
+      <table>${files.map(f => `<tr><td><a href="${esc(f.url)}">${esc(f.name)}</a></td><td class="muted" style="width:90px">${kb(f.size)}</td></tr>`).join("")}</table>`).join("")
+      : `<p class="muted">Nothing exported yet.</p>`}
+    <p class="hint">Files live in ${esc(status.jobs)}/${esc(j.character)}/${esc(j.job_id)}/06_export.</p></section>`;
+  if ($("#eGo")) {
+    $("#eSet").onchange = e => form.set = e.target.value;
+    $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
+    $("#eGo").onclick = async () => {
+      const out = await api(jobPath() + "/export_character", {set: form.set, include_failed: form.includeFailed});
+      toast(`Exported ${out.animations.length} animations`); lastSig = ""; refreshAll();
+    };
+  }
 }
 
+function paneStack(j, st) {
+  const s = j.stack, info = s.info;
+  $("#pane").innerHTML = `<section>
+    <h2>Sprite stack ${badge(st("stack"))}
+      ${info ? `<span class="muted">${info.slices} slices · ${info.slice_size.join("×")} px · ${info.voxels} voxels</span>` : ""}</h2>
+    <div class="grid4">${["front", "back", "right", "top"].map(v => `<div class="card">${img(s.views[v], v)}<b>${v}</b></div>`).join("")}</div>
+    <div class="row">
+      <button class="primary" id="genOrtho" ${st("anchor") === "approved" ? "" : "disabled"}>Generate views + build</button>
+      <label>Slices <input id="stH" type="number" value="${info?.slices || form.stackH}" min="4" max="96" style="width:70px"></label>
+      <button id="buildStack" ${s.views.top ? "" : "disabled"}>Rebuild from views</button>
+    </div>
+    ${s.turntable ? `<div class="row" style="align-items:flex-start;margin-top:16px">
+      <img class="pix" src="${esc(s.turntable)}" style="width:180px">
+      <img class="pix" src="${esc(s.rotations)}" style="max-width:calc(100% - 200px)"></div>` : ""}
+    <p class="hint">Rigid props only: the shape is carved from the front, side and top outlines, so hollows come out solid and the left side mirrors the right.</p></section>`;
+  const h = () => parseInt($("#stH").value) || 24;
+  $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: h()}, "Views + stack queued");
+  $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: h()}, "Stack rebuild queued");
+}
+
+function renderHome() {
+  $("#main").innerHTML = `<div class="empty"><h2>Pixel-art sprites from AI images and video</h2>
+    <p>Pick a job on the left, or click <b>New</b>.</p>
+    <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
+      Props: anchor → sprite stack (slices + rotations).</p>
+    ${status.comfy.ok ? "" : `<p class="warn">ComfyUI isn't reachable (${esc(status.comfy.detail)}). Frame processing works, generation won't.</p>`}</div>`;
+}
+
+// --- queue + library ---------------------------------------------------------------------
 async function loadQueue() {
-  const ts = await api("/api/queue");
-  $("#tasks").innerHTML = ts.map(t => `
-    <div class="task">${badge(t.status)} <b>${esc(t.stage)}</b> <span class="muted">${esc(t.resource)}</span>
-      <div><code>${esc(t.job.split(/[\\/]/).slice(-2).join("/"))} ${esc(Object.entries(t.args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" "))}</code></div>
+  let ts = await api("/api/queue");
+  if (qFilter === "active") ts = ts.filter(t => ["queued", "running"].includes(t.status));
+  if (qFilter === "failed") ts = ts.filter(t => t.status === "failed");
+  $("#tasks").innerHTML = ts.map(t => {
+    const [c, j] = t.job.split(/[\\/]/).slice(-2);
+    const args = Object.entries(t.args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" ");
+    return `<div class="task">${badge(t.status)} <b>${esc(t.stage)}</b> <span class="muted">${esc(t.resource)}</span>
+      · <a href="#${esc(c)}/${esc(j)}" style="color:inherit">${esc(c)}</a>
+      ${args ? `<div><code>${esc(args)}</code></div>` : ""}
       ${t.started ? `<div class="muted">${esc(t.started.slice(11))}${t.finished ? " → " + esc(t.finished.slice(11)) : ""}</div>` : ""}
       ${t.error && t.status === "failed" ? `<div class="err">${esc(t.error)}</div>` : ""}
-      ${t.status === "queued" ? `<button data-cancel="${esc(t.id)}">Cancel</button>` : ""}
-    </div>`).join("") || `<div class="muted">Empty.</div>`;
-  for (const b of $("#tasks").querySelectorAll("[data-cancel]")) b.onclick = () => api(`/api/queue/${b.dataset.cancel}/cancel`, {}).then(loadQueue);
+      ${t.status === "queued" ? `<button class="ghost" data-cancel="${esc(t.id)}">Cancel</button>` : ""}
+      ${["failed", "cancelled"].includes(t.status) ? `<button class="ghost" data-retry="${esc(t.id)}">Retry</button>` : ""}</div>`;
+  }).join("") || `<p class="muted">Nothing here.</p>`;
+  $$("[data-cancel]").forEach(b => b.onclick = () => api(`/api/queue/${b.dataset.cancel}/cancel`, {}).then(loadQueue));
+  $$("[data-retry]").forEach(b => b.onclick = () => api(`/api/queue/${b.dataset.retry}/retry`, {}).then(() => { toast("Queued again"); loadQueue(); }));
+}
+async function showLibrary() {
+  const ms = await api("/api/motions"), d = $("#dlg");
+  d.innerHTML = `<h2>Motion library <span class="badge warn">experimental</span><span class="spacer"></span><button class="ghost" id="dClose">Close</button></h2>
+    <p class="muted" style="margin-top:0">Approved driving clips reused across the cast (Animations → Source). Use a plain grey mannequin:
+      a costumed driver leaks its look into the result. Add clips from an animation's detail view.</p>
+    <div class="grid4">${ms.map(m => `<div class="card">
+      <video src="${esc(m.clip)}" autoplay loop muted playsinline style="width:100%;border-radius:4px;background:#000"></video>
+      <b>${esc(m.name)}</b><span class="muted">${esc(m.action)} · ${esc(m.facing)} · ${m.frames}f</span>
+      ${m.notes ? `<span class="muted">${esc(m.notes)}</span>` : ""}
+      ${m.status === "approved" ? badge("approved") : `<button class="primary" data-mapprove="${esc(m.name)}">Approve</button>`}</div>`).join("")
+      || `<p class="muted">No motions yet.</p>`}</div>`;
+  d.showModal();
+  $("#dClose").onclick = () => d.close();
+  $$("[data-mapprove]").forEach(b => b.onclick = async () => { await api(`/api/motions/${encodeURIComponent(b.dataset.mapprove)}/approve`, {}); toast("Motion approved"); showLibrary(); lastSig = ""; });
 }
 
-async function refreshAll() { await Promise.all([loadJobs(), loadJob(), loadQueue()]); }
+// --- refresh loop --------------------------------------------------------------------------
+async function loadJob() {
+  if (!current) { job = null; renderHome(); return; }
+  let j;
+  try { j = await api(jobPath()); } catch { current = null; location.hash = ""; return; }
+  const sig = JSON.stringify(j) + tab;
+  if (sig === lastSig) return;                 // nothing changed: keep typed text and scroll position
+  const keep = {desc: $("#desc")?.value, path: $("#importPath")?.value, scroll: $("main").scrollTop};
+  job = j; lastSig = sig; renderJob();
+  if (keep.desc !== undefined && $("#desc") && keep.desc !== (j.inputs.description || "")) $("#desc").value = keep.desc;
+  if (keep.path && $("#importPath")) $("#importPath").value = keep.path;
+  $("main").scrollTop = keep.scroll;
+}
+async function refreshAll() { await loadStatus(); await Promise.all([loadJobs(), loadJob(), loadQueue()]); }
 
-$("#newJob").onclick = async () => {
-  const c = $("#newChar").value.trim();
-  if (!c) return;
-  current = await api("/api/jobs", {character: c});
-  location.hash = `${current.character}/${current.job_id}`; lastSig = ""; refreshAll();
-};
+function setHash() { if (current) history.replaceState(null, "", `#${current.character}/${current.job_id}/${tab}`); }
 function fromHash() {
-  const [c, j] = decodeURIComponent(location.hash.slice(1)).split("/");
+  const [c, j, t] = decodeURIComponent(location.hash.slice(1)).split("/");
   current = c && j ? {character: c, job_id: j} : null;
-  lastSig = "";
+  tab = t || null; lastSig = "";
 }
-window.addEventListener("hashchange", () => { fromHash(); refreshAll(); });
+
+// --- wiring ------------------------------------------------------------------------------
+$("#btnQueue").onclick = () => $("#queue").classList.toggle("hidden");
+if (window.innerWidth < 1100) $("#queue").classList.add("hidden");   // phones/tablets: queue on demand
+$("#btnLib").onclick = showLibrary;
+$("#search").oninput = loadJobs;
+$("#btnNew").onclick = () => { fillNewForm(); $("#newForm").hidden = false; $("#nName").focus(); };
+$("#nCancel").onclick = () => $("#newForm").hidden = true;
+$("#nCreate").onclick = async () => {
+  const name = $("#nName").value.trim();
+  if (!name) return toast("Give the job a name", true);
+  const r = await api("/api/jobs", {character: name, asset_type: $("#nType").value, profile: $("#nProfile").value || null});
+  $("#newForm").hidden = true; $("#nName").value = "";
+  location.hash = `${r.character}/${r.job_id}/anchor`;
+};
+$$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
+$("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };
+window.addEventListener("hashchange", () => { fromHash(); poll([refreshAll]); });
 fromHash();
-refreshAll();
-setInterval(() => { loadQueue(); loadJob(); }, 2000);
+poll([refreshAll]);
+// Polling survives a stopped server: show it once in the header instead of throwing every 2.5 s.
+let offline = false;
+async function poll(fns) {
+  try {
+    await Promise.all(fns.map(f => f()));
+    if (offline) { offline = false; toast("Reconnected to the SpriteWaffle server"); }
+  } catch (e) {
+    if (e instanceof TypeError && !offline) {
+      offline = true;
+      $("#pComfy .dot").className = "dot bad"; $("#pComfy").lastChild.textContent = "SpriteWaffle server offline";
+      $("#pWorker .dot").className = "dot bad"; $("#pWorker").lastChild.textContent = "start: spritewaffle ui";
+    }
+  }
+}
+setInterval(() => poll([loadStatus, loadQueue, loadJob]), 2500);
+setInterval(() => poll([loadJobs]), 10000);
 </script>
 </body>
 </html>

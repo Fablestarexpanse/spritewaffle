@@ -32,8 +32,9 @@ the MCP tools only queue work. Everything for one asset lives in one job (`chara
    (0..1) and height ratio vs the anchor; above ~0.35 colour or ±12% height is a re-roll
    (`only=["NW"]`). A drifting facing whose mirror partner is fine is mirrored automatically.
 5. Human approves -> `approve(stage="facings")`.
-6. `animate` per facing x action. Start with `S idle` and `S walk` to check the look before
-   queuing all eight facings. One render takes about 1-4 minutes; queue several and wait once.
+6. `animate_all(character, job_id, actions=["idle", "walk"])` queues every facing x action
+   (W/NW/SW mirrored from E/NE/SE: exact pixels, no render). `animate` does one facing x action. Start with `S idle` and `S walk` to check the look before
+   queuing everything. One render takes about 1-4 minutes; queue several and wait once.
 
 ## Motion library (experimental)
 

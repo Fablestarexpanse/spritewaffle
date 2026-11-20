@@ -49,3 +49,11 @@ lines of package code, 100 tests passing, everything verified with real runs.
 
 - Dependency set (pinned, `pip check` clean). The one test warning is inside starlette's test client.
 - Test-approved demo assets (knight, goblin, mannequin, chest) stay as they are for Ronan to review.
+
+## Status (end of pass, 2026-11-20)
+
+All items above are done: B1–B3, C1–C5, U1–U9, F1–F5. Extra fixes found while verifying in the
+browser: thumbnails and facing cards now show the sprite cropped out of its green canvas (cached
+`.<name>.crop.png`), the "New job" form no longer shows on load, the page survives a stopped server
+(header shows *server offline*, reconnects by itself), no sideways scroll at phone width, and the
+queue starts collapsed on narrow screens. MCP gained `animate_all`. 111 tests.

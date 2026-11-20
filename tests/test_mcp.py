@@ -106,3 +106,11 @@ def test_stack_tool_needs_approved_anchor(srv):
         call(m, "stack", character="chest", job_id="c")
     out = text(call(m, "stack", character="chest", job_id="c", regenerate_views=False, height=20))
     assert [q.get(t)["stage"] for t in out["tasks"]] == ["stack"]
+
+
+def test_animate_all_mirrors(srv):
+    m, q, base = srv
+    job = Job.create("hero", "a", base=base)
+    job.set_stage("facings", "approved")
+    out = text(call(m, "animate_all", character="hero", job_id="a", actions=["walk"]))
+    assert out["mirrored"] == ["NW", "SW", "W"] and out["tasks"] == 5 * 5 + 3 * 3

@@ -139,6 +139,24 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()
+    def animate_all(character: str, job_id: str, actions: list[str], facings: list[str] | None = None,
+                    mirror: bool = True, seconds: float = 2.0) -> dict:
+        """Queue many facings x actions at once (default: all 8 facings). With mirror=True, W/NW/SW
+        are flipped from E/NE/SE (exact pixels, no render). Needs approved facings."""
+        job = job_for(character, job_id)
+        facings = facings or list(ORDER)
+        bad = [f for f in facings if f not in ORDER]
+        if bad:
+            raise ValueError(f"unknown facings {bad}")
+        for a in actions:
+            builder.action_spec(a)
+        if job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
+            raise ValueError("facings are not approved yet; show them to the human first")
+        ts = q.submit_animate(job.root, facings, actions, mirror=mirror, seconds=seconds)
+        return {"character": character, "job_id": job_id, "tasks": len(ts),
+                "mirrored": sorted({t["args"]["facing"] for t in ts if t["stage"] == "mirror"})}
+
+    @mcp.tool()
     def approve(character: str, job_id: str, stage: str) -> dict:
         """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
         the output (status with include_images) and said yes; never approve on your own judgement."""
