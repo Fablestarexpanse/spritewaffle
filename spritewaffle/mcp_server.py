@@ -112,6 +112,19 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()
+    def export_character(character: str, job_id: str, frame_set: str = "12f") -> dict:
+        """Bundle every QA-passed animation of a job into ONE .aseprite (a tag per facing x action, so
+        Unity's Aseprite Importer makes one clip each) plus an atlas PNG + JSON. Returns file paths,
+        included animations and anything skipped (QA failures)."""
+        from .core.profile import resolve
+        from .export import character as char_export
+        job = job_for(character, job_id)
+        prof = resolve(job.read_meta()["inputs"].get("profile"))
+        out = char_export.export(job.root, job.stage_dir("06_export") / "character", character, prof.fps, frame_set)
+        job.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
+        return out
+
+    @mcp.tool()
     def approve(character: str, job_id: str, stage: str) -> dict:
         """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
         the output (status with include_images) and said yes; never approve on your own judgement."""

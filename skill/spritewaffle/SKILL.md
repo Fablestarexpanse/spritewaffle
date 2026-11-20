@@ -59,6 +59,13 @@ for in-place cycles of the same facing; use TARA or a normal H3 render when the 
 
 Cyclic actions (idle, walk, run) loop; attack and jump end back on the idle pose.
 
+## Shipping
+
+`export_character(character, job_id)` bundles every QA-passed animation into one `.aseprite`
+(a tag per `action_facing`; Unity's Aseprite Importer turns each into a clip and builds an
+Animator Controller) plus `<character>_atlas.png` + `.json`. It lists what it skipped (QA failures).
+Hand the human those paths.
+
 ## Reading QA
 
 `status` returns per action and frame set (12f, 24f) a `status` (pass/fail), `errors`,

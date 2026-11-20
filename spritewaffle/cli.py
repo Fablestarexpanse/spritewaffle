@@ -200,6 +200,15 @@ def cmd_flow(a):
     _print(stages.flow_transfer(_job(a.job), _profile(a), a.facing, a.action, a.motion))
 
 
+def cmd_export_character(a):
+    from .export import character
+    job, prof = _job(a.job), _profile(a)
+    out = character.export(job.root, job.stage_dir("06_export") / "character", job.read_meta()["character"],
+                           prof.fps, a.set, require_pass=not a.include_failed)
+    job.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
+    _print(out)
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -318,6 +327,11 @@ def build() -> argparse.ArgumentParser:
     p = sub.add_parser("flow", help="EXPERIMENTAL: pixel-exact motion transfer (optical flow)")
     p.add_argument("--job", required=True); p.add_argument("--profile"); p.add_argument("--facing", required=True)
     p.add_argument("--action", required=True); p.add_argument("--motion", required=True); p.set_defaults(fn=cmd_flow)
+    p = sub.add_parser("export-character", help="one .aseprite (tag per animation) + atlas for the whole character")
+    p.add_argument("--job", required=True); p.add_argument("--profile")
+    p.add_argument("--set", default="12f", choices=("12f", "24f"))
+    p.add_argument("--include-failed", action="store_true", help="also ship animations that failed QA")
+    p.set_defaults(fn=cmd_export_character)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

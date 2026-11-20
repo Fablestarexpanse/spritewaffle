@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 3 done: MCP + skill + presets, experimental motion library with TARA and pixel-exact flow transfer. Open: SAM 3 masks for non-green driving clips (not needed so far).
+NEXT: All phases + character export done. Parked: sprite stacking (Ronan flagged it), SAM 3 masks for non-green driving clips.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -170,3 +170,10 @@ NEXT: Phase 3 done: MCP + skill + presets, experimental motion library with TARA
   Result: goblin S walk from walk_S_mannequin, 7 s, QA pass 12f/24f, 16 colours all from the
   goblin's palette, green skin kept (TARA: brown, drift 0.37). Weak spots: feet smear on frames
   where legs cross; rigid props only follow the nearest body part.
+- 2026-11-20 Character export (export/character.py; CLI export-character, MCP export_character):
+  every QA-passed facing x action of a job in ONE .aseprite, a tag per action_facing, per-frame
+  durations from each action's fps, merged exact palette (indexed; RGBA above 255 colours), plus an
+  atlas PNG (row per animation) + JSON (rects, fps, loop, pivot, skipped). QA failures are skipped
+  and listed. Knight (walk_E, walk_N, idle_S): 48 colours, indexed. Verified in Unity 6000.6 +
+  Aseprite Importer 6.0.0: 36 sprites, clips idle_S 1.5 s / walk_E / walk_N ~1.0 s, all looping,
+  an Animator Controller with one state per animation, no console warnings (test folder removed).
