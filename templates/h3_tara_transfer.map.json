@@ -1,5 +1,60 @@
 {
   "slot": "h3_tara_transfer",
-  "params": {},
-  "output_node": null
+  "params": {
+    "prompt": {
+      "node": "400",
+      "input": "prompt"
+    },
+    "ref_images": [
+      {
+        "node": "20",
+        "input": "image",
+        "kind": "image"
+      }
+    ],
+    "ref_video": {
+      "node": "30",
+      "input": "file",
+      "kind": "video"
+    },
+    "width": [
+      {
+        "node": "400",
+        "input": "width"
+      },
+      {
+        "node": "32",
+        "input": "width"
+      }
+    ],
+    "height": [
+      {
+        "node": "400",
+        "input": "height"
+      },
+      {
+        "node": "32",
+        "input": "height"
+      }
+    ],
+    "frames": [
+      {
+        "node": "400",
+        "input": "length"
+      },
+      {
+        "node": "33",
+        "input": "length"
+      }
+    ],
+    "seed": {
+      "node": "13",
+      "input": "noise_seed"
+    },
+    "steps": {
+      "node": "181",
+      "input": "steps"
+    }
+  },
+  "output_node": "92"
 }

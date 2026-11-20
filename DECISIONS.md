@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: TARA LoRA installed; next = flat h3_tara_transfer template (ref2va + TARA node, no upscale pass) and a test: knight walk as driving clip -> goblin.
+NEXT: TARA tested: timing OK, identity leaks -> not wired in. Open choice for Ronan: try a neutral grey-mannequin driving clip, or park TARA. Optical-flow motion transfer (optional) still unbuilt.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -119,3 +119,14 @@ NEXT: TARA LoRA installed; next = flat h3_tara_transfer template (ref2va + TARA 
   frontend-only (expected, not real errors); real gaps = `minimax/` path prefixes on CLIP + 2 VAEs,
   DMD ref2va 8-step turbo LoRA missing (have 4-step ref2v turbo), SolAttnPatch node missing,
   second-pass upscaler models + LMS LoRA missing (pass not needed for sprites -> bypass).
+- 2026-11-20 TARA test (templates/h3_tara_transfer.json, flat 23-node graph: ref2va + SigmaShift 12/3
+  + 4-step ref2v turbo (stand-in for missing DMD 8-step) + TARA LoRA + BFSMiniMaxH3NativeTemporal,
+  MiniMaxH3ReferenceToVideo with goblin anchor as Picture 1 and knight front march as Video 1).
+  Windows: attention_backend 'flash partitions' fails (no flash SDPA in this torch build), 'flex'
+  needs triton; 'comfy kitchen (experimental)' WORKS on the 4090.
+  Results (56 frames): 4 steps/544² 24 s, timing corr 0.81 vs guide, goblin kept but green skin
+  -> brown and soft pixels; 8 steps/544² 35 s, corr 0.68, same; 8 steps/768² 62 s, corr 0.61 and
+  the output is the KNIGHT (driving-clip identity replaced the reference).
+  Verdict: timing transfer works; identity binding is not reliable enough for sprites -> TARA NOT
+  wired into the pipeline. Template kept (validates) for further experiments. Untested idea: an
+  identity-neutral driving clip (plain grey mannequin) so there is no competing identity to leak.
