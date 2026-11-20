@@ -59,3 +59,13 @@ def remove_specks(rgba: np.ndarray, min_px: int = 16) -> np.ndarray:
         m = np.isin(lab, small)
         out[m] = 0
     return out
+
+
+def crop_sprite(rgb: np.ndarray, pad_frac: float = 1 / 12) -> np.ndarray:
+    """RGBA of just the sprite: keyed, cropped to its silhouette with a small transparent margin."""
+    rgba = key(rgb[..., :3])
+    ys, xs = np.where(rgba[..., 3] > 0)
+    if not len(ys):
+        return rgba
+    pad = max(4, int((ys.max() - ys.min()) * pad_frac))
+    return rgba[max(0, ys.min() - pad):ys.max() + pad, max(0, xs.min() - pad):xs.max() + pad]

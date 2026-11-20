@@ -146,6 +146,22 @@ class ComfyClient:
             raise ComfyError(f"no output files on node {node}")
         return files
 
+    def run_text(self, slot: str, values: dict, base: Path | None = None, timeout: float = 600) -> dict:
+        """Like run_template, for templates whose output node returns text (e.g. PreviewAny after
+        a text-generation node). Returns provenance with "text"."""
+        wf, mp = templates.load(slot, base)
+        vals = dict(values)
+        if vals.get("ref_images"):
+            vals["ref_images"] = [self.upload_image(p) for p in vals["ref_images"]]
+        prompt_id = self.queue(templates.inject(wf, mp, vals))
+        out = self.wait(prompt_id, timeout=timeout).get("outputs", {}).get(str(mp["output_node"]), {})
+        text = out.get("text")
+        if isinstance(text, list):
+            text = "".join(str(t) for t in text)
+        if not text:
+            raise ComfyError(f"{slot}: no text output on node {mp['output_node']}: {list(out)}")
+        return {"slot": slot, "prompt_id": prompt_id, "text": text.strip()}
+
     def run_template(self, slot: str, values: dict, out_dir: str | Path,
                      base: Path | None = None, timeout: float = 3600) -> dict:
         """Upload image params, inject, queue, wait, download. Returns provenance."""

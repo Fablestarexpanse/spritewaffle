@@ -211,3 +211,18 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   and download links, queue drawer (filters, retry, cancel, clear), motion library dialog, toasts
   instead of alert(). Server: /api/status, settings, archive, export_character, motions, queue
   retry/clear, cropped images. Verified in the browser at 1440 px and 390 px; README added.
+- 2026-11-20 AI prompt writer (Ronan: try qwen3vl_4b). templates/prompt_writer = CLIPLoader
+  (qwen3vl_4b_bf16, type flux3) -> TextGenerateV2 -> PreviewAny; client.run_text. Per job
+  inputs.prompt_writer = template|ai (default template). AI writes: anchor description from a short
+  idea (strict), a canonical visual description read off the anchor, and per character + action
+  motion/transition/sound (cached on the job so all facings share it; known actions keep their loop
+  flag; new action names allowed). Every reply checked (JSON / plain sentence, word limits, banned
+  phrases: camera, isometric, moving forward/across, turning, background); failed twice -> template.
+  Measured gotchas: braces in the system prompt -> empty output (0/5 -> 6/6 without); an unpruned
+  image node fed ComfyUI's example.png ("yellow outfit, pink club"); descriptions >~27 words in the
+  action request -> empty output at every seed/budget (keep subject + held-items clauses); the 2048²
+  green canvas hid the prop (club read as axe/staff) -> crop + enlarge the sprite first; text-only
+  expansion is weak (robot dog -> humanoid robot), so it must keep every key word or it falls back.
+  Side-by-side on the goblin (S): template walk vs AI walk both QA pass, AI walk swings the club in
+  rhythm (modest gain); AI "cast spell" (impossible with templates) renders a club-raise + gem sparkle
+  effect, QA pass. ~2 s per AI spec after the model is loaded.

@@ -124,19 +124,19 @@ def action_spec(action: str) -> dict:
     return ACTIONS[action]
 
 
-def transition(action: str, facing_: str) -> str:
+def transition(action: str, facing_: str, spec: dict | None = None) -> str:
     """Image-edit prompt: the transition pose that becomes the video's first frame (rule 5)."""
     return (f"<Picture 1> shows the character, {VIEW[facing_]}, in its idle pose. "
-            f"Draw this exact character in the same facing, {action_spec(action)['transition']}. "
+            f"Draw this exact character in the same facing, {(spec or action_spec(action))['transition']}. "
             "This is only a small step away from the idle pose, not the extreme pose. "
             "Keep the identical outfit, colors, proportions, size, pixel-art style and outline. "
             "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
 
 
-def action_video(action: str, facing_: str, seconds: float, last_frame: bool) -> str:
+def action_video(action: str, facing_: str, seconds: float, last_frame: bool, spec: dict | None = None) -> str:
     """H3 video prompt (FL2VA when last_frame, else I2VA), structured per the H3 prompt guide;
     body short and literal (rule 6)."""
-    spec = action_spec(action)
+    spec = spec or action_spec(action)
     if last_frame:
         head = ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with "
                 f"the 0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the {seconds:.2f}-second "

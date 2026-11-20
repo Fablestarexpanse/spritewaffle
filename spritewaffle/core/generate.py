@@ -81,11 +81,79 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
                  {"prompt": builder.anchor_from_hero(description, profile, asset_type), "ref_images": [ref],
                   "seed": _seed(seed)}, dest)
         else:
+            text = description
+            if job.read_meta()["inputs"].get("prompt_writer") == "ai":
+                text = _ai_description(job, description, asset_type, client)
             _run(client, job, "anchor_still",
-                 {"prompt": builder.anchor(description, profile, asset_type=asset_type), "seed": _seed(seed)}, dest)
+                 {"prompt": builder.anchor(text, profile, asset_type=asset_type), "seed": _seed(seed)}, dest)
     job.update_inputs(description=description, asset_type=asset_type, style_ref=str(style_ref) if style_ref else None)
+    with job.mutate() as meta:                         # a new anchor invalidates AI text written for the old one
+        meta["inputs"].pop("visual_description", None)
+        meta["inputs"].pop("action_specs", None)
+    if job.read_meta()["inputs"].get("prompt_writer") == "ai":
+        _ai_visual_description(job, dest, asset_type, client)
     job.set_stage("anchor", "review")
     return dest
+
+
+# --- AI prompt writer (optional, per job: inputs.prompt_writer == "ai") -------------------------
+
+def _ai_description(job: Job, idea: str, asset_type: str, client) -> str:
+    """Strict expansion of a short idea; on any failed check the user's own text is used."""
+    from ..prompts import writer
+    try:
+        text = writer.describe(idea, asset_type, client=client)
+        job.log_provenance("01_anchor/description", writer="qwen3vl_4b", idea=idea, description=text)
+        return text
+    except writer.WriterError as e:
+        job.log_provenance("01_anchor/description", writer="qwen3vl_4b", fallback=str(e), description=idea)
+        return idea
+
+
+def _ai_visual_description(job: Job, image: Path, asset_type: str, client) -> str | None:
+    """Canonical description read off the anchor image; later prompts name the same details."""
+    from ..prompts import writer
+    try:
+        text = writer.describe("", asset_type, image=image, client=client)
+    except writer.WriterError as e:
+        job.log_provenance("visual_description", writer="qwen3vl_4b", fallback=str(e))
+        return None
+    job.update_inputs(visual_description=text)
+    job.log_provenance("visual_description", writer="qwen3vl_4b", description=text)
+    return text
+
+
+def resolve_action_spec(job: Job, action_name: str, client=None) -> dict:
+    """The motion/transition/sound text for this job's action. Template preset, or (AI writer on)
+    one spec written once per character + action from the S facing and cached on the job, so all
+    facings share it. Known actions keep their preset loop flag; a failed check falls back to the
+    preset. New action names need the AI writer."""
+    from ..prompts import writer
+    inputs = job.read_meta()["inputs"]
+    preset = builder.ACTIONS.get(action_name)
+    if inputs.get("prompt_writer") != "ai":
+        if preset is None:
+            raise ValueError(f"no preset for action '{action_name}'; known: {sorted(builder.ACTIONS)} "
+                             "(turn on the AI prompt writer for new actions)")
+        return preset
+    cached = (inputs.get("action_specs") or {}).get(action_name)
+    if cached:
+        return cached
+    face = job.root / "02_facings" / "S.png"
+    try:
+        spec = writer.action_spec(action_name, image=face if face.exists() else None,
+                                  description=inputs.get("visual_description", ""), client=client,
+                                  cyclic=preset["cyclic"] if preset else None)
+    except writer.WriterError as e:
+        if preset is None:
+            raise RuntimeError(f"AI writer could not write '{action_name}' ({e}); try again or pick a preset action")
+        job.log_provenance(f"action_spec/{action_name}", writer="qwen3vl_4b", fallback=str(e))
+        return preset
+    spec["writer"] = "qwen3vl_4b"
+    with job.mutate() as meta:
+        meta["inputs"].setdefault("action_specs", {})[action_name] = spec
+    job.log_provenance(f"action_spec/{action_name}", **spec)
+    return spec
 
 
 def approve(job: Job, stage: str) -> None:
@@ -214,24 +282,25 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
     from . import stages
     job.require_approved("facings")
     client = client or ComfyClient()
-    spec = builder.action_spec(action_name)
+    spec = resolve_action_spec(job, action_name, client)
     face = job.root / "02_facings" / f"{facing}.png"
     if not face.exists():
         raise FileNotFoundError(f"facing {facing} not generated")
     d = job.action_dir(facing, action_name)
-    report = {"facing": facing, "action": action_name, "mode": mode, "seconds": seconds}
+    report = {"facing": facing, "action": action_name, "mode": mode, "seconds": seconds,
+              "spec": {k: spec[k] for k in ("motion", "transition", "sound", "cyclic") if k in spec} | {"writer": spec.get("writer", "template")}}
 
     first = face
     if spec["transition"]:
         first = d / "transition.png"
-        _run(client, job, "transition_pose", {"prompt": builder.transition(action_name, facing),
+        _run(client, job, "transition_pose", {"prompt": builder.transition(action_name, facing, spec),
                                               "ref_images": [face], "seed": _seed(seed)}, first)
     last = first if spec["cyclic"] else face
     frames = round(seconds * 24)
     raw = d / "raw.mp4"
     if mode == "fl2va":
         _run_video(client, job, "h3_action_fl2va",
-                   {"prompt": builder.action_video(action_name, facing, seconds, True), "first_frame": first,
+                   {"prompt": builder.action_video(action_name, facing, seconds, True, spec), "first_frame": first,
                     "last_frame": last, "frames": frames, "seed": _seed(seed)}, raw)
         frozen, diff = analysis.is_frozen(_video_frames(raw))
         report["fl2va_frozen"] = {"frozen": frozen, "mean_diff": round(diff, 3)}
@@ -243,7 +312,7 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
             report["fallback"] = "frozen FL2VA -> regenerated as I2V; ending picked from footage (loop search)"
     if mode == "i2v":
         _run_video(client, job, "h3_action_i2v",
-                   {"prompt": builder.action_video(action_name, facing, seconds, False), "first_frame": first,
+                   {"prompt": builder.action_video(action_name, facing, seconds, False, spec), "first_frame": first,
                     "frames": frames, "seed": _seed(seed)}, raw)
     report["extract"] = stages.extract(job, raw, facing, action_name)
     report["mode_used"] = mode

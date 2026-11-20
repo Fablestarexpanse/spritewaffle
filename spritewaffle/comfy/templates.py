@@ -19,9 +19,9 @@ from pathlib import Path
 
 from .. import paths
 
-SLOTS = ("anchor_still", "facing_multiref", "transition_pose", "bridge_frame", "h3_action_fl2va",
+SLOTS = ("prompt_writer", "anchor_still", "facing_multiref", "transition_pose", "bridge_frame", "h3_action_fl2va",
          "h3_action_i2v", "h3_turntable", "h3_tara_transfer", "sam3_mask")
-PARAMS = ("prompt", "negative", "first_frame", "last_frame", "ref_images", "ref_video", "width", "height",
+PARAMS = ("prompt", "system", "max_tokens", "negative", "first_frame", "last_frame", "ref_images", "ref_video", "width", "height",
           "frames", "seed", "steps")
 IMAGE_PARAMS = ("first_frame", "last_frame", "ref_images", "ref_video")   # uploaded files
 

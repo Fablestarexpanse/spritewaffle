@@ -95,7 +95,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         job = job_for(character, job_id)
         if facing not in ORDER:
             raise ValueError(f"facing must be one of {ORDER}")
-        builder.action_spec(action)
+        if action not in builder.ACTIONS and job.read_meta()["inputs"].get("prompt_writer") != "ai":
+            builder.action_spec(action)                       # raises with the list of presets
         if not reprocess_only and job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
             raise ValueError("facings are not approved yet; show them to the human first")
         if motion:
@@ -148,8 +149,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         bad = [f for f in facings if f not in ORDER]
         if bad:
             raise ValueError(f"unknown facings {bad}")
-        for a in actions:
-            builder.action_spec(a)
+        if job.read_meta()["inputs"].get("prompt_writer") != "ai":
+            for a in actions:
+                builder.action_spec(a)
         if job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
             raise ValueError("facings are not approved yet; show them to the human first")
         ts = q.submit_animate(job.root, facings, actions, mirror=mirror, seconds=seconds)

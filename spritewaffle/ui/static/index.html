@@ -244,6 +244,8 @@ function renderJob() {
       <span class="spacer"></span>
       <label>Profile <select id="jProfile"><option value="">default</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+      <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
+        <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
@@ -251,6 +253,7 @@ function renderJob() {
     <div id="pane"></div>`;
   ({anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
   $$(".tab").forEach(b => b.onclick = () => { tab = b.dataset.tab; setHash(); renderJob(); });
+  $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
@@ -276,6 +279,7 @@ function paneAnchor(j, st) {
           <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve anchor</button>
         </div>
         <div class="row"><input id="importPath" placeholder="…or import an existing image (full path)" style="flex:1"><button id="importAnchor">Import</button></div>
+        ${j.inputs.visual_description ? `<p class="muted"><b>AI description:</b> ${esc(j.inputs.visual_description)}</p>` : ""}
         <p class="hint">Everything else is built from the approved anchor, so get this one right. Re-rolling resets approval.
           ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
       </div>
@@ -326,7 +330,8 @@ function paneAnimations(j, st) {
     <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
       <div class="field"><span>Facings</span><div class="pick">${COMPASS.map(f => f ? `<label><input type="checkbox" data-f="${f}" ${form.facings.has(f) ? "checked" : ""}>${f}</label>` : `<span></span>`).join("")}</div>
         <div class="row" style="margin-top:6px"><button class="ghost" id="fAll">all</button><button class="ghost" id="fNone">none</button></div></div>
-      <div class="field"><span>Actions</span>${status.actions.map(a => `<label><input type="checkbox" data-a="${a}" ${form.actions.has(a) ? "checked" : ""}> ${a}</label>`).join("")}</div>
+      <div class="field"><span>Actions</span>${[...new Set([...status.actions, ...form.actions])].map(a => `<label><input type="checkbox" data-a="${esc(a)}" ${form.actions.has(a) ? "checked" : ""}> ${esc(a)}</label>`).join("")}
+        ${j.inputs.prompt_writer === "ai" ? `<div class="row" style="margin-top:4px"><input id="customAct" placeholder="new action, e.g. cast spell" style="width:170px"><button class="ghost" id="addAct">add</button></div>` : ""}</div>
       <div class="field" style="gap:10px">
         <label>Source <select id="src"><option value="">H3 render</option>
           ${j.motions.map(m => `<option value="flow|${esc(m)}" ${form.source === "flow|" + m ? "selected" : ""}>flow · ${esc(m)} (experimental)</option>
@@ -351,6 +356,7 @@ function paneAnimations(j, st) {
       }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}`;
   $$("[data-f]").forEach(c => c.onchange = () => { c.checked ? form.facings.add(c.dataset.f) : form.facings.delete(c.dataset.f); renderJob(); });
   $$("[data-a]").forEach(c => c.onchange = () => { c.checked ? form.actions.add(c.dataset.a) : form.actions.delete(c.dataset.a); renderJob(); });
+  if ($("#addAct")) $("#addAct").onclick = () => { const v = $("#customAct").value.trim().toLowerCase(); if (v) { form.actions.add(v); renderJob(); } };
   $("#fAll").onclick = () => { COMPASS.filter(Boolean).forEach(f => form.facings.add(f)); renderJob(); };
   $("#fNone").onclick = () => { form.facings.clear(); renderJob(); };
   $("#src").onchange = e => { form.source = e.target.value; renderJob(); };
@@ -377,6 +383,8 @@ function showAnim(a) {
         ${(a.sets[n].qa?.warnings || []).map(e => `<div class="warn">${esc(e)}</div>`).join("")}
         ${a.sets[n].qa?.reroll?.length ? `<div class="muted">suggested re-roll: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}</div>`).join("")}
     </div>
+    ${r.spec ? `<h3>Motion text <span class="chip">${esc(r.spec.writer || "template")}</span></h3>
+      <p class="muted" style="margin:0">${esc(r.spec.motion)}<br>first step: ${esc(r.spec.transition)}<br>sound: ${esc(r.spec.sound)}</p>` : ""}
     ${(r.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
     ${r.fallback ? `<p class="warn">${esc(r.fallback)}</p>` : ""}
     ${r.identity_drift ? `<p class="muted">identity drift ${r.identity_drift.mean} (max ${r.identity_drift.max})</p>` : ""}

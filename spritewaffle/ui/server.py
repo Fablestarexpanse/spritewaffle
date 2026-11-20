@@ -71,12 +71,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             import numpy as np
             from PIL import Image
             from ..pixel import chroma
-            rgba = chroma.key(np.array(Image.open(src).convert("RGB")))
-            ys, xs = np.where(rgba[..., 3] > 0)
-            if len(ys):
-                pad = max(4, (ys.max() - ys.min()) // 12)
-                rgba = rgba[max(0, ys.min() - pad):ys.max() + pad, max(0, xs.min() - pad):xs.max() + pad]
-            im = Image.fromarray(rgba, "RGBA")
+            im = Image.fromarray(chroma.crop_sprite(np.array(Image.open(src).convert("RGB"))), "RGBA")
             if size:
                 im.thumbnail((size, size), Image.NEAREST)
             im.save(out)
@@ -166,7 +161,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 resolve(body["profile"])
             if body.get("asset_type") and body["asset_type"] not in builder.ASSET_TYPES:
                 raise ValueError(f"unknown asset type {body['asset_type']}")
-            j.update_inputs(profile=body.get("profile"), asset_type=body.get("asset_type"))
+            if body.get("prompt_writer") and body["prompt_writer"] not in ("template", "ai"):
+                raise ValueError("prompt_writer must be 'template' or 'ai'")
+            j.update_inputs(profile=body.get("profile"), asset_type=body.get("asset_type"),
+                            prompt_writer=body.get("prompt_writer"))
         except (FileNotFoundError, ValueError) as e:
             bad(e)
         return {"ok": True}

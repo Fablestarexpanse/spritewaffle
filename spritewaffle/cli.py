@@ -162,6 +162,36 @@ def cmd_animate(a):
     print(f"\nqueued {len(ts)} tasks; run `spritewaffle worker` or keep `spritewaffle ui` open")
 
 
+def cmd_writer(a):
+    job = _job(a.job)
+    job.update_inputs(prompt_writer=a.mode)
+    print(f"prompt writer: {a.mode}")
+
+
+def cmd_prompts(a):
+    """Template text vs AI text for one action, side by side (nothing is rendered)."""
+    from .core import generate
+    from .prompts import builder
+    job = _job(a.job)
+    rows = []
+    if a.action in builder.ACTIONS:
+        rows.append(("template", builder.ACTIONS[a.action]))
+    mode = job.read_meta()["inputs"].get("prompt_writer")
+    job.update_inputs(prompt_writer="ai")
+    try:
+        rows.append(("ai", generate.resolve_action_spec(job, a.action)))
+    finally:
+        job.update_inputs(prompt_writer=mode or "template")
+    for who, spec in rows:
+        print(f"[{who}]")
+        for k in ("motion", "transition", "sound", "cyclic"):
+            print(f"  {k:<10} {spec.get(k)}")
+        print()
+    vd = job.read_meta()["inputs"].get("visual_description")
+    if vd:
+        print(f"[ai] visual description: {vd}")
+
+
 def cmd_mirror(a):
     job = _job(a.job)
     _print(stages.mirror_action(job, _profile(a, job), a.facing, a.action, a.source))
@@ -402,6 +432,10 @@ def build() -> argparse.ArgumentParser:
         (("--no-mirror",), {"action": "store_true", "help": "render W/NW/SW instead of mirroring"}),
         (("--motion",), {"help": "use this library motion instead of H3 [experimental]"}),
         (("--method",), {"choices": ("tara", "flow"), "default": "flow", "help": "with --motion"}))
+    cmd("writer", cmd_writer, "who writes the creative prompt text for this job: template (default) or ai (Qwen3-VL 4B)",
+        JOB, (("mode",), {"choices": ("template", "ai")}))
+    cmd("prompts", cmd_prompts, "show template vs AI motion text for one action (renders nothing)",
+        JOB, ACTION)
     cmd("mirror", cmd_mirror, "make a facing by flipping its partner's finished pixel art (e.g. W from E)",
         JOB, PROFILE, FACING, ACTION, (("--source",), {"choices": FACINGS, "help": "default: the mirror partner"}))
     cmd("bridge", cmd_bridge, "in-between pose of two images (a 1 s clip's middle frame)",

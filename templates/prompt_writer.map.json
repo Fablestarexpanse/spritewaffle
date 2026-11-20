@@ -1,0 +1,30 @@
+{
+  "slot": "prompt_writer",
+  "params": {
+    "prompt": {
+      "node": "3",
+      "input": "prompt"
+    },
+    "system": {
+      "node": "4",
+      "input": "value"
+    },
+    "ref_images": [
+      {
+        "node": "2",
+        "input": "image",
+        "kind": "image",
+        "optional": true
+      }
+    ],
+    "seed": {
+      "node": "3",
+      "input": "sampling_mode.seed"
+    },
+    "max_tokens": {
+      "node": "3",
+      "input": "max_length"
+    }
+  },
+  "output_node": "5"
+}
