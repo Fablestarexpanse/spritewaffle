@@ -66,6 +66,13 @@ Cyclic actions (idle, walk, run) loop; attack and jump end back on the idle pose
 Animator Controller) plus `<character>_atlas.png` + `.json`. It lists what it skipped (QA failures).
 Hand the human those paths.
 
+## Sprite stacking (props, vehicles)
+
+For a rigid prop (`asset_type="prop"`, anchor = straight front view, approved by the human):
+`stack(character, job_id, height=24)` generates back/right/top views and carves them into
+`height` slices + turntable GIF + 8-angle rotation sheet; `regenerate_views=False` only rebuilds
+(seconds). Hollows come out solid and the left side mirrors the right: not for characters.
+
 ## Reading QA
 
 `status` returns per action and frame set (12f, 24f) a `status` (pass/fail), `errors`,

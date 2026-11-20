@@ -87,6 +87,14 @@ def _stages():
         need(a, "facing", "action", "motion")
         return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"], loop=a.get("loop"))
 
+    def ortho(job, prof, a):
+        from ..stack import stage as stack_stage
+        return stack_stage.ortho(job, seed=a.get("seed"), only=a.get("only"))
+
+    def stack(job, prof, a):
+        from ..stack import stage as stack_stage
+        return stack_stage.build(job, prof, stack_height=a.get("height", 24), layer_px=a.get("layer_px", 1))
+
     def extract(job, prof, a):
         need(a, "video", "facing", "action")
         return stages.extract(job, a["video"], a["facing"], a["action"])
@@ -107,12 +115,13 @@ def _stages():
         need(a, "facing", "action")
         return stages.export(job, prof, a["facing"], a["action"], a.get("format", "both"))
 
-    gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge}
-    cpu = {"flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
+    gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
+           "ortho": ortho}
+    cpu = {"stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -159,7 +168,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("anchor", "facings", "action", "transfer", "bridge") else "cpu",
+                 "resource": "gpu" if stage in ("anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)
@@ -184,6 +193,15 @@ class Queue:
         for st in POST_ACTION:
             tasks.append(self.submit(job, st, dict(base), profile, after=prev))
             prev = [tasks[-1]["id"]]
+        return tasks
+
+    def submit_stack_pipeline(self, job, profile: str | None = None, views: bool = True, height: int = 24,
+                              seed: int | None = None) -> list[dict]:
+        """Sprite stacking: ortho views (gpu) -> stack build (cpu). views=False rebuilds from existing views."""
+        tasks = []
+        if views:
+            tasks.append(self.submit(job, "ortho", {"seed": seed} if seed is not None else {}, profile))
+        tasks.append(self.submit(job, "stack", {"height": height}, profile, after=[t["id"] for t in tasks]))
         return tasks
 
     def cancel(self, tid: str) -> dict:

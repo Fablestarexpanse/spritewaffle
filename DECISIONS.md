@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: All phases + character export + sprite stacking (CLI: ortho, stack) done. Not yet: stacking in queue/MCP/UI; SAM 3 masks for non-green driving clips.
+NEXT: Everything built and verified (phases 1-3, character export, sprite stacking in CLI/queue/MCP/UI). Open: SAM 3 masks for non-green driving clips; Ronan to review the test-approved assets.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -188,3 +188,10 @@ NEXT: All phases + character export + sprite stacking (CLI: ortho, stack) done. 
   Synthetic two-box car: occupancy exact from 3x-scaled views, face colours correct.
   Real run: treasure chest (jobs/chest/s1): 23 slices of 25x24, 10,559 voxels; 8 rotations read as
   one rigid chest (lock front, side at 45°, plain back). Anchor approval was a test approval.
+- 2026-11-20 Sprite stacking wired into the queue (ortho = gpu, stack = cpu, submit_stack_pipeline),
+  MCP (`stack` tool; status lists stack files and returns the rotation sheet as an image) and the web
+  UI (Sprite stack section: 4 views, turntable, rotations, generate/rebuild with slice count).
+  Verified from the browser pane on the chest: rebuild at 32 slices -> 34×34 px, 27,706 voxels, 3 s.
+- 2026-11-20 Encoding bug: Python patch scripts on Windows read/write with cp1252 by default; one
+  inserted a lone 0xB7 into index.html (invalid UTF-8 → broken '·' in TARA/flow badges). Repaired at
+  byte level; a test now requires every source file to be valid UTF-8. Always pass encoding="utf-8".

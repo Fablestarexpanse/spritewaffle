@@ -53,3 +53,20 @@ def test_create_job_validates_names(client):
     assert c.post("/api/jobs", json={"character": "elf"}).status_code == 200
     assert c.post("/api/jobs", json={"character": "../evil"}).status_code == 400
     assert (base / "elf").is_dir()
+
+
+def test_stack_fields_and_pipeline(client):
+    c, base = client
+    j = c.get("/api/jobs/hero/j1").json()
+    assert set(j["stack"]["views"]) == {"front", "back", "right", "top"} and j["stack"]["turntable"] is None
+    ids = c.post("/api/jobs/hero/j1/run", json={"stage": "stack_pipeline", "args": {"views": False, "height": 12}}).json()
+    assert len(ids) == 1 and c.get("/api/queue").json()[0]["stage"] == "stack"
+
+
+def test_sources_are_valid_utf8():
+    """Patch scripts on Windows default to cp1252; a stray byte once broke the page's badges."""
+    from pathlib import Path
+    root = Path(__file__).parent.parent
+    for p in list((root / "spritewaffle").rglob("*")) + list((root / "skill").rglob("*.md")):
+        if p.is_file() and p.suffix in (".py", ".html", ".md", ".json"):
+            p.read_bytes().decode("utf-8")

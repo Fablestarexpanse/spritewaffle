@@ -134,6 +134,21 @@ function renderJob(j) {
       <button class="primary" id="apFacings" ${facingsDone === 8 && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button>
     </div>
   </section>
+  ${j.inputs.asset_type === "prop" || Object.values(j.stack.views).some(Boolean) ? `
+  <section>
+    <h2>Sprite stack ${badge(st("stack"))} ${badge(st("ortho"))}
+      ${j.stack.info ? `<span class="muted">${j.stack.info.slices} slices · ${j.stack.info.slice_size.join("×")} px · ${j.stack.info.voxels} voxels</span>` : ""}</h2>
+    <div class="grid8">${["front", "back", "right", "top"].map(v => `<div class="card">${img(j.stack.views[v])}<b>${v}</b></div>`).join("")}</div>
+    <div class="row">
+      <button id="genOrtho" ${st("anchor") === "approved" ? "" : "disabled"}>Generate views + build</button>
+      <label class="muted">slices <input id="stH" type="number" value="${j.stack.info?.slices || 24}" min="4" max="96" style="width:60px"></label>
+      <button id="buildStack" ${j.stack.views.top ? "" : "disabled"}>Rebuild stack</button>
+    </div>
+    ${j.stack.turntable ? `<div class="row" style="align-items:flex-start">
+      <img class="pix" src="${esc(j.stack.turntable)}" style="width:160px">
+      <img class="pix" src="${esc(j.stack.rotations)}" style="max-width:calc(100% - 180px)"></div>` : ""}
+    <p class="muted">Rigid props only: hollows come out solid; the left side mirrors the right.</p>
+  </section>` : ""}
   <section>
     <h2>3 · Actions</h2>
     <div class="row" style="margin-top:0">
@@ -147,7 +162,7 @@ function renderJob(j) {
       <div class="action">
         <h2>${esc(a.facing)} · ${esc(a.action)} ${badge(a.status)}
           ${a.report?.fallback ? `<span class="warn">${esc(a.report.fallback)}</span>` : ""}
-          ${a.report?.experimental ? `<span class="badge review">${a.report.mode_used === "flow" ? "flow" : "TARA"} � ${esc(a.report.motion)}${a.report.identity_drift ? " � identity drift " + a.report.identity_drift.mean : ""}</span>` : ""}
+          ${a.report?.experimental ? `<span class="badge review">${a.report.mode_used === "flow" ? "flow" : "TARA"} · ${esc(a.report.motion)}${a.report.identity_drift ? " · identity drift " + a.report.identity_drift.mean : ""}</span>` : ""}
           ${(a.report?.warnings || []).map(w => `<span class="warn">${esc(w)}</span>`).join("")}</h2>
         <div class="imgs">
           ${a.transition ? `<div><h3>transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:120px"></div>` : ""}
@@ -174,6 +189,10 @@ function renderJob(j) {
   $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim()});
   $("#apAnchor").onclick = () => approve("anchor");
   $("#genFacings").onclick = () => run("facings");
+  if ($("#genOrtho")) {
+    $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: parseInt($("#stH").value) || 24});
+    $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: parseInt($("#stH").value) || 24});
+  }
   $("#apFacings").onclick = () => approve("facings");
   for (const b of $("#main").querySelectorAll("[data-reroll]")) b.onclick = () => run("facings", {only: [b.dataset.reroll]});
   $("#genAction").onclick = () => {

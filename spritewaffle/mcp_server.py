@@ -125,6 +125,19 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
         return out
 
     @mcp.tool()
+    def stack(character: str, job_id: str, height: int = 24, regenerate_views: bool = True,
+              seed: int | None = None) -> dict:
+        """Sprite stacking for a rigid prop/vehicle (approved anchor = front view): queue orthographic
+        back/right/top views, then carve them into `height` horizontal slices + turntable GIF + an
+        8-angle rotation sheet. regenerate_views=False rebuilds from existing views (CPU only, seconds).
+        Hollow shapes come out solid; the left side mirrors the right."""
+        job = job_for(character, job_id)
+        if regenerate_views and job.read_meta()["stages"].get("anchor", {}).get("status") != "approved":
+            raise ValueError("the anchor is not approved yet; show it to the human first")
+        ts = q.submit_stack_pipeline(job.root, views=regenerate_views, height=height, seed=seed)
+        return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
+
+    @mcp.tool()
     def approve(character: str, job_id: str, stage: str) -> dict:
         """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
         the output (status with include_images) and said yes; never approve on your own judgement."""
@@ -165,12 +178,15 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
                 exp = r / "06_export" / d.parent.name / d.name
                 actions[key] = {"qa": qa, "exports": sorted(str(p) for p in exp.glob("*/*") if p.suffix in (".png", ".aseprite", ".gif", ".json"))}
         failed = [t for t in q.list("failed") if Path(t["job"]).resolve() == r][-5:]
+        st_dir = r / "06_export" / "stack"
+        stack_out = sorted(str(p) for p in st_dir.glob("*")) if st_dir.is_dir() else []
         out = {"character": character, "job_id": job_id, "inputs": meta["inputs"],
                "stages": {k: v["status"] for k, v in meta["stages"].items()},
                "anchor": str(r / "01_anchor" / "anchor.png") if (r / "01_anchor" / "anchor.png").exists() else None,
                "facings": json.loads(fr.read_text())["facings"] if fr.exists() else {},
                "actions": actions, "open_tasks": [{k: t[k] for k in ("id", "stage", "status", "args")} for t in open_tasks(job)],
-               "recent_failures": [{k: t[k] for k in ("id", "stage", "error")} for t in failed]}
+               "recent_failures": [{k: t[k] for k in ("id", "stage", "error")} for t in failed],
+               "stack": stack_out}
         result: list = [json.dumps(out, indent=1, default=str)]
         if include_images:
             for p in [r / "01_anchor" / "anchor.png", r / "02_facings" / "facings_sheet.png"]:
@@ -178,6 +194,8 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
                     result.append(thumb(p))
             for gif in sorted(r.glob("06_export/*/*/12f/*_preview.gif"))[:6]:
                 result.append(thumb(gif, 256))
+            for rot in sorted(r.glob("06_export/stack/*_rotations.png"))[:1]:
+                result.append(thumb(rot, 1024))
         return result
 
     return mcp, q

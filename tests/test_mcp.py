@@ -96,3 +96,13 @@ def test_asset_presets():
     assert builder.asset("prop")["actions"] == ["idle"]
     with pytest.raises(ValueError):
         builder.asset("vehicle")
+
+
+def test_stack_tool_needs_approved_anchor(srv):
+    m, q, base = srv
+    job = Job.create("chest", "c", base=base)
+    job.set_stage("anchor", "review")
+    with pytest.raises(Exception, match="not approved"):
+        call(m, "stack", character="chest", job_id="c")
+    out = text(call(m, "stack", character="chest", job_id="c", regenerate_views=False, height=20))
+    assert [q.get(t)["stage"] for t in out["tasks"]] == ["stack"]

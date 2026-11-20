@@ -156,3 +156,12 @@ def test_concurrent_task_updates_and_reads_do_not_fail(env):
     [th.join() for th in ths]
     assert not errors, errors
     assert q.get(t["id"])["result"] == {"i": 299}
+
+
+def test_stack_pipeline_chain(env):
+    base, job, q = env
+    ts = q.submit_stack_pipeline(job.root, height=16)
+    assert [(t["stage"], t["resource"]) for t in ts] == [("ortho", "gpu"), ("stack", "cpu")]
+    assert ts[1]["after"] == [ts[0]["id"]] and ts[1]["args"] == {"height": 16}
+    only = q.submit_stack_pipeline(job.root, views=False)
+    assert [t["stage"] for t in only] == ["stack"] and only[0]["after"] == []

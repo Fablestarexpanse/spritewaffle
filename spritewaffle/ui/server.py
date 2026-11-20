@@ -108,7 +108,11 @@ def create_app(base: str | Path = "jobs", worker: bool = True, limits: dict | No
                 "stages": meta["stages"], "anchor": url(j.root / "01_anchor" / "anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals")},
                 "actions": actions, "known_actions": sorted(builder.ACTIONS),
-                "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"]}
+                "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
+                "stack": {"views": {v: url(j.root / "02_ortho" / f"{v}.png") for v in ("front", "back", "right", "top")},
+                          "turntable": next((url(p) for p in (j.root / "06_export" / "stack").glob("*_turntable.gif")), None),
+                          "rotations": next((url(p) for p in (j.root / "06_export" / "stack").glob("*_rotations.png")), None),
+                          "info": read_json(next((j.root / "06_export" / "stack").glob("*_slices.json"), Path("_none")))}}
 
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):
@@ -126,7 +130,10 @@ def create_app(base: str | Path = "jobs", worker: bool = True, limits: dict | No
         j = job_or_404(char, jid)
         stage, args = body.get("stage"), dict(body.get("args") or {})
         try:
-            if stage == "pipeline":
+            if stage == "stack_pipeline":
+                tasks = queue.submit_stack_pipeline(j.root, body.get("profile"), views=args.get("views", True),
+                                                    height=int(args.get("height", 24)), seed=args.get("seed"))
+            elif stage == "pipeline":
                 gen = args.pop("generate", True)
                 tasks = queue.submit_action_pipeline(j.root, args.pop("facing"), args.pop("action"),
                                                      body.get("profile"), generate=gen, **args)
