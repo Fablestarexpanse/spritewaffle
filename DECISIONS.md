@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 1 accepted (real H3 clip e2e + Unity import verified). Next: Phase 2 (generation stages, job queue, web UI).
+NEXT: Phase 2 step 1 done (anchor + 8 facings). Awaiting Ronan: diagonal default nearest vs multi. Then step 2: transition pose, H3 action, bridge frames.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -41,3 +41,15 @@ NEXT: Phase 1 accepted (real H3 clip e2e + Unity import verified). Next: Phase 2
   temp folder, removed after): 12f → 12 sprites + looping clip `walk_S` (~1.0 s), 24f → 24 sprites,
   same clip length; Point filter; per-sprite pivots resolve to one canvas foot line; console clean.
   Phase 1 acceptance items all met.
+- 2026-11-20 Phase 2 step 1 (generation stages). facing_multiref = bundled H3 Image Edit template,
+  prompt enhancer off, anchor in slot 1 + 2 optional ref LoadImages (unused optional slots are
+  pruned from the API graph, not fed stale images).
+- 2026-11-20 Measured: feeding a *generated* still back as a reference makes H3 Image Edit return a
+  speckled-noise green background (keying then grabs it: height ratio 2–3×). Fix: every generated
+  or imported still is keyed and re-composited on exact #00FF00 before save/reuse (rule 3).
+- 2026-11-20 CONFLICT with kickoff rule 4 (diagonals from anchor + cardinals): with extra reference
+  pictures H3 Image Edit copies the reference pose — SE came out as pure E, NE ≈ N. Using only the
+  nearest cardinal (S/anchor for SE/SW, N for NE/NW) gives true three-quarter views (drift 0.14–0.21).
+  Implemented `--diagonals nearest|multi`, default nearest pending Ronan's ruling.
+- 2026-11-20 Knight run (jobs/knight/p2_002): 8 facings, all drift ≤0.21 colour, height within 2%,
+  no mirroring needed. Anchor flagged asymmetric (plume) → mirrored facings would flip it.

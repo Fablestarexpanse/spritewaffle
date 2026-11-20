@@ -84,6 +84,24 @@ def cmd_run(a):
     return 1 if "fail" in q.values() else 0
 
 
+def cmd_anchor(a):
+    from .core import generate
+    print(generate.anchor(_job(a.job), _profile(a), description=a.describe, image=a.image, seed=a.seed))
+
+
+def cmd_approve(a):
+    from .core import generate
+    generate.approve(_job(a.job), a.stage)
+    print(f"{a.stage}: approved")
+
+
+def cmd_facings(a):
+    from .core import generate
+    only = a.only.split(",") if a.only else None
+    _print(generate.facings(_job(a.job), _profile(a), only=only, seed=a.seed, mirror=a.mirror,
+                            diagonals=a.diagonals))
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -146,6 +164,15 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--facing", required=True); p.add_argument("--job-id")
     p.add_argument("--loop", action="store_true"); p.add_argument("--no-loop", action="store_true")
     p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("anchor"); p.add_argument("--job", required=True); p.add_argument("--profile")
+    p.add_argument("--describe"); p.add_argument("--image"); p.add_argument("--seed", type=int)
+    p.set_defaults(fn=cmd_anchor)
+    p = sub.add_parser("approve"); p.add_argument("stage"); p.add_argument("--job", required=True)
+    p.set_defaults(fn=cmd_approve)
+    p = sub.add_parser("facings"); p.add_argument("--job", required=True); p.add_argument("--profile")
+    p.add_argument("--only", help="e.g. E,N"); p.add_argument("--seed", type=int)
+    p.add_argument("--mirror", choices=("auto", "none"), default="auto")
+    p.add_argument("--diagonals", choices=("nearest", "multi"), default="nearest"); p.set_defaults(fn=cmd_facings)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

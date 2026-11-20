@@ -125,3 +125,15 @@ def test_frames_as_seconds_and_real_maps_validate():
     for slot in ("anchor_still", "h3_action_i2v"):
         if (root / f"{slot}.json").exists():
             templates.load(slot, root)
+
+
+def test_optional_ref_slots_are_pruned():
+    wf = {"1": {"class_type": "LoadImage", "inputs": {"image": "a"}},
+          "2": {"class_type": "LoadImage", "inputs": {"image": "b"}},
+          "3": {"class_type": "Cond", "inputs": {"images.image_1": ["1", 0], "images.image_2": ["2", 0]}},
+          "9": {"class_type": "Save", "inputs": {"images": ["3", 0]}}}
+    m = {"slot": "facing_multiref", "output_node": "9", "params": {"ref_images": [
+        {"node": "1", "input": "image"}, {"node": "2", "input": "image", "optional": True}]}}
+    out = templates.inject(wf, m, {"ref_images": ["anchor.png"]})
+    assert "2" not in out and out["3"]["inputs"] == {"images.image_1": ["1", 0]}
+    assert out["1"]["inputs"]["image"] == "anchor.png" and "2" in wf

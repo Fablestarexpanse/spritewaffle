@@ -1,5 +1,14 @@
 {
   "slot": "facing_multiref",
-  "params": {},
-  "output_node": null
+  "params": {
+    "prompt": {"node": "43", "input": "value"},
+    "ref_images": [
+      {"node": "45", "input": "image", "kind": "image"},
+      {"node": "63", "input": "image", "kind": "image", "optional": true},
+      {"node": "64", "input": "image", "kind": "image", "optional": true}
+    ],
+    "seed": {"node": "38", "input": "seed"},
+    "steps": {"node": "38", "input": "steps"}
+  },
+  "output_node": "9"
 }

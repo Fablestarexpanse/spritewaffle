@@ -92,12 +92,24 @@ def inject(workflow: dict, mapping: dict, values: dict) -> dict:
                 raise ValueError(f"{len(vals)} ref images but template has {len(targets)} slots")
             for t, v in zip(targets, vals):
                 wf[str(t["node"])]["inputs"][t["input"]] = v
+            for t in targets[len(vals):]:
+                if not t.get("optional"):
+                    raise ValueError(f"template {mapping['slot']} needs at least {targets.index(t) + 1} ref images")
+                _prune(wf, str(t["node"]))
         else:
             for t in targets:
                 # "as": "seconds" -> the graph takes a duration and snaps it to frames itself
                 v = value / H3_FPS if t.get("as") == "seconds" else value
                 wf[str(t["node"])]["inputs"][t["input"]] = v
     return wf
+
+
+def _prune(wf: dict, node: str) -> None:
+    """Remove an unused optional node and every input that links to it."""
+    wf.pop(node, None)
+    for n in wf.values():
+        for k in [k for k, v in n["inputs"].items() if isinstance(v, list) and len(v) == 2 and str(v[0]) == node]:
+            del n["inputs"][k]
 
 
 def class_types(workflow: dict) -> set[str]:

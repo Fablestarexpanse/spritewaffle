@@ -63,7 +63,7 @@ class ComfyClient:
         path = Path(path)
         boundary = uuid.uuid4().hex
         parts = [
-            f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{path.name}\"\r\n"
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"sw_{uuid.uuid4().hex[:8]}_{path.name}\"\r\n"
             f"Content-Type: image/png\r\n\r\n".encode() + path.read_bytes() + b"\r\n",
             f"--{boundary}\r\nContent-Disposition: form-data; name=\"overwrite\"\r\n\r\n"
             f"{'true' if overwrite else 'false'}\r\n".encode(),
