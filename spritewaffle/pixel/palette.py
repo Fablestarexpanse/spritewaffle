@@ -52,8 +52,27 @@ def kmeans(x: np.ndarray, w: np.ndarray, k: int, iters: int = 40, n_init: int = 
     return best
 
 
-def fit(lab: np.ndarray, alpha: np.ndarray, k: int, saliency: bool = True, seed: int = 0) -> np.ndarray:
-    """Fit one palette (k,3 Oklab) on all opaque cells of all frames."""
+def merge_close(pal: np.ndarray, x: np.ndarray, w: np.ndarray, min_delta: float) -> np.ndarray:
+    """Merge palette entries closer than min_delta (Oklab): k is a maximum, not a quota, so noise
+    doesn't get its own near-duplicate colours. The lighter-weight entry folds into the heavier."""
+    while len(pal) > 1:
+        lbl = ((x[:, None] - pal[None]) ** 2).sum(-1).argmin(1)
+        mass = np.bincount(lbl, weights=w, minlength=len(pal))
+        d = np.linalg.norm(pal[:, None] - pal[None], axis=-1) + np.eye(len(pal)) * 9
+        i, j = np.unravel_index(d.argmin(), d.shape)
+        if d[i, j] >= min_delta:
+            break
+        drop = i if mass[i] < mass[j] else j
+        pal = np.delete(pal, drop, axis=0)
+        lbl = ((x[:, None] - pal[None]) ** 2).sum(-1).argmin(1)
+        pal = np.array([np.average(x[lbl == c], axis=0, weights=w[lbl == c]) if (lbl == c).any() else pal[c]
+                        for c in range(len(pal))])
+    return pal
+
+
+def fit(lab: np.ndarray, alpha: np.ndarray, k: int, saliency: bool = True, seed: int = 0,
+        min_delta: float = 0.04) -> np.ndarray:
+    """Fit one palette (<=k,3 Oklab) on all opaque cells of all frames."""
     x = lab[alpha]
     w = saliency_weights(lab, alpha)[alpha] if saliency else np.ones(len(x))
     # unique colours with summed weights: much faster, same result
@@ -64,4 +83,5 @@ def fit(lab: np.ndarray, alpha: np.ndarray, k: int, saliency: bool = True, seed:
     xs = np.zeros_like(uq)
     for c in range(3):
         xs[:, c] = np.bincount(inv, weights=x[:, c] * w) / ws
-    return kmeans(xs, ws, k, seed=seed)
+    pal = kmeans(xs, ws, k, seed=seed)
+    return merge_close(pal, xs, ws, min_delta) if min_delta > 0 else pal

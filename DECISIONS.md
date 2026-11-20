@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 1 build in progress (see git log for done steps).
+NEXT: Phase 1 code done, e2e green on synthetic clip. Next: generate a real H3 walk clip in ComfyUI → `spritewaffle run` → verify .aseprite in Unity importer.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -20,3 +20,11 @@ NEXT: Phase 1 build in progress (see git log for done steps).
 - 2026-11-20 Sprite stacking (rigid props/vehicles: orthographic views → slices) — Ronan flagged it
   as worth having (ref: https://x.com/pebaryan/status/2123721685933433343). Stays parked per the
   kickoff; candidate for a phase after 3.
+- 2026-11-20 Frozen detector measures frame diff inside the foreground bbox (threshold 1.5);
+  whole-canvas diff flagged an in-place walk as frozen (0.575).
+- 2026-11-20 Loop-point search uses the largest set count as minimum length so 12f and 24f share
+  one range (12 → 24f set came out 13 frames).
+- 2026-11-20 Palette size is a maximum: centroids closer than 0.04 Oklab merge (16 → 7 on the
+  6-colour synthetic sprite).
+- 2026-11-20 Phase 1 e2e green on synthetic clip (`spritewaffle run`). NOT yet accepted: needs a
+  real H3 clip (generate via ComfyUI; templates not exported yet) and .aseprite check in Unity.

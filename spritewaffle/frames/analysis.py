@@ -35,10 +35,19 @@ def frame_diff(frames: list[np.ndarray], max_side: int = 128) -> np.ndarray:
     return np.abs(np.diff(g, axis=0)).mean((1, 2))
 
 
-def is_frozen(frames: list[np.ndarray], threshold: float = 0.6) -> tuple[bool, float]:
-    """Frozen clip (rule 7): mean frame-to-frame difference below threshold."""
+def is_frozen(frames: list[np.ndarray], threshold: float = 1.5) -> tuple[bool, float]:
+    """Frozen clip (rule 7): mean frame-to-frame difference *inside the foreground bbox* below
+    threshold. Measured on the whole canvas, an in-place walk (legs only) reads as frozen."""
     if len(frames) < 2:
         return True, 0.0
+    masks = silhouettes(frames)
+    union = masks.any(0)
+    if union.any():
+        ys, xs = np.where(union)
+        k = frames[0].shape[0] / masks.shape[1]
+        y0, y1 = int(ys.min() * k), int((ys.max() + 1) * k)
+        x0, x1 = int(xs.min() * k), int((xs.max() + 1) * k)
+        frames = [f[y0:y1, x0:x1] for f in frames]
     d = float(frame_diff(frames).mean())
     return d < threshold, d
 

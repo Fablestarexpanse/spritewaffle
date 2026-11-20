@@ -143,7 +143,7 @@ def select(clip: ClipAnalysis, counts=(12, 24), start: int | None = None, end: i
     loop_d = None
     if end is None:
         if loop:
-            end, loop_d = analysis.loop_point(clip.masks, start, min_len=min(counts))
+            end, loop_d = analysis.loop_point(clip.masks, start, min_len=min(max(counts), clip.n - start - 1))
             if loop_d > 0.15:
                 warnings.append(f"loop seam weak: best end {end} differs from start by {loop_d:.2f} (1-IoU)")
         else:
