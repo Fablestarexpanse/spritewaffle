@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Real H3 clip passes end to end (jobs/knight/h3_002, despill=all). Open: despill default (Ronan), verify .aseprite in Unity importer.
+NEXT: Despill default now all. Remaining Phase 1 item: verify .aseprite in Unity 2D Aseprite Importer.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -35,3 +35,5 @@ NEXT: Real H3 clip passes end to end (jobs/knight/h3_002, despill=all). Open: de
   ≥9 px from the edge) → green entered the palette with edge-only despill. Added profile
   `despill: edge|all`; default stays `edge` (rule 11). `all` fixes the knight but would grey out
   deliberately green parts — default is Ronan's call.
+- 2026-11-20 Ronan: despill default = `all` (profile + PixelParams). Characters with deliberate
+  green parts set `despill: "edge"` in their profile. chroma.key() itself keeps edge-only default.

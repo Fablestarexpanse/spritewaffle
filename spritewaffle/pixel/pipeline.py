@@ -18,7 +18,7 @@ class PixelParams:
     target_height: int | None = None       # sprite height in art px; used when no grid is detected
     alpha_threshold: float = 0.5
     speck_px: int = 16                     # source-pixel speck removal before downscale
-    despill: str = "edge"                  # edge (rule 11) | all
+    despill: str = "all"                   # all (default) | edge (keeps deliberate green parts)
     saliency: bool = True
     hysteresis: float = 0.03               # Oklab distance a new colour must win by
     loop: bool = False
