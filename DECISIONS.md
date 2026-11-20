@@ -16,3 +16,4 @@ NEXT: Phase 1 build in progress (see git log for done steps).
   surround, so deliberate 1px details (eyes) survive.
 - 2026-11-20 Downscale voting: mode of 4-bit colour bins over the cell interior (outer ring skipped
   when size≥4), then mean of pixels within 20 RGB of the mode colour (bins can split one colour).
+- 2026-11-20 .aseprite: own writer (header, color profile, old+new palette, 1 layer, zlib cels, tags; indexed reserves index 0 for transparency). Round-trip verified only with our own reader → still to verify with Unity's 2D Aseprite Importer (Unity MCP available).
