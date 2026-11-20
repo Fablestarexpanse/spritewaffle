@@ -225,7 +225,9 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                           "turntable": next((url(p) for p in st.glob("*_turntable.gif")), None) if st.is_dir() else None,
                           "rotations": next((url(p) for p in st.glob("*_rotations.png")), None) if st.is_dir() else None,
                           "info": read_json(next(st.glob("*_slices.json"), Path("_none"))) if st.is_dir() else None},
-                "exports": exports}
+                "exports": exports,
+                "showcase": next((url(p) for p in (exp / "showcase").glob("*_showcase.gif")), None)
+                            if (exp / "showcase").is_dir() else None}
 
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):
@@ -274,6 +276,17 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             bad(e)
         j.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
+
+    @app.post("/api/jobs/{char}/{jid}/showcase")
+    def showcase(char: str, jid: str, body: dict = Body(default={})):
+        from ..export import showcase as sc
+        j = job_or_404(char, jid)
+        try:
+            size = max(256, min(1024, int(body.get("size", 512))))
+            out = sc.for_job(j, resolve(job_profile(j)), size=size, frame_set=body.get("set", "12f"))
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            bad(e)
+        return out | {"url": url(Path(out["file"]))}
 
     # --- motion library -------------------------------------------------------------------
     @app.get("/api/motions")

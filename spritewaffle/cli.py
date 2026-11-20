@@ -232,6 +232,12 @@ def cmd_export_character(a):
     _print(out)
 
 
+def cmd_showcase(a):
+    from .export import showcase
+    job = _job(a.job)
+    _print(showcase.for_job(job, _profile(a, job), size=a.size, frame_set=a.set))
+
+
 def cmd_archive(a):
     print(f"archived to {_job(a.job).archive()}")
 
@@ -472,6 +478,9 @@ def build() -> argparse.ArgumentParser:
     cmd("export-character", cmd_export_character, "one .aseprite (a tag per animation) + atlas for the whole job",
         JOB, PROFILE, (("--set",), {"default": "12f", "choices": ("12f", "24f")}),
         (("--include-failed",), {"action": "store_true", "help": "also ship animations that failed QA"}))
+    cmd("showcase", cmd_showcase, "GIF to show people: turnaround through the facings, then every action in all its facings",
+        JOB, PROFILE, (("--size",), {"type": int, "default": 512, "help": "square size in px"}),
+        (("--set",), {"default": "12f", "choices": ("12f", "24f")}))
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
 
     # props

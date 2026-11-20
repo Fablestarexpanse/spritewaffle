@@ -441,11 +441,24 @@ function paneExport(j) {
     ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})
       ${(ch.skipped || []).length ? `<br><span class="warn">skipped: ${esc(ch.skipped.join("; "))}</span>` : ""}</p>` : ""}
     </section>` : ""}
+    <section><h2>Showcase GIF ${badge(j.stages["export:showcase"]?.status)}</h2>
+      <p class="muted" style="margin-top:0">For showing people: a turnaround through every facing, then each saved action with all its facings playing at once.</p>
+      <div class="row"><label>Size <select id="scSize">${[384, 512, 768].map(s => `<option ${s === (form.scSize || 512) ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+        <button class="primary" id="scGo">Make showcase GIF</button>
+        ${j.showcase ? `<a href="${esc(j.showcase)}&download=1"><button>Download</button></a>` : ""}</div>
+      ${j.showcase ? `<img src="${esc(j.showcase)}" alt="showcase" style="margin-top:12px;max-width:min(100%,512px);border-radius:8px;display:block">` : ""}
+    </section>
     <section><h2>Files</h2>
     ${Object.keys(groups).length ? Object.entries(groups).map(([g, files]) => `<h3>${esc(g)}</h3>
       <table>${files.map(f => `<tr><td><a href="${esc(f.url)}">${esc(f.name)}</a></td><td class="muted" style="width:90px">${kb(f.size)}</td></tr>`).join("")}</table>`).join("")
       : `<p class="muted">Nothing exported yet.</p>`}
     <p class="hint">Files live in ${esc(status.jobs)}/${esc(j.character)}/${esc(j.job_id)}/06_export.</p></section>`;
+  $("#scSize").onchange = e => form.scSize = +e.target.value;
+  $("#scGo").onclick = async () => {
+    $("#scGo").disabled = true; $("#scGo").textContent = "Making…";
+    try { const r = await api(jobPath() + "/showcase", {size: form.scSize || 512}); toast(`Showcase ready: ${r.frames} frames, ${r.seconds} s`); }
+    finally { lastSig = ""; refreshAll(); }
+  };
   if ($("#eGo")) {
     $("#eSet").onchange = e => form.set = e.target.value;
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;

@@ -245,3 +245,4 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   Real run: "Hare Courier Four-View Model Sheet" (S, SE, E, N) -> NE/NW generated -> painted-style
   walks S + E (H3) + W (mirror): QA pass on all six sets (height CV 0.008–0.012), not frozen,
   character export hare.aseprite (RGBA, 3 tags). Approvals in this run were test approvals.
+- 2026-11-20 Showcase GIF (Ronan: export a GIF that shows off walking, turning angles and actions): export/showcase.py — turnaround through the facing stills (2 turns), then per action a compass grid with every facing playing at once (missing facings shown standing, dimmed), one scale and foot line, pixel art nearest / others Lanczos, 255-colour GIF. Export tab button + preview, `spritewaffle showcase`, API /showcase, MCP showcase. Hare: 40 frames / 7.6 s at 512²; knight: 64 frames / 9.6 s.

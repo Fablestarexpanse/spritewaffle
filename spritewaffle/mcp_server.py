@@ -143,6 +143,15 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return out
 
     @mcp.tool()
+    def showcase(character: str, job_id: str, size: int = 512) -> dict:
+        """GIF for showing the character to people: a turnaround through its facings, then each saved
+        action with all its facings playing in a compass grid. Returns the file path."""
+        from .core.profile import resolve
+        from .export import showcase as sc
+        job = job_for(character, job_id)
+        return sc.for_job(job, resolve(job.read_meta()["inputs"].get("profile")), size=max(256, min(1024, size)))
+
+    @mcp.tool()
     def stack(character: str, job_id: str, height: int = 24, regenerate_views: bool = True,
               seed: int | None = None) -> dict:
         """Sprite stacking for a rigid prop/vehicle (approved anchor = front view): queue orthographic
