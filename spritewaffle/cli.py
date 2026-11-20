@@ -128,6 +128,17 @@ def cmd_anchor(a):
                           asset_type=a.asset_type, style_ref=a.style_ref))
 
 
+def cmd_sheet_import(a):
+    from .core import sheet_import
+    job = _job(a.job)
+    if a.style:
+        from .prompts import styles
+        job.update_inputs(style=styles.get(a.style)["name"])
+    _print(sheet_import.import_sheet(job, a.image, _csv(a.views), subject=a.subject, mirror=not a.no_mirror))
+    print("next: look at 02_facings, then `spritewaffle approve anchor` and generate any missing facings with "
+          "`spritewaffle facings --only ...`")
+
+
 def cmd_approve(a):
     from .core import generate
     generate.approve(_job(a.job), a.stage)
@@ -420,6 +431,12 @@ def build() -> argparse.ArgumentParser:
         (("--image",), {"help": "import this image instead of generating"}),
         (("--asset-type",), {"default": "character", "choices": ("character", "creature", "prop")}),
         (("--style-ref",), {"help": "approved hero job (<character>/<job_id>) to copy the art style from"}))
+    cmd("sheet-import", cmd_sheet_import, "use YOUR character sheet (views side by side, any background) as anchor + facings",
+        (("image",), {}), JOB,
+        (("--views",), {"required": True, "help": "facing of each figure left to right, e.g. S,SE,E,N (S becomes the anchor)"}),
+        (("--subject",), {"default": "character", "help": "what SAM 3 should cut out, e.g. 'hare character'"}),
+        (("--style",), {"help": "set the job's art style too (pixel, painted, anime, comic)"}),
+        (("--no-mirror",), {"action": "store_true", "help": "don't flip missing W/SW/NW from E/SE/NE"}))
     cmd("approve", cmd_approve, "mark a stage approved after you've looked at it (anchor, facings, ortho)",
         (("stage",), {}), JOB)
     cmd("facings", cmd_facings, "generate the other 7 facings from the approved anchor",

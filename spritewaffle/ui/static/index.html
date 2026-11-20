@@ -286,6 +286,13 @@ function paneAnchor(j, st) {
           <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve anchor</button>
         </div>
         <div class="row"><input id="importPath" placeholder="…or import an existing image (full path)" style="flex:1"><button id="importAnchor">Import</button></div>
+        <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Import a character sheet (your own views side by side, any background)</summary>
+          <div class="row"><input id="sheetPath" placeholder="full path to the sheet image" style="flex:1"></div>
+          <div class="row"><input id="sheetViews" value="S,SE,E,N" title="facing of each figure, left to right" style="width:140px">
+            <input id="sheetSubject" value="character" title="what to cut out, e.g. hare character" style="width:180px">
+            <button id="sheetGo">Import sheet</button></div>
+          <p class="hint">SAM 3 cuts every figure off its background; S becomes the anchor, missing W/SW/NW are mirrored; generate the rest on the Facings tab.</p>
+        </details>
         ${j.inputs.visual_description ? `<p class="muted"><b>AI description:</b> ${esc(j.inputs.visual_description)}</p>` : ""}
         <p class="hint">Everything else is built from the approved anchor, so get this one right. Re-rolling resets approval.
           ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
@@ -300,6 +307,11 @@ function paneAnchor(j, st) {
     run("anchor", args, "Anchor queued");
   };
   $("#apAnchor").onclick = () => approve("anchor");
+  $("#sheetGo").onclick = () => {
+    const image = $("#sheetPath").value.trim(), views = $("#sheetViews").value.split(",").map(v => v.trim().toUpperCase()).filter(Boolean);
+    if (!image) return toast("Give the path to the sheet image", true);
+    run("sheet", {image, views, subject: $("#sheetSubject").value.trim() || "character"}, "Sheet import queued");
+  };
   $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim(), asset_type: j.asset_type}, "Import queued");
 }
 

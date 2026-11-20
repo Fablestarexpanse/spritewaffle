@@ -1,5 +1,17 @@
 {
   "slot": "sam3_mask",
-  "params": {},
-  "output_node": null
+  "params": {
+    "prompt": {
+      "node": "3",
+      "input": "text"
+    },
+    "ref_images": [
+      {
+        "node": "2",
+        "input": "image",
+        "kind": "image"
+      }
+    ]
+  },
+  "output_node": "6"
 }

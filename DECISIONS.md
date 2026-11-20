@@ -235,3 +235,13 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   Real run: one ranger description + seed 21 in all four styles -> four clearly different looks of
   the same character; painted S walk through the full pipeline: not frozen, scale 0.44, 256 px
   cells, QA pass 12f/24f (height CV 0.016), RGBA export.
+- 2026-11-20 Own character sheets (Ronan: "remake this rabbit animated ... give it my own image").
+  New sam3_mask template (CheckpointLoaderSimple sam3.1_multiplex_fp16 -> CLIPTextEncode
+  "<subject>:N" -> SAM3_Detect union mask -> SaveImage). core/sheet_import: SAM 3 mask -> N figures
+  left to right -> ONE scale, centred, common foot line at 45% of a 2048² #00FF00 canvas -> anchor
+  (S) + facings; W/SW/NW mirrored when the partner exists. Colour keying the parchment was tried
+  first and refused: beige bandages/paws match parchment (holes punched, parchment kept between the
+  legs); SAM 3 cut the hare sheet cleanly in 5.4 s.
+  Real run: "Hare Courier Four-View Model Sheet" (S, SE, E, N) -> NE/NW generated -> painted-style
+  walks S + E (H3) + W (mirror): QA pass on all six sets (height CV 0.008–0.012), not frozen,
+  character export hare.aseprite (RGBA, 3 tags). Approvals in this run were test approvals.

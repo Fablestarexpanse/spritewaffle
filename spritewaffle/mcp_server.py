@@ -64,9 +64,20 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         'character/job_id' (or an image path) to draw this asset in the hero's style.
         stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
         style (anchor): pixel (default), painted (hand-painted), anime (anime cel), comic (comic ink).
+        stage='sheet': import the human's own character sheet: image=<path>, only=<facing of each figure
+        left to right, e.g. ['S','SE','E','N']>, description=<what to cut out, e.g. 'hare character'>.
         Returns the job and queued task ids; call status(...) to follow progress."""
-        if stage not in ("anchor", "facings"):
-            raise ValueError("stage must be 'anchor' or 'facings'")
+        if stage not in ("anchor", "facings", "sheet"):
+            raise ValueError("stage must be 'anchor', 'facings' or 'sheet'")
+        if stage == "sheet":
+            if not image or not only:
+                raise ValueError("sheet: pass image=<sheet path> and only=<facing of each figure, left to right>")
+            job = job_for(character, job_id) if job_id else Job.create(character, base=base, asset_type=asset_type)
+            if style:
+                from .prompts import styles
+                job.update_inputs(style=styles.get(style)["name"])
+            t = q.submit(job.root, "sheet", {"image": image, "views": only, "subject": description or "character"})
+            return {"character": character, "job_id": job.root.name, "tasks": [t["id"]]}
         if stage == "anchor":
             builder.asset(asset_type)
             job = job_for(character, job_id) if job_id else Job.create(character, base=base)

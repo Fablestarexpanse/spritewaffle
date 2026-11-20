@@ -74,6 +74,12 @@ def _stages():
         return generate.action(job, prof, a["facing"], a["action"], seconds=a.get("seconds", 2.0),
                                mode=a.get("mode", "fl2va"), seed=a.get("seed"))
 
+    def sheet(job, prof, a):
+        need(a, "image", "views")
+        from . import sheet_import
+        return sheet_import.import_sheet(job, a["image"], a["views"], subject=a.get("subject", "character"),
+                                         mirror=a.get("mirror", True))
+
     def transfer(job, prof, a):
         need(a, "facing", "action", "motion")
         return generate.transfer(job, prof, a["facing"], a["action"], a["motion"], size=a.get("size", 768),
@@ -120,13 +126,13 @@ def _stages():
         need(a, "facing", "action")
         return stages.export(job, prof, a["facing"], a["action"], a.get("format", "both"))
 
-    gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
+    gpu = {"sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
            "ortho": ortho}
     cpu = {"mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -173,7 +179,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
+                 "resource": "gpu" if stage in ("sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)

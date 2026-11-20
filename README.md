@@ -51,6 +51,21 @@ its own queue worker, so nothing else needs to be running.
    Aseprite Importer makes one clip each, plus an Animator Controller) and an atlas PNG + JSON.
    Every file is downloadable from the same tab.
 
+### Your own character (image or character sheet)
+
+- **One image:** Anchor tab → *import an existing image* (or `spritewaffle anchor --job <job> --image <path>`).
+- **A character sheet** (several views side by side, any background, e.g. a model sheet on parchment):
+  Anchor tab → *Import a character sheet*, or
+
+  ```powershell
+  spritewaffle sheet-import "C:\path\sheet.png" --job hare/courier --views S,SE,E,N --subject "hare character" --style painted
+  ```
+
+  SAM 3 (on your ComfyUI) cuts every figure off its background; `--views` names each figure's
+  facing left to right, S becomes the anchor, missing W/SW/NW are mirrored, and the rest are
+  generated on the Facings tab (`spritewaffle facings --only NE,NW`). Your drawings are used as-is,
+  so the animation keeps your art.
+
 ### Art styles
 
 Each job has a style (header **Style**, or `spritewaffle style <job> <style>`): **Pixel art** (default),
