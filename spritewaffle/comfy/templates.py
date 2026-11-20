@@ -94,7 +94,9 @@ def inject(workflow: dict, mapping: dict, values: dict) -> dict:
                 wf[str(t["node"])]["inputs"][t["input"]] = v
         else:
             for t in targets:
-                wf[str(t["node"])]["inputs"][t["input"]] = value
+                # "as": "seconds" -> the graph takes a duration and snaps it to frames itself
+                v = value / H3_FPS if t.get("as") == "seconds" else value
+                wf[str(t["node"])]["inputs"][t["input"]] = v
     return wf
 
 

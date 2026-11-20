@@ -115,3 +115,13 @@ def test_missing_nodes_refused(server):
 def test_unreachable():
     with pytest.raises(ComfyError, match="cannot reach"):
         ComfyClient("http://127.0.0.1:1", timeout=1).check()
+
+
+def test_frames_as_seconds_and_real_maps_validate():
+    from pathlib import Path
+    m = {"slot": "h3_action_i2v", "output_node": "9", "params": {"frames": {"node": "3", "input": "length", "as": "seconds"}}}
+    assert templates.inject(WF, m, {"frames": 48})["3"]["inputs"]["length"] == 56 / 24
+    root = Path(__file__).parent.parent / "templates"
+    for slot in ("anchor_still", "h3_action_i2v"):
+        if (root / f"{slot}.json").exists():
+            templates.load(slot, root)

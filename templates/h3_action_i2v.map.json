@@ -1,5 +1,11 @@
 {
   "slot": "h3_action_i2v",
-  "params": {},
-  "output_node": null
+  "params": {
+    "prompt": {"node": "131", "input": "prompt"},
+    "first_frame": {"node": "114", "input": "image", "kind": "image"},
+    "frames": {"node": "133", "input": "value", "as": "seconds"},
+    "seed": {"node": "125", "input": "noise_seed"},
+    "steps": {"node": "137", "input": "value"}
+  },
+  "output_node": "92"
 }
