@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Despill default now all. Remaining Phase 1 item: verify .aseprite in Unity 2D Aseprite Importer.
+NEXT: Phase 1 accepted (real H3 clip e2e + Unity import verified). Next: Phase 2 (generation stages, job queue, web UI).
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -37,3 +37,7 @@ NEXT: Despill default now all. Remaining Phase 1 item: verify .aseprite in Unity
   deliberately green parts — default is Ronan's call.
 - 2026-11-20 Ronan: despill default = `all` (profile + PixelParams). Characters with deliberate
   green parts set `despill: "edge"` in their profile. chroma.key() itself keeps edge-only default.
+- 2026-11-20 .aseprite verified in Unity 6000.6.7f1 + 2D Aseprite Importer 6.0.0 (BriarBound,
+  temp folder, removed after): 12f → 12 sprites + looping clip `walk_S` (~1.0 s), 24f → 24 sprites,
+  same clip length; Point filter; per-sprite pivots resolve to one canvas foot line; console clean.
+  Phase 1 acceptance items all met.
