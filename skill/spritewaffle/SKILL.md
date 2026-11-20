@@ -35,6 +35,15 @@ the MCP tools only queue work. Everything for one asset lives in one job (`chara
 6. `animate` per facing x action. Start with `S idle` and `S walk` to check the look before
    queuing all eight facings. One render takes about 1-4 minutes; queue several and wait once.
 
+## Motion library (experimental)
+
+`animate(..., motion="walk_S_mannequin")` transfers an approved library clip's motion onto the
+asset with TARA instead of rendering with H3, so the whole cast shares one timing. `status()`
+without a job lists the library. Library clips come from a plain grey mannequin (a costumed
+driving character leaks its identity). Each transfer reports `identity_drift`; above 0.35 the
+report warns: re-roll with a new seed or animate without `motion`. Show the human the result
+before relying on it.
+
 ## Asset types and actions
 
 | asset_type | actions that make sense |

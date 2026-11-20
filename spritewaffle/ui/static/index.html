@@ -140,12 +140,15 @@ function renderJob(j) {
       <select id="aFacing">${j.facings.filter(f => f.image).map(f => `<option>${f.facing}</option>`).join("")}</select>
       <select id="aAction">${j.known_actions.map(a => `<option>${a}</option>`).join("")}</select>
       <label class="muted">seconds <input id="aSec" type="number" value="2" step="0.5" min="1" style="width:60px"></label>
+      <select id="aSrc" title="render source"><option value="">H3 render</option>${j.motions.map(m => `<option value="${esc(m)}">motion: ${esc(m)} (experimental)</option>`).join("")}</select>
       <button class="primary" id="genAction" ${st("facings") === "approved" ? "" : "disabled"}>Generate + process</button>
     </div>
     ${j.actions.map(a => `
       <div class="action">
         <h2>${esc(a.facing)} Â· ${esc(a.action)} ${badge(a.status)}
-          ${a.report?.fallback ? `<span class="warn">${esc(a.report.fallback)}</span>` : ""}</h2>
+          ${a.report?.fallback ? `<span class="warn">${esc(a.report.fallback)}</span>` : ""}
+          ${a.report?.experimental ? `<span class="badge review">TARA · ${esc(a.report.motion)} · identity drift ${a.report.identity_drift?.mean}</span>` : ""}
+          ${(a.report?.warnings || []).map(w => `<span class="warn">${esc(w)}</span>`).join("")}</h2>
         <div class="imgs">
           ${a.transition ? `<div><h3>transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:120px"></div>` : ""}
           ${["12f", "24f"].map(n => `<div><h3>${n} ${badge(a.sets[n].qa?.status)}</h3>
@@ -173,8 +176,11 @@ function renderJob(j) {
   $("#genFacings").onclick = () => run("facings");
   $("#apFacings").onclick = () => approve("facings");
   for (const b of $("#main").querySelectorAll("[data-reroll]")) b.onclick = () => run("facings", {only: [b.dataset.reroll]});
-  $("#genAction").onclick = () => run("pipeline", {facing: $("#aFacing").value, action: $("#aAction").value,
-                                                  seconds: parseFloat($("#aSec").value) || 2});
+  $("#genAction").onclick = () => {
+    const motion = $("#aSrc").value;
+    run("pipeline", motion ? {facing: $("#aFacing").value, action: $("#aAction").value, motion}
+                           : {facing: $("#aFacing").value, action: $("#aAction").value, seconds: parseFloat($("#aSec").value) || 2});
+  };
   for (const b of $("#main").querySelectorAll("[data-regen]")) b.onclick = () => {
     const [facing, action] = b.dataset.regen.split("|"); run("pipeline", {facing, action});
   };

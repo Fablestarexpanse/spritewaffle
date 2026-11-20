@@ -81,19 +81,28 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
 
     @mcp.tool()
     def animate(character: str, job_id: str, facing: str, action: str, seconds: float = 2.0,
-                seed: int | None = None, reprocess_only: bool = False) -> dict:
+                seed: int | None = None, reprocess_only: bool = False, motion: str | None = None) -> dict:
         """Queue an action for one facing: transition pose -> H3 clip -> frame selection -> pixelize ->
         QA -> export (PNG strip, .aseprite with tag, GIF). Needs approved facings.
         facing: S E N W SE NE NW SW. action: idle walk run attack jump.
-        reprocess_only=True re-runs selection..export on the existing clip without a new render."""
+        reprocess_only=True re-runs selection..export on the existing clip without a new render.
+        motion=<approved library motion> (EXPERIMENTAL): transfer that clip's motion with TARA instead of
+        rendering with H3; check identity_drift in status and fall back to H3 when it warns."""
         job = job_for(character, job_id)
         if facing not in ORDER:
             raise ValueError(f"facing must be one of {ORDER}")
         builder.action_spec(action)
         if not reprocess_only and job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
             raise ValueError("facings are not approved yet; show them to the human first")
-        args = {"seconds": seconds, **({"seed": seed} if seed is not None else {})}
-        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, **args)
+        if motion:
+            from .core import motion as motion_lib
+            m = motion_lib.get(motion, base)
+            if m["status"] != "approved":
+                raise ValueError(f"motion '{motion}' is not approved")
+            args = {**({"seed": seed} if seed is not None else {})}
+        else:
+            args = {"seconds": seconds, **({"seed": seed} if seed is not None else {})}
+        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, motion=motion, **args)
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()
@@ -114,7 +123,9 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
             jobs = [{"character": p.parent.parent.name, "job_id": p.parent.name,
                      "stages": {k: v["status"] for k, v in json.loads(p.read_text())["stages"].items()}}
                     for p in sorted(base.glob("*/*/job.json"))]
-            return [json.dumps({"jobs": jobs, "open_tasks": open_tasks()}, indent=1)]
+            from .core import motion as motion_lib
+            motions = [{k: m[k] for k in ("name", "status", "action", "facing", "frames")} for m in motion_lib.list_all(base)]
+            return [json.dumps({"jobs": jobs, "motions": motions, "open_tasks": open_tasks()}, indent=1)]
         job = job_for(character, job_id)
         deadline = time.time() + min(max(wait_seconds, 0), 900)
         while open_tasks(job) and time.time() < deadline:

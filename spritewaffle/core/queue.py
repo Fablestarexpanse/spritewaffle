@@ -72,6 +72,11 @@ def _stages():
         return generate.action(job, prof, a["facing"], a["action"], seconds=a.get("seconds", 2.0),
                                mode=a.get("mode", "fl2va"), seed=a.get("seed"))
 
+    def transfer(job, prof, a):
+        need(a, "facing", "action", "motion")
+        return generate.transfer(job, prof, a["facing"], a["action"], a["motion"], size=a.get("size", 768),
+                                 steps=a.get("steps", 8), seed=a.get("seed"))
+
     def bridge(job, prof, a):
         need(a, "facing", "action", "a", "b")
         dest = job.action_dir(a["facing"], a["action"]) / "bridges" / f"{a.get('name', 'bridge')}.png"
@@ -97,12 +102,12 @@ def _stages():
         need(a, "facing", "action")
         return stages.export(job, prof, a["facing"], a["action"], a.get("format", "both"))
 
-    gpu = {"anchor": anchor, "facings": facings, "action": action, "bridge": bridge}
+    gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge}
     cpu = {"extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("anchor", "facings", "action", "bridge", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -151,18 +156,21 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("anchor", "facings", "action", "bridge") else "cpu",
+                 "resource": "gpu" if stage in ("anchor", "facings", "action", "transfer", "bridge") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)
 
     def submit_action_pipeline(self, job, facing: str, action: str, profile: str | None = None,
-                               generate: bool = True, **action_args) -> list[dict]:
-        """action (gpu) -> select -> pixelize -> qa -> export (cpu), chained with `after`."""
+                               generate: bool = True, motion: str | None = None, **action_args) -> list[dict]:
+        """action or transfer (gpu) -> select -> pixelize -> qa -> export (cpu), chained with `after`.
+        motion=<library name> renders through the experimental TARA transfer instead of H3 I2V."""
         tasks, prev = [], []
         base = {"facing": facing, "action": action}
         if generate:
-            tasks.append(self.submit(job, "action", {**base, **action_args}, profile))
+            stage = "transfer" if motion else "action"
+            extra = {"motion": motion} if motion else {}
+            tasks.append(self.submit(job, stage, {**base, **extra, **action_args}, profile))
             prev = [tasks[-1]["id"]]
         for st in POST_ACTION:
             tasks.append(self.submit(job, st, dict(base), profile, after=prev))

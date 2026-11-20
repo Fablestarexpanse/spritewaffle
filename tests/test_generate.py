@@ -165,3 +165,47 @@ def test_video_bridge_keeps_middle_frame(ready):
     out = generate.bridge(ready, f / "E.png", f / "W.png", ready.root / "b" / "x.png", client=c)
     assert c.calls[-1][0] == "h3_action_fl2va" and out.exists()
     assert tuple(np.array(Image.open(out))[0, 0]) == (0, 255, 0)
+
+
+# --- experimental motion library + TARA transfer ------------------------------------------------
+from spritewaffle.core import motion
+
+
+def _library_clip(tmp_path, job):
+    """A finished action in another job, added to the library."""
+    src = Job.create("mannequin", "m", base=tmp_path)
+    d = src.action_dir("S", "walk")
+    write_clip(d / "raw.mp4", frames=30)
+    return motion.add("walk_S", src, "S", "walk", base=tmp_path)
+
+
+def test_motion_library_add_approve_list(ready, tmp_path):
+    meta = _library_clip(tmp_path, ready)
+    assert meta["status"] == "review" and meta["frames"] == 30
+    with pytest.raises(ValueError):
+        motion.add("bad name!", ready, "S", "walk", base=tmp_path)
+    assert motion.approve("walk_S", tmp_path)["status"] == "approved"
+    assert [m["name"] for m in motion.list_all(tmp_path)] == ["walk_S"]
+
+
+def test_transfer_needs_approved_motion_and_uses_facing_as_identity(ready, tmp_path):
+    generate.approve(ready, "facings")
+    _library_clip(tmp_path, ready)
+    c = VideoStub()
+    with pytest.raises(RuntimeError, match="approve"):
+        generate.transfer(ready, GameProfile(name="p"), "S", "walk", "walk_S", client=c)
+    motion.approve("walk_S", tmp_path)
+    rep = generate.transfer(ready, GameProfile(name="p"), "S", "walk", "walk_S", client=c)
+    slot, v = c.calls[-1]
+    assert slot == "h3_tara_transfer" and Path(v["ref_images"][0]).name == "S.png"
+    assert Path(v["ref_video"]).name == "clip.mp4" and v["frames"] == 22          # 30 -> 17n+5 <= 30
+    assert rep["experimental"] and rep["mode_used"] == "tara" and "mean" in rep["identity_drift"]
+    assert (ready.root / "03_actions/S/walk/extracted").is_dir()
+
+
+def test_pipeline_with_motion_starts_with_transfer(ready, tmp_path):
+    from spritewaffle.core.queue import Queue
+    q = Queue(tmp_path)
+    ts = q.submit_action_pipeline(ready.root, "S", "walk", motion="walk_S")
+    assert [t["stage"] for t in ts] == ["transfer", "select", "pixelize", "qa", "export"]
+    assert ts[0]["resource"] == "gpu" and ts[0]["args"]["motion"] == "walk_S"

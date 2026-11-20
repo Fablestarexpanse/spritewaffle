@@ -153,6 +153,20 @@ def action_video(action: str, facing_: str, seconds: float, last_frame: bool) ->
             f"overall_soundscape: {spec['sound']}\n\nnon_diegetic_music: None.")
 
 
+def motion_transfer() -> str:
+    """TARA prompt (author's motion_transfer structure): identity from <Picture 1>, motion from <Video 1>."""
+    return ("motion_transfer:\nsubject_definitions:\n<Subject 1> is the pixel-art game character in <Picture 1>; "
+            "preserve its identity, colors, outfit, proportions and chunky pixel-art style.\nsummary:\n"
+            "[video generation + reference] Transfer the performance of <Video 1> to <Subject 1>, preserving the "
+            "action order, timing and the locked camera of the guide.\nretention_analysis:\n<Subject 1>: preserve "
+            "the reference identity and pixel-art look throughout the clip. Keep the guide's flat #00FF00 "
+            "background and framing. The guide figure is a plain grey mannequin; never copy its grey look.\n"
+            "detailed_description:\n[Shot 1] <Subject 1> follows the guide's motion, poses and body movement in "
+            "order and at matching times, pinned to the center of the frame at the same size as the guide figure. "
+            "Do not copy <Picture 1>'s still pose as the motion.\noverall_soundscape:\nSoft footstep taps.\n"
+            "non_diegetic_music:\nNone.")
+
+
 def bridge_video(seconds: float) -> str:
     """FL2VA prompt for a short clip that moves from Picture 1's pose to Picture 2's pose."""
     return ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the "

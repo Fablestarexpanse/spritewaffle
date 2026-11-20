@@ -1,0 +1,69 @@
+"""Motion library (experimental): approved driving clips reused across the cast via TARA.
+
+<base>/_library/motions/<name>/clip.mp4 + motion.json. Clips should come from an identity-neutral
+figure (plain grey mannequin): measured 2026-11-20, a costumed driving character leaks its identity
+into the transfer, a neutral one does not.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import time
+from pathlib import Path
+
+import cv2
+
+from .job import Job
+
+NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def library(base: str | Path = "jobs") -> Path:
+    d = Path(base) / "_library" / "motions"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _count_frames(clip: Path) -> int:
+    cap = cv2.VideoCapture(str(clip))
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+    return n
+
+
+def add(name: str, job: Job, facing: str, action: str, base: str | Path = "jobs", notes: str = "") -> dict:
+    """Copy a job's rendered clip into the library as a motion (status 'review')."""
+    if not NAME.match(name):
+        raise ValueError("motion name: letters, digits, _ and - only")
+    src = job.root / "03_actions" / facing / action / "raw.mp4"
+    if not src.exists():
+        raise FileNotFoundError(f"no clip at {src}")
+    d = library(base) / name
+    d.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, d / "clip.mp4")
+    meta = {"name": name, "action": action, "facing": facing, "frames": _count_frames(d / "clip.mp4"),
+            "source": str(src), "status": "review", "notes": notes, "added": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    (d / "motion.json").write_text(json.dumps(meta, indent=2))
+    return meta
+
+
+def get(name: str, base: str | Path = "jobs") -> dict:
+    p = library(base) / name / "motion.json"
+    if not p.exists():
+        raise KeyError(f"no motion '{name}' in the library")
+    meta = json.loads(p.read_text())
+    meta["clip"] = str(p.parent / "clip.mp4")
+    return meta
+
+
+def approve(name: str, base: str | Path = "jobs") -> dict:
+    meta = get(name, base)
+    meta["status"] = "approved"
+    clip = meta.pop("clip")
+    (Path(clip).parent / "motion.json").write_text(json.dumps(meta, indent=2))
+    return meta
+
+
+def list_all(base: str | Path = "jobs") -> list[dict]:
+    return [get(p.parent.name, base) for p in sorted(library(base).glob("*/motion.json"))]

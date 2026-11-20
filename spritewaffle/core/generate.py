@@ -287,3 +287,46 @@ def bridge(job: Job, a: Path, b: Path, dest: Path, client: ComfyClient | None = 
     job.log_provenance(str(dest.relative_to(job.root)), bridge_clip=str(clip.relative_to(job.root)),
                        frame=len(frames) // 2, of=len(frames))
     return dest
+
+
+# --- motion transfer (experimental, TARA) -------------------------------------------------------
+
+TRANSFER_MAX_DRIFT = 0.35      # same line as facing re-rolls
+
+
+def transfer(job: Job, profile: GameProfile, facing: str, action_name: str, motion_name: str,
+             client: ComfyClient | None = None, size: int = 768, steps: int = 8, seed: int | None = None) -> dict:
+    """EXPERIMENTAL: render an action by transferring an approved library motion (TARA) onto this
+    job's approved facing, then extract like any action. Identity is checked against the facing:
+    colour drift above TRANSFER_MAX_DRIFT is reported as a warning (measured best case ~0.35)."""
+    from ..frames import analysis
+    from . import motion, stages
+    _require_approved(job, "facings")
+    base = job.root.parent.parent
+    m = motion.get(motion_name, base)
+    if m["status"] != "approved":
+        raise RuntimeError(f"motion '{motion_name}' is {m['status']}; approve it first")
+    face = job.root / "02_facings" / f"{facing}.png"
+    if not face.exists():
+        raise FileNotFoundError(f"facing {facing} not generated")
+    d = job.action_dir(facing, action_name)
+    raw = d / "raw.mp4"
+    frames = m["frames"] - ((m["frames"] - 5) % 17)          # 17n+5, never longer than the clip
+    _run_video(client or ComfyClient(), job, "h3_tara_transfer",
+               {"prompt": builder.motion_transfer(), "ref_images": [face], "ref_video": Path(m["clip"]),
+                "frames": frames, "width": size, "height": size, "steps": steps, "seed": _seed(seed)}, raw)
+    vid = _video_frames(raw)
+    face_rgba = _rgba(face)
+    drifts = [drift(face_rgba, chroma.key(vid[i]))["color"] for i in range(0, len(vid), max(1, len(vid) // 7))]
+    report = {"experimental": True, "mode_used": "tara", "facing": facing, "action": action_name,
+              "motion": motion_name, "size": size, "steps": steps, "frames": frames,
+              "identity_drift": {"mean": round(float(np.mean(drifts)), 3), "max": round(float(max(drifts)), 3)},
+              "warnings": []}
+    if report["identity_drift"]["mean"] > TRANSFER_MAX_DRIFT:
+        report["warnings"].append(f"identity drift {report['identity_drift']['mean']} > {TRANSFER_MAX_DRIFT}: "
+                                  "the transfer is losing the character; re-roll (seed) or render with H3")
+    report["extract"] = stages.extract(job, raw, facing, action_name)
+    (d / "action_report.json").write_text(json.dumps(report, indent=2, default=str))
+    job.set_stage(f"action:{facing}/{action_name}", "review", mode="tara", motion=motion_name,
+                  identity_drift=report["identity_drift"], warnings=report["warnings"])
+    return report

@@ -140,7 +140,7 @@ def cmd_queue(a):
         print(_task_line(q.submit(a.job, a.stage, _kv(a.arg), a.profile, after)))
     elif a.sub == "pipeline":
         for t in q.submit_action_pipeline(a.job, a.facing, a.action, a.profile, generate=not a.no_generate,
-                                          **_kv(a.arg)):
+                                          motion=a.motion, **_kv(a.arg)):
             print(_task_line(t))
     elif a.sub == "list":
         for t in q.list(a.status):
@@ -177,6 +177,23 @@ def cmd_mcp(a):
         os.chdir(a.root)          # templates/ and profiles/ resolve relative to the project root
     from .mcp_server import main as mcp_main
     mcp_main(a.base)
+
+
+def cmd_motion(a):
+    from .core import motion
+    if a.sub == "add":
+        _print(motion.add(a.name, _job(a.job), a.facing, a.action, a.base, a.notes or ""))
+    elif a.sub == "approve":
+        _print(motion.approve(a.name, a.base))
+    else:
+        for m in motion.list_all(a.base):
+            print(f"{m['name']:<20} {m['status']:<9} {m['action']}/{m['facing']} {m['frames']}f  {m['notes']}")
+
+
+def cmd_transfer(a):
+    from .core import generate
+    _print(generate.transfer(_job(a.job), _profile(a), a.facing, a.action, a.motion, size=a.size,
+                             steps=a.steps, seed=a.seed))
 
 
 def cmd_comfy_check(a):
@@ -267,6 +284,7 @@ def build() -> argparse.ArgumentParser:
     p = qp.add_parser("pipeline"); p.add_argument("--job", required=True); p.add_argument("--facing", required=True)
     p.add_argument("--action", required=True); p.add_argument("--profile"); p.add_argument("--no-generate", action="store_true")
     p.add_argument("--arg", action="append", help="action args key=value, e.g. seconds=2 seed=11")
+    p.add_argument("--motion", help="EXPERIMENTAL: approved library motion -> TARA transfer instead of H3")
     p = qp.add_parser("list"); p.add_argument("--status")
     p = qp.add_parser("cancel"); p.add_argument("id")
     for name, sp in qp.choices.items():
@@ -280,6 +298,18 @@ def build() -> argparse.ArgumentParser:
     p.set_defaults(fn=cmd_ui)
     p = sub.add_parser("mcp", help="MCP server on stdio"); p.add_argument("--root", help="project folder")
     p.add_argument("--base", default="jobs"); p.set_defaults(fn=cmd_mcp)
+    mp = sub.add_parser("motion", help="EXPERIMENTAL motion library").add_subparsers(dest="sub", required=True)
+    p = mp.add_parser("add"); p.add_argument("name"); p.add_argument("--job", required=True)
+    p.add_argument("--facing", required=True); p.add_argument("--action", required=True); p.add_argument("--notes")
+    p = mp.add_parser("approve"); p.add_argument("name")
+    mp.add_parser("list")
+    for sp in mp.choices.values():
+        sp.add_argument("--base", default="jobs"); sp.set_defaults(fn=cmd_motion)
+    p = sub.add_parser("transfer", help="EXPERIMENTAL: TARA motion transfer from the library")
+    p.add_argument("--job", required=True); p.add_argument("--profile"); p.add_argument("--facing", required=True)
+    p.add_argument("--action", required=True); p.add_argument("--motion", required=True)
+    p.add_argument("--size", type=int, default=768); p.add_argument("--steps", type=int, default=8)
+    p.add_argument("--seed", type=int); p.set_defaults(fn=cmd_transfer)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

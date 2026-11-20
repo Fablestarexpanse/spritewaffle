@@ -14,6 +14,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from ..core import generate
+from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.queue import Queue, Worker
 from ..prompts import builder
@@ -106,7 +107,8 @@ def create_app(base: str | Path = "jobs", worker: bool = True, limits: dict | No
         return {"character": meta["character"], "job_id": meta["job_id"], "inputs": meta["inputs"],
                 "stages": meta["stages"], "anchor": url(j.root / "01_anchor" / "anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals")},
-                "actions": actions, "known_actions": sorted(builder.ACTIONS)}
+                "actions": actions, "known_actions": sorted(builder.ACTIONS),
+                "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"]}
 
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):

@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Mannequin-driven TARA keeps identity (drift 0.35 at 768) but is borderline. Ronan to choose: wire TARA in as an experimental motion-library stage, or park.
+NEXT: TARA wired in as experimental motion library + transfer stage (goblin S walk: QA pass, identity drift 0.37 warns). Remaining Phase 3 option: optical-flow pixel-exact motion transfer.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -139,3 +139,14 @@ NEXT: Mannequin-driven TARA keeps identity (drift 0.35 at 768) but is borderline
     mannequin-driven 8 st 768²: 0.35 / 0.57 (goblin kept, olive skin back, crispest of all)
   Verdict: a neutral driving clip removes the identity takeover; best result sits on the facing
   re-roll line (0.35) and timing is weaker at 768². Promising, not proven: still not wired in.
+- 2026-11-20 Ronan: wire TARA in as EXPERIMENTAL. Motion library = jobs/_library/motions/<name>/
+  (clip.mp4 + motion.json, review -> approved; `spritewaffle motion add|approve|list`). Stage
+  `transfer` (GPU; CLI `transfer`, `queue pipeline --motion`, MCP animate(motion=), UI source
+  selector): approved facing = Picture 1, approved library clip = Video 1, 768², 8 steps, frames =
+  largest 17n+5 within the clip; then the normal select→pixelize→QA→export. Every transfer reports
+  identity_drift vs the facing and warns above 0.35 (same line as facing re-rolls).
+- 2026-11-20 First library motion: walk_S_mannequin (from jobs/mannequin/m1). Real run on the goblin
+  (jobs/goblin/20261120_115505, S walk): pipeline done end to end, QA pass 12f/24f, identity drift
+  mean 0.37 / max 0.44 → warning raised as designed. Pixelized result reads as the goblin marching,
+  skin darker/browner than the anchor. Anchor/facings/motion approvals in this run were test
+  approvals by Claude, not Ronan's review.
