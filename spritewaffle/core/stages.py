@@ -89,6 +89,17 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
     union = sorted({i for v in sets.values() for i in v})
     src = video.list_frames(d / "extracted")
     frames = video.load([src[i] for i in union])
+    from ..prompts import styles
+    st = styles.get(styles.of_job(job))
+    if st["post"] == "smooth":                       # hand-painted / anime / comic: no grid, no palette
+        from ..pixel import smooth
+        art, k = smooth.process(frames, profile.sprite_height_px * st["scale"], despill=profile.despill)
+        pos = {s: n for n, s in enumerate(union)}
+        info = _write_pixel_sets(job, profile, facing, action,
+                                 {n: ([art[pos[i]] for i in idxs], idxs) for n, idxs in sets.items()},
+                                 None, {"style": st["name"], "scale": round(k, 4)}, cell=profile.cell_size * st["scale"])
+        job.set_stage(f"pixelize:{facing}/{action}", "done", style=st["name"], scale=round(k, 4))
+        return info
     params = PixelParams(palette=profile.palette if isinstance(profile.palette, list) else (palette or profile.palette_size),
                          pixel_size=profile.pixel_size, target_height=profile.sprite_height_px,
                          loop=rep["loop"], outline=profile.outline, despill=profile.despill)
@@ -103,20 +114,26 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
     return info
 
 
-def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, sets: dict, palette: np.ndarray,
-                      info: dict) -> dict:
+def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, sets: dict, palette: np.ndarray | None,
+                      info: dict, cell: int | None = None) -> dict:
     """Write the 04_pixel layout every later stage reads. sets: {"12": (art_frames, sources), ...}.
-    Each set is laid out with preserve-canvas (one placement for all frames)."""
+    Each set is laid out with preserve-canvas (one placement for all frames). palette=None: a
+    full-colour style (no indices.npy; export writes RGBA)."""
     out = job.stage_dir("04_pixel") / facing / action
-    info = {**info, "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in np.asarray(palette).tolist()], "sets": {}}
+    cell = cell or profile.cell_size
+    pal_list = [] if palette is None else [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in np.asarray(palette).tolist()]
+    info = {**info, "palette": pal_list, "cell": cell, "sets": {}}
     for n, (art, sources) in sets.items():
-        cells, places = layout.preserve_canvas(list(art), (profile.cell_size, profile.cell_size))
+        cells, places = layout.preserve_canvas(list(art), (cell, cell))
         sd = out / f"{n}f"
         _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
-        np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, palette) for c in cells]))
+        (sd / "indices.npy").unlink(missing_ok=True)
+        if palette is not None:
+            np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, palette) for c in cells]))
         (sd / "placements.json").write_text(json.dumps([p.as_dict() for p in places], indent=2))
         prev = np.concatenate(list(cells), axis=1)
-        Image.fromarray(prev).resize((prev.shape[1] * 4, prev.shape[0] * 4), Image.NEAREST).save(sd / "preview_4x.png")
+        k = 4 if palette is not None else 1                      # pixel art previews upscaled, smooth art as is
+        Image.fromarray(prev).resize((prev.shape[1] * k, prev.shape[0] * k), Image.NEAREST).save(sd / "preview_4x.png")
         info["sets"][str(n)] = {"frames": len(cells), "sources": list(sources)}
     (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
     return info
@@ -145,7 +162,8 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     results = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
         cells, places = _load_set(sd)
-        r = checks.run(cells, places, "preserve-canvas", palette_size=min(pal_n, profile.palette_size), loop=loop)
+        limit = min(pal_n, profile.palette_size) if pal_n else 1 << 30      # full-colour styles: no palette limit
+        r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
     status = "fail" if "fail" in results.values() else "pass"
@@ -158,7 +176,7 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
     pdir = job.root / "04_pixel" / facing / action
     loop = json.loads((job.action_dir(facing, action) / "selection_report.json").read_text())["loop"]
     pal = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)]
-                    for h in json.loads((pdir / "pixel_report.json").read_text())["palette"]], np.uint8)
+                    for h in json.loads((pdir / "pixel_report.json").read_text())["palette"]], np.uint8).reshape(-1, 3)
     base_fps = profile.fps(action)
     written = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
@@ -168,12 +186,17 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
         name = f"{action}_{facing}_{sd.name}"
         out = job.stage_dir("06_export") / facing / action / sd.name
         files = {}
+        indexed = (sd / "indices.npy").exists()
         if fmt in ("png", "both"):
-            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop).items() if k != "frames"})
+            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop,
+                                                                    preview_scale=4 if indexed else 1).items() if k != "frames"})
         if fmt in ("aseprite", "both"):
-            ind = np.load(sd / "indices.npy")
-            p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind),
-                               tags=[(f"{action}_{facing}", 0, len(ind) - 1, "forward")])
+            tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward")]
+            if indexed:
+                ind = np.load(sd / "indices.npy")
+                p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags)
+            else:
+                p = aseprite.write_rgba(out / f"{name}.aseprite", cells, [round(1000 / fps)] * len(cells), tags=tags)
             files["aseprite"] = str(p)
         written[sd.name] = files
     job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
@@ -189,6 +212,10 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     from ..frames import flowtransfer
     from . import motion
     job.require_approved("facings")
+    from ..prompts import styles
+    if styles.get(styles.of_job(job))["post"] != "pixel":
+        raise RuntimeError("pixel-exact flow transfer works on pixel art only; this job's style is "
+                           f"'{styles.of_job(job)}' (use an H3 render)")
     m = motion.get(motion_name, job.root.parent.parent)
     if m["status"] != "approved":
         raise RuntimeError(f"motion '{motion_name}' is {m['status']}; approve it first")
@@ -252,7 +279,8 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
     rep = json.loads((src / "pixel_report.json").read_text()) if (src / "pixel_report.json").exists() else None
     if rep is None:
         raise FileNotFoundError(f"{action} {source} is not pixelized yet; it is the source for {facing}")
-    palette = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in rep["palette"]], np.uint8)
+    palette = (np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in rep["palette"]], np.uint8)
+               if rep["palette"] else None)                          # None: full-colour style
     sets = {}
     for n, info in rep["sets"].items():
         frames = video.load(video.list_frames(src / f"{n}f" / "frames"))
@@ -270,7 +298,8 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
     if sel.exists():
         shutil.copyfile(sel, d / "selection_report.json")
     out = _write_pixel_sets(job, profile, facing, action, sets, palette,
-                            {"grid": rep.get("grid"), "method": "mirror", "source": source})
+                            {"grid": rep.get("grid"), "style": rep.get("style"), "method": "mirror", "source": source},
+                            cell=rep.get("cell"))
     (d / "action_report.json").write_text(json.dumps({"mode_used": "mirror", "source": source, "facing": facing,
                                                        "action": action, "warnings": warnings}, indent=2))
     job.set_stage(f"action:{facing}/{action}", "review", mode="mirror", source=source, warnings=warnings)

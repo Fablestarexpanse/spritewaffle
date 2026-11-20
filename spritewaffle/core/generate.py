@@ -16,7 +16,7 @@ from ..comfy.client import ComfyClient
 from ..frames import layout
 from ..pixel import chroma
 from ..pixel.color import srgb_to_oklab
-from ..prompts import builder
+from ..prompts import builder, styles
 from .job import Job
 from .profile import GameProfile
 
@@ -60,6 +60,7 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
 
     style_ref: an approved hero anchor (path or job folder). The new anchor is drawn in the hero's
     style through the image-edit template ("hero asset first, then reference it")."""
+    styles.use(styles.of_job(job))
     builder.asset(asset_type)
     dest = job.stage_dir("01_anchor") / "anchor.png"
     if image:
@@ -196,6 +197,7 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
+    styles.use(styles.of_job(job))
     job.require_approved("anchor")
     client = client or ComfyClient()
     a_path = job.root / "01_anchor" / "anchor.png"
@@ -278,6 +280,7 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
 
     Cyclic actions use the transition pose as first AND last frame; one-shot actions end on the
     idle facing. Every still is flattened to exact #00FF00 first."""
+    styles.use(styles.of_job(job))
     from ..frames import analysis
     from . import stages
     job.require_approved("facings")
@@ -327,6 +330,7 @@ def bridge(job: Job, a: Path, b: Path, dest: Path, client: ComfyClient | None = 
 
     method='video' (default): a short FL2VA clip from A to B, middle frame kept. Measured: the image
     edit ('image', bridge_frame slot) copies Picture 2's pose instead of interpolating."""
+    styles.use(styles.of_job(job))
     client = client or ComfyClient()
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -355,6 +359,7 @@ def transfer(job: Job, profile: GameProfile, facing: str, action_name: str, moti
     """EXPERIMENTAL: render an action by transferring an approved library motion (TARA) onto this
     job's approved facing, then extract like any action. Identity is checked against the facing:
     colour drift above TRANSFER_MAX_DRIFT is reported as a warning (measured best case ~0.35)."""
+    styles.use(styles.of_job(job))
     from ..frames import analysis
     from . import motion, stages
     job.require_approved("facings")

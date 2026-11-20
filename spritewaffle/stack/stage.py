@@ -38,6 +38,8 @@ def ortho_prompt(view: str) -> str:
 def ortho(job: Job, client: ComfyClient | None = None, seed: int | None = None, only: list[str] | None = None) -> dict:
     """Front = the approved anchor; back/right/top from image edits of it."""
     job.require_approved("anchor")
+    from ..prompts import styles
+    styles.use(styles.of_job(job))
     client = client or ComfyClient()
     out = job.stage_dir("02_ortho")
     anchor = job.root / "01_anchor" / "anchor.png"
@@ -54,6 +56,9 @@ def ortho(job: Job, client: ComfyClient | None = None, seed: int | None = None, 
 def build(job: Job, profile: GameProfile, stack_height: int = 24, layer_px: int = 1, steps: int = 16,
           name: str | None = None) -> dict:
     """Pixelize the four views as one batch (shared palette + pixel size), carve, export."""
+    from ..prompts import styles
+    if styles.get(styles.of_job(job))["post"] != "pixel":
+        raise RuntimeError(f"sprite stacking is pixel art only; this job's style is '{styles.of_job(job)}'")
     src = job.root / "02_ortho"
     missing = [v for v in ("front", *VIEWS) if not (src / f"{v}.png").exists()]
     if missing:

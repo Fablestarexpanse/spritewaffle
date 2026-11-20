@@ -226,3 +226,12 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   Side-by-side on the goblin (S): template walk vs AI walk both QA pass, AI walk swings the club in
   rhythm (modest gain); AI "cast spell" (impossible with templates) renders a club-raise + gem sparkle
   effect, QA pass. ~2 s per AI spec after the model is loaded.
+- 2026-11-20 Art styles (Ronan: "gen in these styles and switch between them, maybe others later"):
+  prompts/styles.py registry — pixel (pixelizer), painted / anime / comic (post "smooth": key +
+  despill + specks + ONE scale per clip to profile height x4, premultiplied-alpha resize for soft
+  edges without green fringe, cell x4, RGBA export, no palette check). Per job inputs.style; stages
+  set the active style (context var) before building prompts; all "pixel-art" wording in the
+  builder now comes from the style. Flow transfer and sprite stacking refuse non-pixel styles.
+  Real run: one ranger description + seed 21 in all four styles -> four clearly different looks of
+  the same character; painted S walk through the full pipeline: not frozen, scale 0.44, 256 px
+  cells, QA pass 12f/24f (height CV 0.016), RGBA export.

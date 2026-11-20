@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ..core.profile import GameProfile
+from . import styles
 
 CARDINALS = ("S", "E", "N", "W")
 DIAGONALS = ("SE", "NE", "NW", "SW")
@@ -57,10 +58,16 @@ def asset(asset_type: str) -> dict:
     return ASSET_TYPES[asset_type]
 
 
+def style_text(profile: GameProfile) -> str:
+    """The active style's look sentence (pixel art keeps its projection-specific wording)."""
+    st = styles.get()
+    return STYLE[profile.projection] if st["post"] == "pixel" else st["prompt"]
+
+
 def anchor(description: str, profile: GameProfile, facing: str = "S", asset_type: str = "character") -> str:
     a = asset(asset_type)
     return (f"{a['subject']}: {description.strip().rstrip('.')}. {a['pose'].format(view=VIEW[facing])} "
-            f"{STYLE[profile.projection]} {FRAMING}")
+            f"{style_text(profile)} {FRAMING}")
 
 
 def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "character") -> str:
@@ -68,7 +75,8 @@ def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "
     a = asset(asset_type)
     return ("<Picture 1> shows the approved hero sprite of this game. "
             f"Draw a new, different {a['subject'].lower()}: {description.strip().rstrip('.')}. "
-            "Use exactly the same art style as <Picture 1>: same pixel size, outline weight, shading and "
+            "Use exactly the same art style as <Picture 1>: same "
+            + ("pixel size, " if styles.get()["post"] == "pixel" else "") + "outline weight, shading and "
             "palette feel, and the same scale on the canvas. Do not copy the hero's design. "
             f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
@@ -81,7 +89,7 @@ def facing(target: str, refs: list[str], first: str = "S") -> str:
         parts.append(f"<Picture {i}> shows the same character, {VIEW[f]}.")
     parts.append(
         f"Draw this exact character again, {VIEW[target]}, in the same relaxed idle pose. "
-        "Keep the identical outfit, colors, proportions, size, pixel-art style and outline as <Picture 1>. "
+        f"Keep the identical outfit, colors, proportions, size, {styles.get()['noun']} style and outline as <Picture 1>. "
         "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
     return " ".join(parts)
 
@@ -129,7 +137,7 @@ def transition(action: str, facing_: str, spec: dict | None = None) -> str:
     return (f"<Picture 1> shows the character, {VIEW[facing_]}, in its idle pose. "
             f"Draw this exact character in the same facing, {(spec or action_spec(action))['transition']}. "
             "This is only a small step away from the idle pose, not the extreme pose. "
-            "Keep the identical outfit, colors, proportions, size, pixel-art style and outline. "
+            f"Keep the identical outfit, colors, proportions, size, {styles.get()['noun']} style and outline. "
             "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
 
 
@@ -145,10 +153,10 @@ def action_video(action: str, facing_: str, seconds: float, last_frame: bool, sp
     else:
         head = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced."
         end = ""
-    body = (f"[Shot 1] 2D pixel-art game sprite with a locked camera: no zoom, no pan. The character begins in the pose "
+    body = (f"[Shot 1] 2D {styles.get()['noun']} game sprite with a locked camera: no zoom, no pan. The character begins in the pose "
             f"and position established by Picture 1, pinned to the center of the frame, and {spec['motion']}. "
             f"It {HOLD[facing_]}; it must not turn or move across the screen. The flat #00FF00 background stays "
-            f"unchanged for the whole shot, and the chunky pixel-art look stays the same.{end}")
+            f"unchanged for the whole shot, and the {styles.get()['look']} stays the same.{end}")
     return (f"{head}\n\nintegrated_multimodal_description: {body}\n\n"
             f"overall_soundscape: {spec['sound']}\n\nnon_diegetic_music: None.")
 
@@ -171,7 +179,7 @@ def bridge_video(seconds: float) -> str:
     """FL2VA prompt for a short clip that moves from Picture 1's pose to Picture 2's pose."""
     return ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the "
             f"0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the {seconds:.2f}-second mark "
-            "of the target video.\n\nintegrated_multimodal_description: [Shot 1] 2D pixel-art game sprite with a "
+            "of the target video.\n\nintegrated_multimodal_description: [Shot 1] 2D " + styles.get()["noun"] + " game sprite with a "
             "locked camera: no zoom, no pan. The character begins in the pose and position established by Picture 1, "
             "pinned to the center of the frame, and moves smoothly and evenly into the pose established by Picture 2. "
             "It keeps the same facing and must not move across the screen. The flat #00FF00 background stays "
@@ -181,4 +189,4 @@ def bridge_video(seconds: float) -> str:
 def bridge() -> str:
     return ("<Picture 1> and <Picture 2> show the same character in two poses with the same facing. "
             "Draw the single in-between pose exactly halfway between them. Keep the identical outfit, colors, "
-            "proportions, size, pixel-art style and outline, same scale and same position in the frame. " + FRAMING)
+            f"proportions, size, {styles.get()['noun']} style and outline, same scale and same position in the frame. " + FRAMING)

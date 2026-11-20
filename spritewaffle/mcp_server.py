@@ -55,19 +55,24 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def generate(character: str, stage: str = "anchor", description: str | None = None,
                  job_id: str | None = None, asset_type: str = "character", style_ref: str | None = None,
-                 image: str | None = None, seed: int | None = None, only: list[str] | None = None) -> dict:
+                 image: str | None = None, seed: int | None = None, only: list[str] | None = None,
+                 style: str | None = None) -> dict:
         """Queue a still-image stage.
 
         stage='anchor': creates the job when job_id is omitted. Needs `description` (or `image`, a path
         to import). asset_type: character | creature | prop. style_ref: an approved hero as
         'character/job_id' (or an image path) to draw this asset in the hero's style.
         stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
+        style (anchor): pixel (default), painted (hand-painted), anime (anime cel), comic (comic ink).
         Returns the job and queued task ids; call status(...) to follow progress."""
         if stage not in ("anchor", "facings"):
             raise ValueError("stage must be 'anchor' or 'facings'")
         if stage == "anchor":
             builder.asset(asset_type)
             job = job_for(character, job_id) if job_id else Job.create(character, base=base)
+            if style:
+                from .prompts import styles
+                job.update_inputs(style=styles.get(style)["name"])
             args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type}
             if style_ref:
                 ref = base / style_ref if "/" in style_ref and not Path(style_ref).exists() else Path(style_ref)

@@ -52,6 +52,7 @@
   .badge.running { color: var(--run); border-color: color-mix(in srgb, var(--run) 45%, transparent); }
   .chip { font-size: 11px; padding: 1px 7px; border-radius: 4px; background: var(--panel2); color: var(--muted); }
   /* images */
+  .smooth img.pix { image-rendering: auto; }
   img.pix { image-rendering: pixelated; max-width: 100%; height: auto; display: block; border-radius: 4px;
             background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/16px 16px; }
   .ph { display: grid; place-items: center; aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; color: var(--muted); font-size: 12px; }
@@ -129,6 +130,7 @@
   <div class="newjob" id="newForm" hidden>
     <input id="nName" placeholder="name, e.g. knight">
     <select id="nType"></select>
+    <select id="nStyle"></select>
     <select id="nProfile"></select>
     <div class="row" style="margin:0"><button class="primary" id="nCreate">Create job</button><button class="ghost" id="nCancel">Cancel</button></div>
   </div>
@@ -206,6 +208,7 @@ async function loadStatus() {
 // --- sidebar -----------------------------------------------------------------------------
 function fillNewForm() {
   $("#nType").innerHTML = status.asset_types.map(t => `<option ${t === "character" ? "selected" : ""}>${t}</option>`).join("");
+  $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
   $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
 }
 async function loadJobs() {
@@ -217,7 +220,7 @@ async function loadJobs() {
     const done = (STEPS[j.asset_type] || STEPS.character).filter(s => stepDone(s, j.stages)).length;
     return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""}">
       ${j.thumb ? `<img src="${esc(j.thumb)}" alt="">` : `<div class="noimg"></div>`}
-      <div><div class="name">${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span></div>
+      <div><div class="name">${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span>${j.style !== "pixel" ? ` <span class="chip">${esc(j.style)}</span>` : ""}</div>
       <small>${esc(j.job_id)} · step ${done}/${(STEPS[j.asset_type] || STEPS.character).length}</small></div></a>`;
   }).join("") || `<p class="muted" style="padding:8px">${q ? "No match." : "No jobs yet. Click New."}</p>`;
 }
@@ -236,6 +239,7 @@ function renderJob() {
   const j = job, st = k => j.stages[k]?.status, steps = STEPS[j.asset_type] || STEPS.character;
   if (!steps.includes(tab)) tab = steps.find(s => !stepDone(s, j.stages)) || steps[0];
   const thumb = j.thumb;
+  $("#main").classList.toggle("smooth", j.style !== "pixel");
   $("#main").innerHTML = `
     <div class="jobhead">
       ${thumb ? `<img src="${esc(thumb)}" alt="">` : ""}
@@ -244,6 +248,8 @@ function renderJob() {
       <span class="spacer"></span>
       <label>Profile <select id="jProfile"><option value="">default</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+      <label title="Art style for new generations; generate a new anchor after switching">Style
+        <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
@@ -253,6 +259,7 @@ function renderJob() {
     <div id="pane"></div>`;
   ({anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
   $$(".tab").forEach(b => b.onclick = () => { tab = b.dataset.tab; setHash(); renderJob(); });
+  $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jArchive").onclick = async () => {
@@ -532,7 +539,7 @@ $("#nCancel").onclick = () => $("#newForm").hidden = true;
 $("#nCreate").onclick = async () => {
   const name = $("#nName").value.trim();
   if (!name) return toast("Give the job a name", true);
-  const r = await api("/api/jobs", {character: name, asset_type: $("#nType").value, profile: $("#nProfile").value || null});
+  const r = await api("/api/jobs", {character: name, asset_type: $("#nType").value, style: $("#nStyle").value, profile: $("#nProfile").value || null});
   $("#newForm").hidden = true; $("#nName").value = "";
   location.hash = `${r.character}/${r.job_id}/anchor`;
 };

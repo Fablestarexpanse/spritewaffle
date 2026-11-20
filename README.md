@@ -51,6 +51,25 @@ its own queue worker, so nothing else needs to be running.
    Aseprite Importer makes one clip each, plus an Animator Controller) and an atlas PNG + JSON.
    Every file is downloadable from the same tab.
 
+### Art styles
+
+Each job has a style (header **Style**, or `spritewaffle style <job> <style>`): **Pixel art** (default),
+**Hand-painted**, **Anime cel**, **Comic ink**. The style changes the prompt wording and the
+processing: pixel art goes through the pixelizer (grid, shared palette); the others are keyed,
+despilled and scaled smoothly with soft edges at 4x the profile size (a 64 px profile cell becomes
+256 px) and export as full-colour `.aseprite` / PNG. Switch, then generate a new anchor. Mirroring
+works in every style; flow transfer and sprite stacking are pixel art only. New styles are one
+entry in `spritewaffle/prompts/styles.py`.
+
+### AI prompt writer (optional)
+
+Header **Prompts → AI** (or `spritewaffle writer <job> ai`): a small local model (Qwen3-VL 4B, run
+by ComfyUI) looks at your character and writes its description and per-action motion text, so a
+goblin swings *its club* and new actions like `cast spell` work. Every reply is checked and falls
+back to the fixed template wording; the rules (green background, framing, in-place motion) are
+never left to the model. `spritewaffle prompts --job <job> --action walk` shows template vs AI text
+without rendering.
+
 ### Prop (sprite stacking)
 
 New → type `prop` → anchor (a straight **front** view) → approve → **Sprite stack** →

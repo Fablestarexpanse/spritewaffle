@@ -162,6 +162,13 @@ def cmd_animate(a):
     print(f"\nqueued {len(ts)} tasks; run `spritewaffle worker` or keep `spritewaffle ui` open")
 
 
+def cmd_style(a):
+    from .prompts import styles
+    job = _job(a.job)
+    job.update_inputs(style=styles.get(a.style)["name"])
+    print(f"style: {a.style} ({styles.STYLES[a.style]['label']}); generate a new anchor to see it")
+
+
 def cmd_writer(a):
     job = _job(a.job)
     job.update_inputs(prompt_writer=a.mode)
@@ -432,6 +439,9 @@ def build() -> argparse.ArgumentParser:
         (("--no-mirror",), {"action": "store_true", "help": "render W/NW/SW instead of mirroring"}),
         (("--motion",), {"help": "use this library motion instead of H3 [experimental]"}),
         (("--method",), {"choices": ("tara", "flow"), "default": "flow", "help": "with --motion"}))
+    from .prompts.styles import STYLES
+    cmd("style", cmd_style, "art style of this job: " + ", ".join(f"{k} ({v['label']})" for k, v in STYLES.items()),
+        JOB, (("style",), {"choices": tuple(STYLES)}))
     cmd("writer", cmd_writer, "who writes the creative prompt text for this job: template (default) or ai (Qwen3-VL 4B)",
         JOB, (("mode",), {"choices": ("template", "ai")}))
     cmd("prompts", cmd_prompts, "show template vs AI motion text for one action (renders nothing)",

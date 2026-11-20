@@ -20,7 +20,7 @@ from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
 from ..core.queue import Queue, Worker
-from ..prompts import builder
+from ..prompts import builder, styles
 
 STATIC = Path(__file__).parent / "static"
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
@@ -118,7 +118,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         return {"version": __version__, "comfy": {"ok": c["ok"], "detail": c["detail"]},
                 "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts,
                 "jobs": str(base), "profiles": list_profiles(), "actions": sorted(builder.ACTIONS),
-                "asset_types": sorted(builder.ASSET_TYPES)}
+                "asset_types": sorted(builder.ASSET_TYPES),
+                "styles": [{"name": k, "label": v["label"]} for k, v in styles.STYLES.items()]}
 
     # --- jobs -----------------------------------------------------------------------------
     @app.get("/api/jobs")
@@ -131,7 +132,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             root = meta.parent
             out.append({"character": m["character"], "job_id": m["job_id"],
                         "asset_type": m["inputs"].get("asset_type", "character"),
-                        "profile": m["inputs"].get("profile"),
+                        "profile": m["inputs"].get("profile"), "style": m["inputs"].get("style") or "pixel",
                         "stages": {k: v["status"] for k, v in m["stages"].items()},
                         "thumb": thumb(root),
                         "updated": meta.stat().st_mtime})
@@ -150,7 +151,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 resolve(body["profile"])                  # refuse unknown profiles early
         except FileNotFoundError as e:
             bad(e)
-        j = Job.create(char, jid, base=base, asset_type=asset_type, profile=body.get("profile") or None)
+        try:
+            style = styles.get(body.get("style") or "pixel")["name"]
+        except ValueError as e:
+            bad(e)
+        j = Job.create(char, jid, base=base, asset_type=asset_type, profile=body.get("profile") or None, style=style)
         return {"character": char, "job_id": j.root.name}
 
     @app.post("/api/jobs/{char}/{jid}/settings")
@@ -161,10 +166,12 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 resolve(body["profile"])
             if body.get("asset_type") and body["asset_type"] not in builder.ASSET_TYPES:
                 raise ValueError(f"unknown asset type {body['asset_type']}")
+            if body.get("style"):
+                styles.get(body["style"])
             if body.get("prompt_writer") and body["prompt_writer"] not in ("template", "ai"):
                 raise ValueError("prompt_writer must be 'template' or 'ai'")
             j.update_inputs(profile=body.get("profile"), asset_type=body.get("asset_type"),
-                            prompt_writer=body.get("prompt_writer"))
+                            prompt_writer=body.get("prompt_writer"), style=body.get("style"))
         except (FileNotFoundError, ValueError) as e:
             bad(e)
         return {"ok": True}
@@ -208,6 +215,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             key=lambda e: (e["group"], e["name"])) if exp.is_dir() else []
         return {"character": meta["character"], "job_id": meta["job_id"], "inputs": meta["inputs"],
                 "asset_type": meta["inputs"].get("asset_type", "character"), "thumb": thumb(j.root),
+                "style": meta["inputs"].get("style") or "pixel",
                 "stages": meta["stages"], "anchor": crop(j.root / "01_anchor" / "anchor.png"),
                 "anchor_full": url(j.root / "01_anchor" / "anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals")},
