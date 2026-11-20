@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import fsutil
+from .. import paths
 from .job import Job
 from .profile import resolve
 
@@ -87,6 +88,10 @@ def _stages():
         need(a, "facing", "action", "motion")
         return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"], loop=a.get("loop"))
 
+    def mirror(job, prof, a):
+        need(a, "facing", "action")
+        return stages.mirror_action(job, prof, a["facing"], a["action"], a.get("source"))
+
     def ortho(job, prof, a):
         from ..stack import stage as stack_stage
         return stack_stage.ortho(job, seed=a.get("seed"), only=a.get("only"))
@@ -117,19 +122,19 @@ def _stages():
 
     gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
            "ortho": ortho}
-    cpu = {"stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
+    cpu = {"mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
 # --- store ------------------------------------------------------------------------------------
 
 class Queue:
-    def __init__(self, base: str | Path = "jobs"):
-        self.dir = Path(base) / "_queue"
+    def __init__(self, base: str | Path | None = None):
+        self.dir = (Path(base) if base else paths.jobs()) / "_queue"
         self.dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._last_seq = 0
@@ -195,6 +200,27 @@ class Queue:
             prev = [tasks[-1]["id"]]
         return tasks
 
+    def submit_animate(self, job, facings: list[str], actions: list[str], profile: str | None = None,
+                       mirror: bool = True, **action_args) -> list[dict]:
+        """Batch: every facing x action. With mirror=True, W/NW/SW whose partner (E/NE/SE) is also
+        requested are made by flipping the partner's pixel art (after its pixelize task) instead of
+        rendering — same pixels, no GPU time. Each one still gets its own QA and export."""
+        from .stages import MIRROR_OF
+        tasks = []
+        for action in actions:
+            pix_task = {}
+            mirrored = [f for f in facings if mirror and f in ("W", "NW", "SW") and MIRROR_OF[f] in facings]
+            for f in [f for f in facings if f not in mirrored]:
+                chain = self.submit_action_pipeline(job, f, action, profile, **action_args)
+                pix_task[f] = next(t["id"] for t in chain if t["stage"] in ("pixelize", "flow"))
+                tasks += chain
+            for f in mirrored:
+                m = self.submit(job, "mirror", {"facing": f, "action": action}, profile, after=[pix_task[MIRROR_OF[f]]])
+                q = self.submit(job, "qa", {"facing": f, "action": action}, profile, after=[m["id"]])
+                e = self.submit(job, "export", {"facing": f, "action": action}, profile, after=[q["id"]])
+                tasks += [m, q, e]
+        return tasks
+
     def submit_stack_pipeline(self, job, profile: str | None = None, views: bool = True, height: int = 24,
                               seed: int | None = None) -> list[dict]:
         """Sprite stacking: ortho views (gpu) -> stack build (cpu). views=False rebuilds from existing views."""
@@ -211,6 +237,22 @@ class Queue:
                 raise ValueError(f"task {tid} is {t['status']}; only queued tasks can be cancelled")
             t.update(status="cancelled", finished=_now())
             return self._put(t)
+
+    def retry(self, tid: str) -> dict:
+        """Queue a failed/cancelled task again (same job, stage, args; no dependencies)."""
+        t = self.get(tid)
+        if t["status"] not in ("failed", "cancelled"):
+            raise ValueError(f"task {tid} is {t['status']}; only failed or cancelled tasks can be retried")
+        return self.submit(t["job"], t["stage"], t["args"], t.get("profile"))
+
+    def clear(self, statuses=("done", "cancelled")) -> int:
+        """Delete finished task files (failed ones stay until retried or cleared explicitly)."""
+        n = 0
+        for t in self.list():
+            if t["status"] in statuses:
+                self._path(t["id"]).unlink(missing_ok=True)
+                n += 1
+        return n
 
     def update(self, tid: str, **fields) -> dict:
         with self._lock:

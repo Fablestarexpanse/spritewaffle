@@ -38,6 +38,20 @@ def extract(video: str | Path, out_dir: str | Path) -> dict:
     return report
 
 
+def read_frames(video: str | Path) -> list[np.ndarray]:
+    """All frames of a video as RGB arrays (in memory; for short sprite clips)."""
+    cap, out = cv2.VideoCapture(str(video)), []
+    while True:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        out.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    cap.release()
+    if not out:
+        raise ValueError(f"no frames decoded from {video}")
+    return out
+
+
 def list_frames(folder: str | Path) -> list[Path]:
     return sorted(Path(folder).glob("*.png"))
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP, Image
 from PIL import Image as PILImage
 
+from . import paths
 from .core import generate as gen
 from .core.job import Job
 from .core.queue import Queue, Worker
@@ -21,8 +22,8 @@ from .prompts import builder
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
 
-def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
-    base = Path(base).resolve()
+def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
+    base = (Path(base) if base else paths.jobs()).resolve()
     base.mkdir(parents=True, exist_ok=True)
     q = Queue(base)
     mcp = FastMCP("spritewaffle", instructions=(
@@ -201,7 +202,7 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
     return mcp, q
 
 
-def main(base: str = "jobs") -> None:
+def main(base: str | None = None) -> None:
     mcp, q = build(base)
     worker = Worker(q)
     try:

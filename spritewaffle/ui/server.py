@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
+from .. import paths
 from ..core import generate
 from ..core import motion as motion_lib
 from ..core.job import Job
@@ -23,8 +24,8 @@ STATIC = Path(__file__).parent / "static"
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
 
-def create_app(base: str | Path = "jobs", worker: bool = True, limits: dict | None = None) -> FastAPI:
-    base = Path(base).resolve()
+def create_app(base: str | Path | None = None, worker: bool = True, limits: dict | None = None) -> FastAPI:
+    base = (Path(base) if base else paths.jobs()).resolve()
     base.mkdir(parents=True, exist_ok=True)
     queue = Queue(base)
     state = {}
@@ -159,6 +160,6 @@ def create_app(base: str | Path = "jobs", worker: bool = True, limits: dict | No
     return app
 
 
-def serve(base: str = "jobs", port: int = 8765) -> None:
+def serve(base: str | None = None, port: int = 8765) -> None:
     import uvicorn
     uvicorn.run(create_app(base), host="127.0.0.1", port=port, log_level="warning")

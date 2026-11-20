@@ -7,6 +7,7 @@ from synth import write_clip
 
 def test_run_end_to_end(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path / "jobs"))
     write_clip(tmp_path / "walk.mp4", frames=48)
     assert cli.main(["run", "walk.mp4", "--character", "dude", "--action", "walk", "--facing", "S", "--job-id", "j"]) == 0
     job = tmp_path / "jobs" / "dude" / "j"

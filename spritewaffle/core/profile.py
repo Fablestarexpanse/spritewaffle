@@ -5,10 +5,11 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .. import paths
+
 PROJECTIONS = ("side", "topdown_34", "iso_2to1")
 OUTLINES = ("none", "dark_1px", "selout")
 
-PROFILES_DIR = Path("profiles")
 
 
 @dataclass
@@ -56,11 +57,19 @@ class GameProfile:
         return cls(**json.loads(Path(path).read_text()))
 
 
-def resolve(name_or_path: str | None, profiles_dir: Path = PROFILES_DIR) -> GameProfile:
+def list_all(profiles_dir: Path | None = None) -> list[str]:
+    d = Path(profiles_dir) if profiles_dir else paths.profiles()
+    return sorted(p.stem for p in d.glob("*.json")) if d.is_dir() else []
+
+
+def resolve(name_or_path: str | None, profiles_dir: Path | None = None) -> GameProfile:
     """Load a profile by file path or by name from profiles/; default profile when None."""
     if not name_or_path:
         return GameProfile(name="default")
     p = Path(name_or_path)
     if p.suffix == ".json" and p.exists():
         return GameProfile.load(p)
-    return GameProfile.load(profiles_dir / f"{name_or_path}.json")
+    p = (Path(profiles_dir) if profiles_dir else paths.profiles()) / f"{name_or_path}.json"
+    if not p.exists():
+        raise FileNotFoundError(f"no profile '{name_or_path}' (looked in {p.parent})")
+    return GameProfile.load(p)

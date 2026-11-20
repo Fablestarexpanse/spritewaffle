@@ -73,7 +73,7 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
             ref = Path(style_ref)
             if ref.is_dir():
                 hero = Job.open(ref)
-                _require_approved(hero, "anchor")
+                hero.require_approved("anchor")
                 ref = hero.root / "01_anchor" / "anchor.png"
             if not ref.exists():
                 raise FileNotFoundError(f"style reference {ref} not found")
@@ -93,12 +93,6 @@ def approve(job: Job, stage: str) -> None:
     if stage not in meta["stages"]:
         raise ValueError(f"stage {stage} has not run")
     job.set_stage(stage, "approved", **{k: v for k, v in meta["stages"][stage].items() if k not in ("status", "time")})
-
-
-def _require_approved(job: Job, stage: str) -> None:
-    st = job.read_meta()["stages"].get(stage, {}).get("status")
-    if st != "approved":
-        raise RuntimeError(f"stage '{stage}' is {st or 'missing'}; approve it first (rule 2: one approved anchor)")
 
 
 # --- facings --------------------------------------------------------------------------------
@@ -134,7 +128,7 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
-    _require_approved(job, "anchor")
+    job.require_approved("anchor")
     client = client or ComfyClient()
     a_path = job.root / "01_anchor" / "anchor.png"
     out = job.stage_dir("02_facings")
@@ -206,15 +200,8 @@ def _run_video(client: ComfyClient, job: Job, slot: str, values: dict, dest: Pat
 
 
 def _video_frames(path: Path) -> list[np.ndarray]:
-    import cv2
-    cap, out = cv2.VideoCapture(str(path)), []
-    while True:
-        ok, bgr = cap.read()
-        if not ok:
-            break
-        out.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-    cap.release()
-    return out
+    from ..frames import video
+    return video.read_frames(path)
 
 
 def action(job: Job, profile: GameProfile, facing: str, action_name: str, client: ComfyClient | None = None,
@@ -225,7 +212,7 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
     idle facing. Every still is flattened to exact #00FF00 first."""
     from ..frames import analysis
     from . import stages
-    _require_approved(job, "facings")
+    job.require_approved("facings")
     client = client or ComfyClient()
     spec = builder.action_spec(action_name)
     face = job.root / "02_facings" / f"{facing}.png"
@@ -301,7 +288,7 @@ def transfer(job: Job, profile: GameProfile, facing: str, action_name: str, moti
     colour drift above TRANSFER_MAX_DRIFT is reported as a warning (measured best case ~0.35)."""
     from ..frames import analysis
     from . import motion, stages
-    _require_approved(job, "facings")
+    job.require_approved("facings")
     base = job.root.parent.parent
     m = motion.get(motion_name, base)
     if m["status"] != "approved":

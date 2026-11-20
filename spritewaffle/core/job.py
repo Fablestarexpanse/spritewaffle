@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import fsutil
+from .. import paths
 
 STAGE_DIRS = ("01_anchor", "02_facings", "03_actions", "04_pixel", "05_qa", "06_export")
 
@@ -29,8 +30,9 @@ class Job:
     root: Path
 
     @classmethod
-    def create(cls, character: str, job_id: str | None = None, base: Path = Path("jobs"), **inputs) -> "Job":
+    def create(cls, character: str, job_id: str | None = None, base: Path | None = None, **inputs) -> "Job":
         job_id = job_id or time.strftime("%Y%m%d_%H%M%S")
+        base = Path(base) if base else paths.jobs()
         root = base / character / job_id
         for d in STAGE_DIRS:
             (root / d).mkdir(parents=True, exist_ok=True)
@@ -77,6 +79,24 @@ class Job:
         """Record how an output was made (model, seed, prompt, source...)."""
         with self.mutate() as meta:
             meta["provenance"].append({"output": output, **info})
+
+    def require_approved(self, stage: str) -> None:
+        """Gate: refuse to build on a stage the human hasn't approved (rule 2: one approved anchor)."""
+        st = self.read_meta()["stages"].get(stage, {}).get("status")
+        if st != "approved":
+            raise RuntimeError(f"stage '{stage}' is {st or 'not run yet'}; approve it first")
+
+    def archive(self) -> Path:
+        """Move the job to <jobs>/_archive/<character>/<job_id> (reversible: move it back)."""
+        import shutil
+        dest = self.root.parent.parent / "_archive" / self.root.parent.name / self.root.name
+        if dest.exists():
+            raise FileExistsError(f"already archived: {dest}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(self.root), dest)
+        if not any(self.root.parent.iterdir()):
+            self.root.parent.rmdir()
+        return dest
 
     def action_dir(self, facing: str, action: str) -> Path:
         d = self.root / "03_actions" / facing / action

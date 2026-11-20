@@ -195,3 +195,11 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
 - 2026-11-20 Encoding bug: Python patch scripts on Windows read/write with cp1252 by default; one
   inserted a lone 0xB7 into index.html (invalid UTF-8 → broken '·' in TARA/flow badges). Repaired at
   byte level; a test now requires every source file to be valid UTF-8. Always pass encoding="utf-8".
+- 2026-11-20 Audit (docs/AUDIT.md, Ronan: "audit ... clean up ... make it professional"). Code pass:
+  paths.py (templates/profiles/jobs no longer depend on the current directory; SPRITEWAFFLE_HOME /
+  SPRITEWAFFLE_JOBS override); CLI rewritten (grouped overview, help on every command and option,
+  one-line errors + --debug, --version 0.2.0, profile list/show, doctor, animate, mirror, archive,
+  queue retry/clear; stages use the job's profile unless --profile); dedupe (video.read_frames,
+  Job.require_approved, one 04_pixel writer); mirror stage (W/NW/SW from E/NE/SE in code) and batch
+  animate that mirrors when the partner is in the batch. Tests now get their own jobs folder
+  (conftest) — the old e2e test had silently written jobs/dude into the real jobs folder.

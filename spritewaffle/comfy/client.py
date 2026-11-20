@@ -147,7 +147,7 @@ class ComfyClient:
         return files
 
     def run_template(self, slot: str, values: dict, out_dir: str | Path,
-                     base: Path = templates.TEMPLATES_DIR, timeout: float = 3600) -> dict:
+                     base: Path | None = None, timeout: float = 3600) -> dict:
         """Upload image params, inject, queue, wait, download. Returns provenance."""
         wf, mp = templates.load(slot, base)
         vals = dict(values)

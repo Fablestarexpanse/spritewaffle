@@ -14,13 +14,14 @@ from pathlib import Path
 
 import cv2
 
+from .. import paths
 from .job import Job
 
 NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def library(base: str | Path = "jobs") -> Path:
-    d = Path(base) / "_library" / "motions"
+def library(base: str | Path | None = None) -> Path:
+    d = (Path(base) if base else paths.jobs()) / "_library" / "motions"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -32,7 +33,7 @@ def _count_frames(clip: Path) -> int:
     return n
 
 
-def add(name: str, job: Job, facing: str, action: str, base: str | Path = "jobs", notes: str = "") -> dict:
+def add(name: str, job: Job, facing: str, action: str, base: str | Path | None = None, notes: str = "") -> dict:
     """Copy a job's rendered clip into the library as a motion (status 'review')."""
     if not NAME.match(name):
         raise ValueError("motion name: letters, digits, _ and - only")
@@ -48,7 +49,7 @@ def add(name: str, job: Job, facing: str, action: str, base: str | Path = "jobs"
     return meta
 
 
-def get(name: str, base: str | Path = "jobs") -> dict:
+def get(name: str, base: str | Path | None = None) -> dict:
     p = library(base) / name / "motion.json"
     if not p.exists():
         raise KeyError(f"no motion '{name}' in the library")
@@ -57,7 +58,7 @@ def get(name: str, base: str | Path = "jobs") -> dict:
     return meta
 
 
-def approve(name: str, base: str | Path = "jobs") -> dict:
+def approve(name: str, base: str | Path | None = None) -> dict:
     meta = get(name, base)
     meta["status"] = "approved"
     clip = meta.pop("clip")
@@ -65,5 +66,5 @@ def approve(name: str, base: str | Path = "jobs") -> dict:
     return meta
 
 
-def list_all(base: str | Path = "jobs") -> list[dict]:
+def list_all(base: str | Path | None = None) -> list[dict]:
     return [get(p.parent.name, base) for p in sorted(library(base).glob("*/motion.json"))]

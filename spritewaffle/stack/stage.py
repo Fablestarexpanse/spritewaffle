@@ -37,7 +37,7 @@ def ortho_prompt(view: str) -> str:
 
 def ortho(job: Job, client: ComfyClient | None = None, seed: int | None = None, only: list[str] | None = None) -> dict:
     """Front = the approved anchor; back/right/top from image edits of it."""
-    generate._require_approved(job, "anchor")
+    job.require_approved("anchor")
     client = client or ComfyClient()
     out = job.stage_dir("02_ortho")
     anchor = job.root / "01_anchor" / "anchor.png"

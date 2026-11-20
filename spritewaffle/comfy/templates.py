@@ -17,13 +17,14 @@ import copy
 import json
 from pathlib import Path
 
+from .. import paths
+
 SLOTS = ("anchor_still", "facing_multiref", "transition_pose", "bridge_frame", "h3_action_fl2va",
          "h3_action_i2v", "h3_turntable", "h3_tara_transfer", "sam3_mask")
 PARAMS = ("prompt", "negative", "first_frame", "last_frame", "ref_images", "ref_video", "width", "height",
           "frames", "seed", "steps")
 IMAGE_PARAMS = ("first_frame", "last_frame", "ref_images", "ref_video")   # uploaded files
 
-TEMPLATES_DIR = Path("templates")
 
 H3_FPS = 24
 
@@ -64,7 +65,8 @@ def validate(workflow: dict, mapping: dict) -> list[str]:
     return errs
 
 
-def load(slot: str, base: Path = TEMPLATES_DIR) -> tuple[dict, dict]:
+def load(slot: str, base: Path | None = None) -> tuple[dict, dict]:
+    base = Path(base) if base else paths.templates()
     wf = json.loads((base / f"{slot}.json").read_text())
     mp = json.loads((base / f"{slot}.map.json").read_text())
     errs = validate(wf, mp)

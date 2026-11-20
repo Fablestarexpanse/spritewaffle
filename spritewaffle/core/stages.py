@@ -94,23 +94,31 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
                          loop=rep["loop"], outline=profile.outline, despill=profile.despill)
     res = pixelize(frames, params)
     pos = {s: k for k, s in enumerate(union)}
+    grid = {"size": res.grid.size, "ox": res.grid.ox, "oy": res.grid.oy, "source": res.grid.source,
+            "score": round(res.grid.score, 3), "resample": res.resample}
+    info = _write_pixel_sets(job, profile, facing, action,
+                             {n: ([res.rgba(pos[i]) for i in idxs], idxs) for n, idxs in sets.items()},
+                             res.palette, {"grid": grid})
+    job.set_stage(f"pixelize:{facing}/{action}", "done", grid=info["grid"], palette_size=len(res.palette))
+    return info
+
+
+def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, sets: dict, palette: np.ndarray,
+                      info: dict) -> dict:
+    """Write the 04_pixel layout every later stage reads. sets: {"12": (art_frames, sources), ...}.
+    Each set is laid out with preserve-canvas (one placement for all frames)."""
     out = job.stage_dir("04_pixel") / facing / action
-    info = {"grid": {"size": res.grid.size, "ox": res.grid.ox, "oy": res.grid.oy, "source": res.grid.source,
-                     "score": round(res.grid.score, 3), "resample": res.resample},
-            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in res.palette.tolist()], "sets": {}}
-    for n, idxs in sets.items():
-        art = [res.rgba(pos[i]) for i in idxs]
-        cells, places = layout.preserve_canvas(art, (profile.cell_size, profile.cell_size))
-        ind = np.stack([_rgba_to_index(c, res.palette) for c in cells])
+    info = {**info, "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in np.asarray(palette).tolist()], "sets": {}}
+    for n, (art, sources) in sets.items():
+        cells, places = layout.preserve_canvas(list(art), (profile.cell_size, profile.cell_size))
         sd = out / f"{n}f"
         _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
-        np.save(sd / "indices.npy", ind)
+        np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, palette) for c in cells]))
         (sd / "placements.json").write_text(json.dumps([p.as_dict() for p in places], indent=2))
         prev = np.concatenate(list(cells), axis=1)
         Image.fromarray(prev).resize((prev.shape[1] * 4, prev.shape[0] * 4), Image.NEAREST).save(sd / "preview_4x.png")
-        info["sets"][n] = {"frames": len(cells), "sources": idxs}
+        info["sets"][str(n)] = {"frames": len(cells), "sources": list(sources)}
     (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
-    job.set_stage(f"pixelize:{facing}/{action}", "done", grid=info["grid"], palette_size=len(res.palette))
     return info
 
 
@@ -180,9 +188,7 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     `pixel`, so qa/export run unchanged."""
     from ..frames import flowtransfer
     from . import motion
-    meta = job.read_meta()
-    if meta["stages"].get("facings", {}).get("status") != "approved":
-        raise RuntimeError("stage 'facings' is not approved; approve it first")
+    job.require_approved("facings")
     m = motion.get(motion_name, job.root.parent.parent)
     if m["status"] != "approved":
         raise RuntimeError(f"motion '{motion_name}' is {m['status']}; approve it first")
@@ -203,14 +209,7 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     target = res.rgba(0)
 
     # 2. driving clip -> warped art frames
-    import cv2
-    cap, clip = cv2.VideoCapture(m["clip"]), []
-    while True:
-        ok, bgr = cap.read()
-        if not ok:
-            break
-        clip.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-    cap.release()
+    clip = video.read_frames(m["clip"])
     masks = flowtransfer.masks_of(clip)
     frames = flowtransfer.warp(target, clip, masks=masks)
 
@@ -227,22 +226,52 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     contact.write(clip, d / "contact_sheet.png")
 
     # 4. layout + 04_pixel output (same files as `pixel`)
-    out = job.stage_dir("04_pixel") / facing / action
-    info = {"grid": {"size": res.grid.size, "source": res.grid.source, "resample": res.resample},
-            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in res.palette.tolist()],
-            "method": "flow", "motion": motion_name, "sets": {}}
-    for n, s in sel["sets"].items():
-        art = [frames[i] for i in s.indices]
-        cells, places = layout.preserve_canvas(art, (profile.cell_size, profile.cell_size))
-        sd = out / f"{n}f"
-        _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
-        np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, res.palette) for c in cells]))
-        (sd / "placements.json").write_text(json.dumps([p.as_dict() for p in places], indent=2))
-        prev = np.concatenate(list(cells), axis=1)
-        Image.fromarray(prev).resize((prev.shape[1] * 4, prev.shape[0] * 4), Image.NEAREST).save(sd / "preview_4x.png")
-        info["sets"][str(n)] = {"frames": len(cells), "sources": s.indices}
-    (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
+    info = _write_pixel_sets(job, profile, facing, action,
+                             {n: ([frames[i] for i in s.indices], s.indices) for n, s in sel["sets"].items()},
+                             res.palette, {"grid": {"size": res.grid.size, "source": res.grid.source,
+                                                    "resample": res.resample}, "method": "flow", "motion": motion_name})
     (d / "action_report.json").write_text(json.dumps({"experimental": True, "mode_used": "flow", "motion": motion_name,
                                                        "facing": facing, "action": action, "frames": len(frames)}, indent=2))
     job.set_stage(f"action:{facing}/{action}", "review", mode="flow", motion=motion_name)
     return info
+
+
+MIRROR_OF = {"W": "E", "NW": "NE", "SW": "SE", "E": "W", "NE": "NW", "SE": "SW"}
+
+
+def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, source: str | None = None) -> dict:
+    """Make `facing` by flipping an already pixelized facing (default: its mirror partner, e.g. W
+    from E). Mirroring is code, not prompts (kickoff rule 10); exact same pixels, zero renders.
+    Warns when the anchor is asymmetric (a mirrored shield/plume swaps sides)."""
+    if not profile.mirror_allowed:
+        raise RuntimeError(f"profile '{profile.name}' has mirror_allowed = false")
+    source = source or MIRROR_OF.get(facing)
+    if not source:
+        raise ValueError(f"facing {facing} has no mirror partner")
+    src = job.root / "04_pixel" / source / action
+    rep = json.loads((src / "pixel_report.json").read_text()) if (src / "pixel_report.json").exists() else None
+    if rep is None:
+        raise FileNotFoundError(f"{action} {source} is not pixelized yet; it is the source for {facing}")
+    palette = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in rep["palette"]], np.uint8)
+    sets = {}
+    for n, info in rep["sets"].items():
+        frames = video.load(video.list_frames(src / f"{n}f" / "frames"))
+        frames = [f if f.shape[2] == 4 else np.dstack([f, np.full(f.shape[:2], 255, np.uint8)]) for f in frames]
+        sets[n] = ([np.ascontiguousarray(f[:, ::-1]) for f in frames], info["sources"])
+    warnings = []
+    anchor = job.root / "01_anchor" / "anchor.png"
+    if anchor.exists():
+        from ..pixel import chroma as _chroma
+        asym = layout.asymmetry(_chroma.key(np.array(Image.open(anchor).convert("RGB"))))
+        if asym["asymmetric"]:
+            warnings.append("anchor is asymmetric: details swap sides in the mirrored facing")
+    d = job.action_dir(facing, action)
+    sel = job.root / "03_actions" / source / action / "selection_report.json"
+    if sel.exists():
+        shutil.copyfile(sel, d / "selection_report.json")
+    out = _write_pixel_sets(job, profile, facing, action, sets, palette,
+                            {"grid": rep.get("grid"), "method": "mirror", "source": source})
+    (d / "action_report.json").write_text(json.dumps({"mode_used": "mirror", "source": source, "facing": facing,
+                                                       "action": action, "warnings": warnings}, indent=2))
+    job.set_stage(f"action:{facing}/{action}", "review", mode="mirror", source=source, warnings=warnings)
+    return {**out, "warnings": warnings}
