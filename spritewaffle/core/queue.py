@@ -83,6 +83,10 @@ def _stages():
         dest = job.action_dir(a["facing"], a["action"]) / "bridges" / f"{a.get('name', 'bridge')}.png"
         return str(generate.bridge(job, a["a"], a["b"], dest, seed=a.get("seed"), method=a.get("method", "video")))
 
+    def flow(job, prof, a):
+        need(a, "facing", "action", "motion")
+        return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"], loop=a.get("loop"))
+
     def extract(job, prof, a):
         need(a, "video", "facing", "action")
         return stages.extract(job, a["video"], a["facing"], a["action"])
@@ -104,11 +108,11 @@ def _stages():
         return stages.export(job, prof, a["facing"], a["action"], a.get("format", "both"))
 
     gpu = {"anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge}
-    cpu = {"extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
+    cpu = {"flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("anchor", "facings", "action", "transfer", "bridge", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -161,11 +165,17 @@ class Queue:
             return self._put(t)
 
     def submit_action_pipeline(self, job, facing: str, action: str, profile: str | None = None,
-                               generate: bool = True, motion: str | None = None, **action_args) -> list[dict]:
+                               generate: bool = True, motion: str | None = None, method: str = "tara",
+                               **action_args) -> list[dict]:
         """action or transfer (gpu) -> select -> pixelize -> qa -> export (cpu), chained with `after`.
         motion=<library name> renders through the experimental TARA transfer instead of H3 I2V."""
         tasks, prev = [], []
         base = {"facing": facing, "action": action}
+        if motion and method == "flow":            # pixel-exact: selection + pixelize happen inside 'flow'
+            tasks.append(self.submit(job, "flow", {**base, "motion": motion}, profile))
+            for st in ("qa", "export"):
+                tasks.append(self.submit(job, st, dict(base), profile, after=[tasks[-1]["id"]]))
+            return tasks
         if generate:
             stage = "transfer" if motion else "action"
             extra = {"motion": motion} if motion else {}

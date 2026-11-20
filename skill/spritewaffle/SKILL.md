@@ -44,6 +44,11 @@ driving character leaks its identity). Each transfer reports `identity_drift`; a
 report warns: re-roll with a new seed or animate without `motion`. Show the human the result
 before relying on it.
 
+`animate(..., motion=..., method="flow")` is the pixel-exact alternative: no render (seconds, CPU),
+the facing's own pixels are moved by the clip's optical flow, so colours and identity are exact.
+It cannot turn the character or invent unseen parts; feet can smear where legs cross. Prefer flow
+for in-place cycles of the same facing; use TARA or a normal H3 render when the pose changes a lot.
+
 ## Asset types and actions
 
 | asset_type | actions that make sense |

@@ -140,7 +140,7 @@ def cmd_queue(a):
         print(_task_line(q.submit(a.job, a.stage, _kv(a.arg), a.profile, after)))
     elif a.sub == "pipeline":
         for t in q.submit_action_pipeline(a.job, a.facing, a.action, a.profile, generate=not a.no_generate,
-                                          motion=a.motion, **_kv(a.arg)):
+                                          motion=a.motion, method=a.method, **_kv(a.arg)):
             print(_task_line(t))
     elif a.sub == "list":
         for t in q.list(a.status):
@@ -194,6 +194,10 @@ def cmd_transfer(a):
     from .core import generate
     _print(generate.transfer(_job(a.job), _profile(a), a.facing, a.action, a.motion, size=a.size,
                              steps=a.steps, seed=a.seed))
+
+
+def cmd_flow(a):
+    _print(stages.flow_transfer(_job(a.job), _profile(a), a.facing, a.action, a.motion))
 
 
 def cmd_comfy_check(a):
@@ -284,7 +288,8 @@ def build() -> argparse.ArgumentParser:
     p = qp.add_parser("pipeline"); p.add_argument("--job", required=True); p.add_argument("--facing", required=True)
     p.add_argument("--action", required=True); p.add_argument("--profile"); p.add_argument("--no-generate", action="store_true")
     p.add_argument("--arg", action="append", help="action args key=value, e.g. seconds=2 seed=11")
-    p.add_argument("--motion", help="EXPERIMENTAL: approved library motion -> TARA transfer instead of H3")
+    p.add_argument("--motion", help="EXPERIMENTAL: approved library motion instead of an H3 render")
+    p.add_argument("--method", choices=("tara", "flow"), default="tara", help="with --motion: TARA render or pixel-exact flow")
     p = qp.add_parser("list"); p.add_argument("--status")
     p = qp.add_parser("cancel"); p.add_argument("id")
     for name, sp in qp.choices.items():
@@ -310,6 +315,9 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--action", required=True); p.add_argument("--motion", required=True)
     p.add_argument("--size", type=int, default=768); p.add_argument("--steps", type=int, default=8)
     p.add_argument("--seed", type=int); p.set_defaults(fn=cmd_transfer)
+    p = sub.add_parser("flow", help="EXPERIMENTAL: pixel-exact motion transfer (optical flow)")
+    p.add_argument("--job", required=True); p.add_argument("--profile"); p.add_argument("--facing", required=True)
+    p.add_argument("--action", required=True); p.add_argument("--motion", required=True); p.set_defaults(fn=cmd_flow)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

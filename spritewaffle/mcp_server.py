@@ -81,13 +81,16 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
 
     @mcp.tool()
     def animate(character: str, job_id: str, facing: str, action: str, seconds: float = 2.0,
-                seed: int | None = None, reprocess_only: bool = False, motion: str | None = None) -> dict:
+                seed: int | None = None, reprocess_only: bool = False, motion: str | None = None,
+                method: str = "tara") -> dict:
         """Queue an action for one facing: transition pose -> H3 clip -> frame selection -> pixelize ->
         QA -> export (PNG strip, .aseprite with tag, GIF). Needs approved facings.
         facing: S E N W SE NE NW SW. action: idle walk run attack jump.
         reprocess_only=True re-runs selection..export on the existing clip without a new render.
         motion=<approved library motion> (EXPERIMENTAL): transfer that clip's motion with TARA instead of
-        rendering with H3; check identity_drift in status and fall back to H3 when it warns."""
+        rendering with H3; check identity_drift in status and fall back to H3 when it warns.
+        method='flow' (with motion): pixel-exact transfer by optical flow, no render, identity exact,
+        but it can only move the facing's existing pixels (no turns, no unseen parts)."""
         job = job_for(character, job_id)
         if facing not in ORDER:
             raise ValueError(f"facing must be one of {ORDER}")
@@ -102,7 +105,10 @@ def build(base: str | Path = "jobs") -> tuple[FastMCP, Queue]:
             args = {**({"seed": seed} if seed is not None else {})}
         else:
             args = {"seconds": seconds, **({"seed": seed} if seed is not None else {})}
-        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, motion=motion, **args)
+        if method not in ("tara", "flow"):
+            raise ValueError("method must be 'tara' or 'flow'")
+        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, motion=motion,
+                                      method=method, **args)
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()

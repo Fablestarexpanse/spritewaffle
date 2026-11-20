@@ -170,3 +170,79 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
         written[sd.name] = files
     job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
     return written
+
+
+def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, motion_name: str,
+                  counts=(12, 24), loop: bool | None = None) -> dict:
+    """Pixel-exact motion transfer (experimental): the approved facing, pixelized once, is warped
+    by the optical flow of an approved library motion. Output pixels are copied from the facing's
+    art, so palette and identity are exactly the facing's. Writes the same 04_pixel layout as
+    `pixel`, so qa/export run unchanged."""
+    from ..frames import flowtransfer
+    from . import motion
+    meta = job.read_meta()
+    if meta["stages"].get("facings", {}).get("status") != "approved":
+        raise RuntimeError("stage 'facings' is not approved; approve it first")
+    m = motion.get(motion_name, job.root.parent.parent)
+    if m["status"] != "approved":
+        raise RuntimeError(f"motion '{motion_name}' is {m['status']}; approve it first")
+    face = job.root / "02_facings" / f"{facing}.png"
+    if not face.exists():
+        raise FileNotFoundError(f"facing {facing} not generated")
+
+    # 1. target art: the facing, pixelized once at the PROFILE's sprite height (same scale as H3
+    #    actions). Grid detection on stills can lock onto a coarse grid (measured: 29 px -> a 19 px
+    #    sprite next to 48 px H3 animations of the same character).
+    rgb = np.array(Image.open(face).convert("RGB"))
+    from ..pixel import chroma as _chroma
+    ys = np.where((_chroma.key(rgb)[..., 3] > 0).any(1))[0]
+    size = profile.pixel_size or max(1, round((ys[-1] - ys[0] + 1) / profile.sprite_height_px))
+    params = PixelParams(palette=profile.palette if isinstance(profile.palette, list) else profile.palette_size,
+                         pixel_size=size, outline=profile.outline, despill=profile.despill)
+    res = pixelize([rgb], params)
+    target = res.rgba(0)
+
+    # 2. driving clip -> warped art frames
+    import cv2
+    cap, clip = cv2.VideoCapture(m["clip"]), []
+    while True:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        clip.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    cap.release()
+    masks = flowtransfer.masks_of(clip)
+    frames = flowtransfer.warp(target, clip, masks=masks)
+
+    # 3. frame selection on the driving clip (same rules as H3 actions)
+    d = job.action_dir(facing, action)
+    loop = action in CYCLIC if loop is None else loop
+    sel = picker.select(picker.analyse(clip), counts=counts, loop=loop)
+    report = {"start": sel["start"], "end": sel["end"], "loop": loop, "loop_seam": sel.get("loop_seam"),
+              "keys": [{"source": k, "reason": r} for k, r in sel["keys"]],
+              "dropped": {str(k): v for k, v in sel["dropped"].items()}, "warnings": sel["warnings"],
+              "sets": {str(n): s.as_report() for n, s in sel["sets"].items()},
+              "source": {"method": "flow", "motion": motion_name}}
+    (d / "selection_report.json").write_text(json.dumps(report, indent=2))
+    contact.write(clip, d / "contact_sheet.png")
+
+    # 4. layout + 04_pixel output (same files as `pixel`)
+    out = job.stage_dir("04_pixel") / facing / action
+    info = {"grid": {"size": res.grid.size, "source": res.grid.source, "resample": res.resample},
+            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in res.palette.tolist()],
+            "method": "flow", "motion": motion_name, "sets": {}}
+    for n, s in sel["sets"].items():
+        art = [frames[i] for i in s.indices]
+        cells, places = layout.preserve_canvas(art, (profile.cell_size, profile.cell_size))
+        sd = out / f"{n}f"
+        _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
+        np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, res.palette) for c in cells]))
+        (sd / "placements.json").write_text(json.dumps([p.as_dict() for p in places], indent=2))
+        prev = np.concatenate(list(cells), axis=1)
+        Image.fromarray(prev).resize((prev.shape[1] * 4, prev.shape[0] * 4), Image.NEAREST).save(sd / "preview_4x.png")
+        info["sets"][str(n)] = {"frames": len(cells), "sources": s.indices}
+    (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
+    (d / "action_report.json").write_text(json.dumps({"experimental": True, "mode_used": "flow", "motion": motion_name,
+                                                       "facing": facing, "action": action, "frames": len(frames)}, indent=2))
+    job.set_stage(f"action:{facing}/{action}", "review", mode="flow", motion=motion_name)
+    return info

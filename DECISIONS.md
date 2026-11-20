@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: TARA wired in as experimental motion library + transfer stage (goblin S walk: QA pass, identity drift 0.37 warns). Remaining Phase 3 option: optical-flow pixel-exact motion transfer.
+NEXT: Phase 3 done: MCP + skill + presets, experimental motion library with TARA and pixel-exact flow transfer. Open: SAM 3 masks for non-green driving clips (not needed so far).
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -156,3 +156,17 @@ NEXT: TARA wired in as experimental motion library + transfer stage (goblin S wa
   open raises PermissionError; the worker's task-status update raced the scheduler's poll of the
   same task JSON. Fix: core/fsutil.py retries atomic writes and reads (50 × 20 ms); job.json and
   queue task files use it. Measured with the stress test: 182 PermissionErrors without retries, 0 with.
+- 2026-11-20 Pixel-exact motion transfer (frames/flowtransfer.py, stage `flow`, CPU): the approved
+  facing is pixelized once, then DIS optical flow (each driving frame -> frame 0, inside the chroma
+  mask; extended outward from the subject) moves the facing's own pixels (nearest lookup). Output
+  goes straight to the 04_pixel layout; selection runs on the driving clip; QA/export unchanged.
+  SAM 3 not used: chroma-key masks suffice for green clips (non-green driving clips unsupported).
+  Synthetic: silhouette IoU 1.000 every frame, colours exact (95% where legs cross).
+- 2026-11-20 Two fixes from the real goblin run: (1) still-image grid detection locked onto a 29 px
+  grid -> 19 px sprite vs 48 px H3 animations; flow now sizes the target from the profile's
+  sprite_height_px like video actions (got 47 px). (2) using the driver's silhouette as the output
+  mask clipped the goblin's club/ears to the mannequin outline; opacity now follows the target's own
+  silhouette (regression test added).
+  Result: goblin S walk from walk_S_mannequin, 7 s, QA pass 12f/24f, 16 colours all from the
+  goblin's palette, green skin kept (TARA: brown, drift 0.37). Weak spots: feet smear on frames
+  where legs cross; rigid props only follow the nearest body part.

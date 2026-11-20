@@ -209,3 +209,32 @@ def test_pipeline_with_motion_starts_with_transfer(ready, tmp_path):
     ts = q.submit_action_pipeline(ready.root, "S", "walk", motion="walk_S")
     assert [t["stage"] for t in ts] == ["transfer", "select", "pixelize", "qa", "export"]
     assert ts[0]["resource"] == "gpu" and ts[0]["args"]["motion"] == "walk_S"
+
+
+# --- experimental pixel-exact flow transfer ---------------------------------------------------------
+from spritewaffle.core import stages
+
+
+def test_flow_transfer_stage_then_qa_export(ready, tmp_path):
+    generate.approve(ready, "facings")
+    _library_clip(tmp_path, ready)
+    prof = GameProfile(name="p")
+    with pytest.raises(RuntimeError, match="approve"):
+        stages.flow_transfer(ready, prof, "S", "walk", "walk_S")
+    motion.approve("walk_S", tmp_path)
+    info = stages.flow_transfer(ready, prof, "S", "walk", "walk_S")
+    assert info["method"] == "flow" and set(info["sets"]) == {"12", "24"}
+    palette = {tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)) for h in info["palette"]}
+    cells = np.stack([np.array(Image.open(p)) for p in sorted((ready.root / "04_pixel/S/walk/12f/frames").glob("*.png"))])
+    used = {tuple(c) for c in cells[cells[..., 3] > 0][:, :3].tolist()}
+    assert used <= palette                                   # only the facing's own pixels
+    qa = stages.qa(ready, prof, "S", "walk")
+    assert set(qa) == {"12f", "24f"}
+    out = stages.export(ready, prof, "S", "walk")
+    assert Path(out["12f"]["aseprite"]).exists()
+
+
+def test_flow_pipeline_chain(ready, tmp_path):
+    from spritewaffle.core.queue import Queue
+    ts = Queue(tmp_path).submit_action_pipeline(ready.root, "S", "walk", motion="walk_S", method="flow")
+    assert [t["stage"] for t in ts] == ["flow", "qa", "export"] and ts[0]["resource"] == "cpu"
