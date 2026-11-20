@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 2 step 1 done (anchor + 8 facings). Awaiting Ronan: diagonal default nearest vs multi. Then step 2: transition pose, H3 action, bridge frames.
+NEXT: Phase 2 step 1 done (anchor + 8 facings, diagonals=nearest per Ronan). Next: step 2 — transition pose, H3 action, bridge frames.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -50,6 +50,6 @@ NEXT: Phase 2 step 1 done (anchor + 8 facings). Awaiting Ronan: diagonal default
 - 2026-11-20 CONFLICT with kickoff rule 4 (diagonals from anchor + cardinals): with extra reference
   pictures H3 Image Edit copies the reference pose — SE came out as pure E, NE ≈ N. Using only the
   nearest cardinal (S/anchor for SE/SW, N for NE/NW) gives true three-quarter views (drift 0.14–0.21).
-  Implemented `--diagonals nearest|multi`, default nearest pending Ronan's ruling.
+  Implemented `--diagonals nearest|multi`. Ronan 2026-11-20: default = nearest (ruling, overrides rule 4).
 - 2026-11-20 Knight run (jobs/knight/p2_002): 8 facings, all drift ≤0.21 colour, height within 2%,
   no mirroring needed. Anchor flagged asymmetric (plume) → mirrored facings would flip it.
