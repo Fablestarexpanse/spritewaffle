@@ -114,6 +114,56 @@ def cmd_bridge(a):
     print(generate.bridge(job, a.a, a.b, dest, seed=a.seed, method=a.method))
 
 
+def _kv(items) -> dict:
+    out = {}
+    for it in items or []:
+        k, _, v = it.partition("=")
+        try:
+            out[k] = json.loads(v)
+        except json.JSONDecodeError:
+            out[k] = v
+    return out
+
+
+def _task_line(t) -> str:
+    dep = f" after {','.join(t['after'])}" if t["after"] else ""
+    err = f"  !! {t['error']}" if t.get("error") and t["status"] == "failed" else ""
+    return f"{t['id']}  {t['status']:<9} {t['resource']}  {t['stage']:<8} {t['job']} {json.dumps(t['args'])}{dep}{err}"
+
+
+def cmd_queue(a):
+    from .core.queue import Queue
+    q = Queue(a.base)
+    if a.sub == "add":
+        after = a.after.split(",") if a.after else None
+        print(_task_line(q.submit(a.job, a.stage, _kv(a.arg), a.profile, after)))
+    elif a.sub == "pipeline":
+        for t in q.submit_action_pipeline(a.job, a.facing, a.action, a.profile, generate=not a.no_generate,
+                                          **_kv(a.arg)):
+            print(_task_line(t))
+    elif a.sub == "list":
+        for t in q.list(a.status):
+            print(_task_line(t))
+    elif a.sub == "cancel":
+        print(_task_line(q.cancel(a.id)))
+
+
+def cmd_worker(a):
+    import time
+    from .core.queue import Queue, Worker
+    w = Worker(Queue(a.base), {"gpu": a.gpu, "cpu": a.cpu})
+    if a.once:
+        w.run_until_idle(force=a.force)
+        return 0
+    w.start(force=a.force)
+    print(f"worker running (gpu {a.gpu}, cpu {a.cpu}); Ctrl-C to stop")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        w.stop()
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -194,6 +244,22 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--action", required=True); p.add_argument("--a", required=True); p.add_argument("--b", required=True)
     p.add_argument("--name", default="bridge"); p.add_argument("--seed", type=int)
     p.add_argument("--method", choices=("video", "image"), default="video"); p.set_defaults(fn=cmd_bridge)
+    qp = sub.add_parser("queue").add_subparsers(dest="sub", required=True)
+    p = qp.add_parser("add"); p.add_argument("stage"); p.add_argument("--job", required=True)
+    p.add_argument("--profile"); p.add_argument("--after", help="task ids, comma separated")
+    p.add_argument("--arg", action="append", help="key=value (JSON values allowed), repeatable")
+    p = qp.add_parser("pipeline"); p.add_argument("--job", required=True); p.add_argument("--facing", required=True)
+    p.add_argument("--action", required=True); p.add_argument("--profile"); p.add_argument("--no-generate", action="store_true")
+    p.add_argument("--arg", action="append", help="action args key=value, e.g. seconds=2 seed=11")
+    p = qp.add_parser("list"); p.add_argument("--status")
+    p = qp.add_parser("cancel"); p.add_argument("id")
+    for name, sp in qp.choices.items():
+        sp.add_argument("--base", default="jobs"); sp.set_defaults(fn=cmd_queue)
+    p = sub.add_parser("worker"); p.add_argument("--base", default="jobs")
+    p.add_argument("--gpu", type=int, default=1); p.add_argument("--cpu", type=int, default=2)
+    p.add_argument("--once", action="store_true", help="drain the queue and exit")
+    p.add_argument("--force", action="store_true", help="take over a stale worker lock")
+    p.set_defaults(fn=cmd_worker)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

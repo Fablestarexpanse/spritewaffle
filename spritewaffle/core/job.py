@@ -2,11 +2,24 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 STAGE_DIRS = ("01_anchor", "02_facings", "03_actions", "04_pixel", "05_qa", "06_export")
+
+# job.json is read-modify-written by stages; the queue runs stages of one job on several threads.
+_LOCKS: dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _lock_for(root: Path) -> threading.Lock:
+    key = str(Path(root).resolve())
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.Lock())
 
 
 @dataclass
@@ -39,23 +52,31 @@ class Job:
         return json.loads(self.meta_path.read_text())
 
     def write_meta(self, meta: dict) -> None:
-        self.meta_path.write_text(json.dumps(meta, indent=2))
+        """Atomic replace, so a concurrent reader never sees a half-written file."""
+        tmp = self.meta_path.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_text(json.dumps(meta, indent=2, default=str))
+        os.replace(tmp, self.meta_path)
+
+    @contextmanager
+    def mutate(self):
+        """Serialized read-modify-write of job.json: `with job.mutate() as meta: meta[...] = ...`."""
+        with _lock_for(self.root):
+            meta = self.read_meta()
+            yield meta
+            self.write_meta(meta)
 
     def update_inputs(self, **inputs) -> None:
-        meta = self.read_meta()
-        meta["inputs"].update({k: v for k, v in inputs.items() if v is not None})
-        self.write_meta(meta)
+        with self.mutate() as meta:
+            meta["inputs"].update({k: v for k, v in inputs.items() if v is not None})
 
     def set_stage(self, stage: str, status: str, **info) -> None:
-        meta = self.read_meta()
-        meta["stages"][stage] = {"status": status, "time": time.strftime("%Y-%m-%dT%H:%M:%S"), **info}
-        self.write_meta(meta)
+        with self.mutate() as meta:
+            meta["stages"][stage] = {"status": status, "time": time.strftime("%Y-%m-%dT%H:%M:%S"), **info}
 
     def log_provenance(self, output: str, **info) -> None:
         """Record how an output was made (model, seed, prompt, source...)."""
-        meta = self.read_meta()
-        meta["provenance"].append({"output": output, **info})
-        self.write_meta(meta)
+        with self.mutate() as meta:
+            meta["provenance"].append({"output": output, **info})
 
     def action_dir(self, facing: str, action: str) -> Path:
         d = self.root / "03_actions" / facing / action

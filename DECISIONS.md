@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Phase 2 step 2 done (transition, FL2VA+frozen fallback, bridge). Next: step 3 job queue, step 4 web UI.
+NEXT: Phase 2 step 3 done (queue + worker). Next: step 4 local web UI (FastAPI + one page, approve/re-roll per stage, runs the Worker in-process).
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -63,3 +63,11 @@ NEXT: Phase 2 step 2 done (transition, FL2VA+frozen fallback, bridge). Next: ste
 - 2026-11-20 Bridge frames: H3 Image Edit with two poses copies Picture 2 (same pose-copying as
   multi-ref diagonals). Default bridge = 1 s FL2VA clip A→B, middle frame kept (a true in-between,
   measured on idle→transition). Image-edit bridge kept as --method image.
+- 2026-11-20 Phase 2 step 3 (job queue): tasks = JSON files in jobs/_queue/, one worker (lock
+  file; --force takes over a stale one; 'running' tasks re-queued on start), pools gpu=1 / cpu=2,
+  `after` chains (failed/cancelled dependency → dependents fail as blocked). job.json writes are
+  serialized per job + atomic replace (6 threads × 80 writes: none lost). Queue tasks always pass
+  facing/action explicitly — job.json "inputs" is only a CLI convenience and races under the queue.
+- 2026-11-20 Real queue run on knight: 14 tasks (N walk + S idle full pipelines, E walk re-process).
+  GPU strictly serial (N 2m09s, then S idle 4m00s); CPU chains ran during GPU renders; all QA pass.
+  S idle FL2VA (facing as first+last frame, no transition) NOT frozen (diff 4.36).
