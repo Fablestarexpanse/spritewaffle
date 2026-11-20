@@ -9,6 +9,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import fsutil
+
 STAGE_DIRS = ("01_anchor", "02_facings", "03_actions", "04_pixel", "05_qa", "06_export")
 
 # job.json is read-modify-written by stages; the queue runs stages of one job on several threads.
@@ -49,13 +51,11 @@ class Job:
         return self.root / "job.json"
 
     def read_meta(self) -> dict:
-        return json.loads(self.meta_path.read_text())
+        return json.loads(fsutil.read_text(self.meta_path))
 
     def write_meta(self, meta: dict) -> None:
         """Atomic replace, so a concurrent reader never sees a half-written file."""
-        tmp = self.meta_path.with_suffix(f".{threading.get_ident()}.tmp")
-        tmp.write_text(json.dumps(meta, indent=2, default=str))
-        os.replace(tmp, self.meta_path)
+        fsutil.write_text(self.meta_path, json.dumps(meta, indent=2, default=str))
 
     @contextmanager
     def mutate(self):

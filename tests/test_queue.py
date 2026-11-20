@@ -124,6 +124,35 @@ def test_real_pipeline_on_synthetic_clip(env):
     tasks = q.submit_action_pipeline(job.root, "S", "walk", generate=False)
     q.update(tasks[0]["id"], after=[ex["id"]])
     Worker(q, poll=0.05).run_until_idle(timeout=120)
-    assert [q.get(t["id"])["status"] for t in [ex] + tasks] == ["done"] * 5
+    got = [q.get(t["id"]) for t in [ex] + tasks]
+    assert [t["status"] for t in got] == ["done"] * 5, [(t["stage"], t["error"], t.get("trace")) for t in got]
     assert (job.root / "06_export/S/walk/12f/walk_S_12f.aseprite").exists()
     assert q.get(tasks[2]["id"])["result"] == {"12f": "pass", "24f": "pass"}
+
+
+def test_concurrent_task_updates_and_reads_do_not_fail(env):
+    """Windows: os.replace onto a file being read raises PermissionError -> fsutil retries."""
+    base, job, q = env
+    t = q.submit(job.root, "action", {"n": 1})
+    errors = []
+
+    def writer():
+        try:
+            for i in range(300):
+                q.update(t["id"], result={"i": i})
+        except Exception as e:
+            errors.append(e)
+
+    def reader():
+        try:
+            for _ in range(300):
+                q.list()
+                q.get(t["id"])
+        except Exception as e:
+            errors.append(e)
+
+    ths = [threading.Thread(target=writer)] + [threading.Thread(target=reader) for _ in range(3)]
+    [th.start() for th in ths]
+    [th.join() for th in ths]
+    assert not errors, errors
+    assert q.get(t["id"])["result"] == {"i": 299}

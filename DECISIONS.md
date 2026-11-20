@@ -150,3 +150,9 @@ NEXT: TARA wired in as experimental motion library + transfer stage (goblin S wa
   mean 0.37 / max 0.44 → warning raised as designed. Pixelized result reads as the goblin marching,
   skin darker/browner than the anchor. Anchor/facings/motion approvals in this run were test
   approvals by Claude, not Ronan's review.
+- 2026-11-20 Bug: one full-suite run had the queue's QA task fail intermittently (and the commit
+  went in anyway — my `pytest | tail && git commit` chain checked tail's exit code, not pytest's;
+  use `set -o pipefail` / PIPESTATUS). Cause: on Windows os.replace onto a file another thread has
+  open raises PermissionError; the worker's task-status update raced the scheduler's poll of the
+  same task JSON. Fix: core/fsutil.py retries atomic writes and reads (50 × 20 ms); job.json and
+  queue task files use it. Measured with the stress test: 182 PermissionErrors without retries, 0 with.

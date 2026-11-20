@@ -16,6 +16,7 @@ import uuid
 from pathlib import Path
 from typing import Callable
 
+from . import fsutil
 from .job import Job
 from .profile import resolve
 
@@ -129,19 +130,17 @@ class Queue:
         return self.dir / f"{tid}.json"
 
     def get(self, tid: str) -> dict:
-        return json.loads(self._path(tid).read_text())
+        return json.loads(fsutil.read_text(self._path(tid)))
 
     def _put(self, t: dict) -> dict:
-        tmp = self._path(t["id"]).with_suffix(f".{threading.get_ident()}.tmp")
-        tmp.write_text(json.dumps(t, indent=2, default=str))
-        os.replace(tmp, self._path(t["id"]))
+        fsutil.write_text(self._path(t["id"]), json.dumps(t, indent=2, default=str))
         return t
 
     def list(self, status: str | None = None) -> list[dict]:
         tasks = []
         for p in self.dir.glob("*.json"):
             try:
-                tasks.append(json.loads(p.read_text()))
+                tasks.append(json.loads(fsutil.read_text(p)))
             except (json.JSONDecodeError, OSError):
                 continue
         tasks.sort(key=lambda t: t["seq"])
