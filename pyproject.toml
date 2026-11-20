@@ -23,8 +23,6 @@ spritewaffle = "spritewaffle.cli:main"
 [tool.setuptools.packages.find]
 include = ["spritewaffle*"]
 
-[tool.setuptools.package-data]
-spritewaffle = ["comfy/templates/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
