@@ -17,3 +17,6 @@ NEXT: Phase 1 build in progress (see git log for done steps).
 - 2026-11-20 Downscale voting: mode of 4-bit colour bins over the cell interior (outer ring skipped
   when size≥4), then mean of pixels within 20 RGB of the mode colour (bins can split one colour).
 - 2026-11-20 .aseprite: own writer (header, color profile, old+new palette, 1 layer, zlib cels, tags; indexed reserves index 0 for transparency). Round-trip verified only with our own reader → still to verify with Unity's 2D Aseprite Importer (Unity MCP available).
+- 2026-11-20 Sprite stacking (rigid props/vehicles: orthographic views → slices) — Ronan flagged it
+  as worth having (ref: https://x.com/pebaryan/status/2123721685933433343). Stays parked per the
+  kickoff; candidate for a phase after 3.

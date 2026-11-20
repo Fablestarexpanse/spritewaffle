@@ -1,0 +1,128 @@
+"""Cell layouts (rules 8 and 9), sheet component detection, mirroring and asymmetry check."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import cv2
+import numpy as np
+
+
+@dataclass
+class Placement:
+    scale: float
+    crop: tuple[int, int, int, int]     # x, y, w, h in source frame
+    paste: tuple[int, int]              # x, y in cell
+
+    def as_dict(self) -> dict:
+        return {"scale": self.scale, "crop": list(self.crop), "paste": list(self.paste)}
+
+
+def _bbox(mask: np.ndarray) -> tuple[int, int, int, int] | None:
+    ys, xs = np.where(mask)
+    if not len(ys):
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)
+
+
+def _place(img: np.ndarray, p: Placement, cell: tuple[int, int]) -> np.ndarray:
+    cw, ch = cell
+    x, y, w, h = p.crop
+    src = img[y:y + h, x:x + w]
+    if p.scale != 1:
+        src = cv2.resize(src, (max(1, round(w * p.scale)), max(1, round(h * p.scale))), interpolation=cv2.INTER_NEAREST)
+    out = np.zeros((ch, cw, 4), np.uint8)
+    px, py = p.paste
+    sh, sw = src.shape[:2]
+    x0, y0 = max(px, 0), max(py, 0)
+    x1, y1 = min(px + sw, cw), min(py + sh, ch)
+    if x1 > x0 and y1 > y0:
+        out[y0:y1, x0:x1] = src[y0 - py:y1 - py, x0 - px:x1 - px]
+    return out
+
+
+def preserve_canvas(frames: list[np.ndarray], cell: tuple[int, int], scale: float = 1.0,
+                    foot_margin: int = 1) -> tuple[np.ndarray, list[Placement]]:
+    """Video frames: ONE crop/scale/paste for every frame (no per-frame recentring = no fake motion).
+
+    The crop is the union bbox of all frames; it is centred horizontally and its bottom sits
+    `foot_margin` px above the cell bottom. Returns (F,ch,cw,4) cells and the per-frame placements
+    (all identical, recorded so QA can prove it)."""
+    union = np.zeros(frames[0].shape[:2], bool)
+    for f in frames:
+        union |= f[..., 3] > 0
+    bb = _bbox(union) or (0, 0, frames[0].shape[1], frames[0].shape[0])
+    cw, ch = cell
+    w, h = round(bb[2] * scale), round(bb[3] * scale)
+    p = Placement(scale, bb, ((cw - w) // 2, ch - foot_margin - h))
+    return np.stack([_place(f, p, cell) for f in frames]), [p] * len(frames)
+
+
+def foot_anchor(sprites: list[np.ndarray], cell: tuple[int, int], foot_y: int | None = None,
+                scale: float = 1.0) -> tuple[np.ndarray, list[Placement]]:
+    """Image pose sheets: each sprite's own bbox placed at fixed centre-X and fixed foot-Y."""
+    cw, ch = cell
+    foot_y = ch - 1 if foot_y is None else foot_y
+    cells, places = [], []
+    for s in sprites:
+        bb = _bbox(s[..., 3] > 0) or (0, 0, s.shape[1], s.shape[0])
+        w, h = round(bb[2] * scale), round(bb[3] * scale)
+        p = Placement(scale, bb, (cw // 2 - w // 2, foot_y + 1 - h))
+        cells.append(_place(s, p, cell))
+        places.append(p)
+    return np.stack(cells), places
+
+
+def sheet_components(sheet: np.ndarray, n: int, join_px: int = 6, row_tol: float = 0.5) -> list[np.ndarray]:
+    """Find the n largest foreground blobs on a pose sheet (fragments within join_px merge), ordered
+    row-major (rows grouped when their centres are within row_tol of a blob height). Returns RGBA crops."""
+    mask = (sheet[..., 3] > 0).astype(np.uint8)
+    joined = cv2.dilate(mask, np.ones((2 * join_px + 1,) * 2, np.uint8))
+    k, lab, stats, cents = cv2.connectedComponentsWithStats(joined, connectivity=8)
+    order = sorted(range(1, k), key=lambda i: -stats[i, cv2.CC_STAT_AREA])[:n]
+    if len(order) < n:
+        raise ValueError(f"found {len(order)} components, expected {n}")
+    med_h = np.median([stats[i, cv2.CC_STAT_HEIGHT] for i in order])
+    order.sort(key=lambda i: cents[i][1])
+    rows, row = [], [order[0]]
+    for i in order[1:]:
+        if abs(cents[i][1] - cents[row[0]][1]) <= row_tol * med_h:
+            row.append(i)
+        else:
+            rows.append(row)
+            row = [i]
+    rows.append(row)
+    crops = []
+    for r in rows:
+        for i in sorted(r, key=lambda i: cents[i][0]):
+            x, y, w, h = (stats[i, j] for j in (cv2.CC_STAT_LEFT, cv2.CC_STAT_TOP, cv2.CC_STAT_WIDTH, cv2.CC_STAT_HEIGHT))
+            crop = sheet[y:y + h, x:x + w].copy()
+            crop[lab[y:y + h, x:x + w] != i] = 0
+            crops.append(crop)
+    return crops
+
+
+MIRROR_PAIRS = {"E": "W", "W": "E", "NE": "NW", "NW": "NE", "SE": "SW", "SW": "SE"}
+
+
+def mirror(frames: np.ndarray) -> np.ndarray:
+    """Horizontal flip of every frame (E->W etc.). Pivot X stays centred because cells are centred."""
+    return np.ascontiguousarray(frames[:, :, ::-1])
+
+
+def asymmetry(rgba: np.ndarray) -> dict:
+    """Compare the sprite with its own mirror about the bbox centre.
+    silhouette = 1-IoU of mask vs flipped mask; color = mean colour difference of the two halves (0..1)."""
+    m = rgba[..., 3] > 0
+    bb = _bbox(m)
+    if bb is None:
+        return {"silhouette": 0.0, "color": 0.0, "asymmetric": False}
+    x, y, w, h = bb
+    crop = rgba[y:y + h, x:x + w].astype(float)
+    cm = m[y:y + h, x:x + w]
+    fm = cm[:, ::-1]
+    sil = 1 - (cm & fm).sum() / max((cm | fm).sum(), 1)
+    half = w // 2
+    left, right = crop[:, :half], crop[:, w - half:][:, ::-1]
+    both = (left[..., 3] > 0) & (right[..., 3] > 0)
+    col = float(np.abs(left[both, :3] - right[both, :3]).mean() / 255) if both.any() else 0.0
+    return {"silhouette": float(sil), "color": col, "asymmetric": bool(sil > 0.12 or col > 0.08)}
