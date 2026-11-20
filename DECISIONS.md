@@ -97,3 +97,18 @@ NEXT: Phase 3 step 1 done (MCP server + skill + presets + hero style_ref). Block
   already share the chunky style); not proven useful yet.
 - 2026-11-20 OPEN: "H3 TARA" (motion library, Phase 3) — no node class matching "tara" on the live
   ComfyUI (2777 nodes). Needs Ronan: what TARA is / where it comes from.
+- 2026-11-20 TARA researched (Ronan didn't know it). TARA = "Temporally Aligned Reference
+  Attention", a COMMUNITY motion-transfer method for MiniMax H3 by Alissonerdx (not an official
+  MiniMax release): driving video stays a native <Video 1> reference in H3 Reference-to-Video and a
+  temporal attention bias makes each output frame follow the matching source frame; reference
+  pictures supply the identity. Experimental, not peer reviewed; no statement about pixel art /
+  stylized content. Model card: https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI
+  Local status: node BFSMiniMaxH3NativeTemporal (ComfyUI-BFSNodes) INSTALLED, ref2va UNET installed,
+  VideoHelperSuite installed. MISSING: LoRA minimax_h3_motion_transfer_tara_v1.0_ref2va.safetensors
+  (126 MB) and the example workflow minimax_h3_motion_transfer_tara_workflow_native_nodes_v1.0.json
+  (299 kB); the recommended DMD ref2va 8-step turbo LoRA is not installed (a 4-step ref2v turbo is).
+  License of the TARA LoRA: "BFS Motion Transfer Community License 1.0" — personal and commercial
+  use allowed; no reselling the weights, no hosting them as an API/SaaS; attribution only above
+  US$1M revenue. My "tara" search missed it because the class name says NativeTemporal.
+  Fit for SpriteWaffle: a motion library = a few approved driving clips (walk, run, attack) reused
+  across the whole cast, so timing matches between characters. Unproven on pixel art.
