@@ -209,6 +209,16 @@ def cmd_export_character(a):
     _print(out)
 
 
+def cmd_ortho(a):
+    from .stack import stage
+    _print(stage.ortho(_job(a.job), seed=a.seed, only=a.only.split(",") if a.only else None))
+
+
+def cmd_stack(a):
+    from .stack import stage
+    _print(stage.build(_job(a.job), _profile(a), stack_height=a.height, layer_px=a.layer_px))
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
@@ -332,6 +342,13 @@ def build() -> argparse.ArgumentParser:
     p.add_argument("--set", default="12f", choices=("12f", "24f"))
     p.add_argument("--include-failed", action="store_true", help="also ship animations that failed QA")
     p.set_defaults(fn=cmd_export_character)
+    p = sub.add_parser("ortho", help="sprite stacking: back/right/top views of an approved prop anchor")
+    p.add_argument("--job", required=True); p.add_argument("--seed", type=int)
+    p.add_argument("--only", help="e.g. top,right"); p.set_defaults(fn=cmd_ortho)
+    p = sub.add_parser("stack", help="sprite stacking: carve the 4 views into slices + previews")
+    p.add_argument("--job", required=True); p.add_argument("--profile")
+    p.add_argument("--height", type=int, default=24, help="number of slices"); p.add_argument("--layer-px", type=int, default=1)
+    p.set_defaults(fn=cmd_stack)
     c = sub.add_parser("comfy").add_subparsers(dest="sub", required=True).add_parser("check")
     c.add_argument("--url", default="http://127.0.0.1:8188"); c.add_argument("--template")
     c.set_defaults(fn=cmd_comfy_check)

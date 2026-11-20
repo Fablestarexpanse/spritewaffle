@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: All phases + character export done. Parked: sprite stacking (Ronan flagged it), SAM 3 masks for non-green driving clips.
+NEXT: All phases + character export + sprite stacking (CLI: ortho, stack) done. Not yet: stacking in queue/MCP/UI; SAM 3 masks for non-green driving clips.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -177,3 +177,14 @@ NEXT: All phases + character export done. Parked: sprite stacking (Ronan flagged
   and listed. Knight (walk_E, walk_N, idle_S): 48 colours, indexed. Verified in Unity 6000.6 +
   Aseprite Importer 6.0.0: 36 sprites, clips idle_S 1.5 s / walk_E / walk_N ~1.0 s, all looping,
   an Animator Controller with one state per animation, no console warnings (test folder removed).
+- 2026-11-20 Sprite stacking built (Ronan: "build sprite stacking"; was parked). spritewaffle/stack:
+  `ortho` (GPU) = front is the approved prop anchor, back/right/top from image edits with explicit
+  orientation text (right side: front points LEFT; top: front at the BOTTOM). `stack` (CPU) =
+  pixelize the 4 views as ONE batch (shared palette + pixel size = front height / stack height),
+  visual hull of front/right/top silhouettes (array maths, no mesh/renderer — rule "2D only" kept),
+  voxel colour from the first view that sees it (top > front > back > right > left=mirrored right;
+  hidden voxels get a fallback colour that never shows). Exports: slices strip bottom->top + JSON,
+  16-step turntable GIF, 8-angle rotations sheet + JSON (for engines without a stacking runtime).
+  Synthetic two-box car: occupancy exact from 3x-scaled views, face colours correct.
+  Real run: treasure chest (jobs/chest/s1): 23 slices of 25x24, 10,559 voxels; 8 rotations read as
+  one rigid chest (lock front, side at 45°, plain back). Anchor approval was a test approval.
