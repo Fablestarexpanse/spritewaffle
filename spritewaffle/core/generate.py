@@ -387,6 +387,12 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
     last = first if spec["cyclic"] else face
     frames = round(seconds * 24)
     raw = d / "raw.mp4"
+    if spec.get("end") == "free" and not spec["cyclic"]:
+        # the action changes the character (a thrown shield is gone): ending on the facing picture
+        # would put it back. Measured 2026-11-21: "throw shield" with FL2VA had the shield back on the
+        # arm from frame 6.
+        mode = "i2v"
+        report["end"] = "free (no last frame)"
     if mode == "fl2va":
         _run_video(client, job, "h3_action_fl2va",
                    {"prompt": builder.action_video(action_name, facing, seconds, True, spec), "first_frame": first,

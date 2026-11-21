@@ -271,6 +271,9 @@ async function showPrompts(open = {}) {
       ${act.map(([a, x]) => `<details ${isOpen("a:" + a)}><summary>${esc(a)} <span class="chip">${esc(x.source)}</span>${x.spec.cyclic ? ' <span class="muted">loops</span>' : ""}</summary>
         ${["motion", "transition", "sound"].map(k => `<label class="field"><span>${k}${k === "transition" ? " (the first/last pose: a small step from idle)" : k === "motion" ? " (short and literal)" : ""}</span>
           <textarea data-a="${esc(a)}" data-k="${k}">${esc(x.spec[k] || "")}</textarea></label>`).join("")}
+        ${x.spec.cyclic ? "" : `<label class="field"><span>Ends</span><select data-a="${esc(a)}" data-k="end">
+          <option value="">back on the facing pose</option>
+          <option value="free" ${x.spec.end === "free" ? "selected" : ""}>anywhere (something is thrown, broken or gone)</option></select></label>`}
         <div class="row"><button class="primary" data-asave="${esc(a)}">Save</button>
           ${Object.keys(x.edited).length ? `<button class="ghost" data-areset="${esc(a)}">Back to ${v.writer === "ai" ? "AI / preset" : "preset"} text</button>` : ""}</div>
         ${x.preview ? pre("Will send: transition pose (facing S)", x.preview.transition) + pre("Will send: video (facing S)", x.preview.video) : ""}
@@ -293,7 +296,7 @@ async function showPrompts(open = {}) {
     save({kind: "facing", facing: b.dataset.fsave, note: $(`[data-fnote="${b.dataset.fsave}"]`).value}));
   $$("[data-asave]").forEach(b => b.onclick = () => {
     const a = b.dataset.asave, body = {kind: "action", action: a};
-    $$(`textarea[data-a="${CSS.escape(a)}"]`).forEach(t => body[t.dataset.k] = t.value);
+    $$(`[data-a="${CSS.escape(a)}"]`).forEach(t => body[t.dataset.k] = t.value);
     pendingActs.delete(a);
     save(body);
   });

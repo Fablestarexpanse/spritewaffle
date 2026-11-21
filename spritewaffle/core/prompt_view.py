@@ -13,7 +13,7 @@ from .job import Job
 from .profile import resolve
 from .takes import latest_provenance
 
-EDITABLE_ACTION = ("motion", "transition", "sound")
+EDITABLE_ACTION = ("motion", "transition", "sound", "end")
 
 
 def _spec(job: Job, action: str) -> tuple[dict | None, str]:

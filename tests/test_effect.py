@@ -85,3 +85,16 @@ def test_effect_api(tmp_path):
         assert c.post("/api/jobs/boom/b1/effect", json={"bg": "purple"}).status_code == 400
         assert c.post("/api/jobs/boom/b1/effect", json={"fps": 0}).status_code == 400
         assert c.get("/api/jobs/boom/b1").json()["effect"]["spec"]["still"].startswith("a tiny bright")
+
+
+def test_green_card_on_black_is_keyed_away():
+    f = np.zeros((200, 200, 3), np.uint8)
+    f[50:150, 50:150] = (0, 255, 0)                      # a green card on a black frame
+    f[90:110, 95:105] = (150, 90, 40)                    # the object
+    assert effect.detect_bg(f) == "black+green"
+    k = effect.key_frames([f], "black+green", soft=False)[0]
+    assert k[60, 60, 3] == 0 and k[10, 10, 3] == 0 and k[100, 100, 3] == 255
+    g = np.zeros((200, 200, 3), np.uint8); g[:] = (0, 250, 10)
+    assert effect.detect_bg(g) == "green"
+    with pytest.raises(ValueError):
+        effect.detect_bg(np.full((200, 200, 3), 128, np.uint8))

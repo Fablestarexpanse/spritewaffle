@@ -59,10 +59,7 @@ def render(job: Job, client: ComfyClient | None = None, seed: int | None = None)
     if not s["still"] or not s["motion"]:
         raise ValueError("describe the effect (first frame) and what it does (motion), or pick a preset")
     client = client or ComfyClient()
-    still_text = fx.still(s["still"], s["start_small"])
-    if s["bg"] == "green":
-        still_text = still_text.replace(fx.BLACK, "Background is one perfectly flat solid pure green #00FF00: "
-                                                  "uniform, no floor, no shadow, no gradient, no text.")
+    still_text = (fx.still_green if s["bg"] == "green" else fx.still)(s["still"], s["start_small"])
     dest = job.stage_dir("01_anchor") / "anchor.png"
     seed = generate._seed(seed)
     prov = client.run_template("anchor_still", {"prompt": still_text, "seed": seed}, dest.parent / ".still_tmp")
@@ -92,9 +89,34 @@ def luma_key(rgb: np.ndarray, lo: int = 10, soft: bool = True) -> np.ndarray:
     return np.dstack([rgb, np.where(v > lo * 4, 255, 0).astype(np.uint8)])
 
 
+def detect_bg(frame: np.ndarray) -> str:
+    """What the clip's background really is: the median of the frame border. Measured 2026-11-21:
+    a 'spinning shield' asked for on green came out on black (glow wording pulls toward black), and
+    keying it as green left an opaque black box around every frame."""
+    b = np.concatenate([frame[:8].reshape(-1, 3), frame[-8:].reshape(-1, 3), frame[:, :8].reshape(-1, 3),
+                        frame[:, -8:].reshape(-1, 3)])
+    r, g, bl = np.median(b, 0)
+    if g > 150 and r < 120 and bl < 120:
+        return "green"
+    if max(r, g, bl) < 40:
+        # H3 sometimes draws the asked-for green as a flat card on a black frame (measured: the
+        # spinning shield) -> key both
+        pure = (frame[..., 1] > 200) & (frame[..., 0] < 80) & (frame[..., 2] < 80)
+        return "black+green" if pure.mean() > 0.05 else "black"
+    raise ValueError(f"the clip's background is neither black nor green (border median {int(r)},{int(g)},{int(bl)}); re-render")
+
+
 def key_frames(frames: list[np.ndarray], bg: str, soft: bool) -> list[np.ndarray]:
     if bg == "green":
         return [chroma.remove_specks(chroma.key(f, despill="all"), 16) for f in frames]
+    if bg == "black+green":
+        out = []
+        for f in frames:
+            g = chroma.key(f, despill="all")                        # green card -> transparent
+            lk = luma_key(f, soft=soft)                             # black frame -> transparent
+            a = np.minimum(g[..., 3], lk[..., 3])
+            out.append(chroma.remove_specks(np.dstack([g[..., :3], a]), 16))
+        return out
     return [luma_key(f, soft=soft) for f in frames]
 
 
@@ -142,7 +164,8 @@ def process(job: Job, profile=None) -> dict:
     if not clip.exists():
         raise FileNotFoundError("render the effect first")
     frames = video.read_frames(clip)
-    rgba = key_frames(frames, s["bg"], soft=not pixel)
+    bg = detect_bg(frames[0])                                    # key what was drawn, not what was asked
+    rgba = key_frames(frames, bg, soft=not pixel)
     idx, info = pick(rgba, s["loop"], s["frames"])
     chosen = [rgba[i] for i in idx]
     x0, y0, x1, y1 = _union_box(chosen)
@@ -168,7 +191,9 @@ def process(job: Job, profile=None) -> dict:
             col = np.where(al > 0, pm[..., :3] / np.maximum(al, 1e-6), 0)
             out_frames.append(np.dstack([np.clip(col, 0, 255), np.clip(pm[..., 3:], 0, 255)]).astype(np.uint8))
         palette = []
-    return export(job, s, out_frames, info | {"source_frames": [int(i) for i in idx]}, pixel, palette)
+    s = s | {"bg": bg}
+    return export(job, s, out_frames, info | {"source_frames": [int(i) for i in idx], "background_detected": bg,
+                                              "background_asked": spec(job)["bg"]}, pixel, palette)
 
 
 def export(job: Job, s: dict, frames: list[np.ndarray], info: dict, pixel: bool, palette: list[str]) -> dict:

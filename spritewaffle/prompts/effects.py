@@ -46,6 +46,19 @@ def look() -> str:
             "saturated colors.")
 
 
+GREEN = "Background is one perfectly flat solid pure green #00FF00: uniform, no floor, no shadow, no gradient, no text."
+
+
+def still_green(description: str, start_small: bool = False) -> str:
+    """For objects and dark effects (smoke, dust, a thrown shield): no 'glowing' wording, which pulls
+    the background to black."""
+    st = styles.get()
+    look_ = ("Chunky retro pixel-art game sprite, large visible square pixels, bold dark outline, limited palette."
+             if st["post"] == "pixel" else f"{st['noun'].capitalize()} game sprite.")
+    return (f"Single game sprite of {description.strip().rstrip('.')}. {look_} "
+            f"{FRAME_SMALL if start_small else FRAME} {GREEN}")
+
+
 def still(description: str, start_small: bool = False) -> str:
     """H3 Image text-to-image: the effect's first frame. start_small: a one-shot that grows from a
     point (explosion) starts tiny; otherwise the effect fills ~45% of the frame."""

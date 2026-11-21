@@ -138,6 +138,27 @@ one-shots keep everything from the first to the last visible frame. Exports: str
 square flipbook sheet, `.aseprite` (one-shots play once), preview GIF, JSON (fps, loop, blend).
 **Re-process frames** changes size / frames / colours without rendering again.
 
+### Animals (four-legged)
+
+New → type `animal`. The anchor step draws one **turnaround sheet** (front, side, back and two
+three-quarter views in a row) and cuts it apart, so all 8 directions exist at once (W/SW/NW
+mirrored). Actions use four-legged wording: walk (diagonal pairs), run (gallop), pounce, sit,
+sleep. A side-on animal is wider than tall: use a bigger cell (Sizes…, e.g. 96 px for a 48 px
+sprite); a clip that doesn't fit says which cell would.
+
+### Spells, auras, thrown objects (effect + character)
+
+Make the effect first (Effects above), then open the character's animation (click it on the
+Animations tab) → **Effect**: pick the effect job, scrub to the frame, click where it starts,
+choose *in front* / *behind* and *stays* (burst, aura) or *flies* (projectile, at N px per frame
+toward the facing), **Attach + preview**. The two stay separate sprites, as games use them: the
+export JSON gets an event (frame, point, layer, velocity) and the effect's files are copied into
+`06_export/character/effects/`.
+
+For a throw, write the action in **Prompts… → Actions** (e.g. "throws the shield forward…") and
+set **Ends: anywhere** so the clip doesn't end with the object back in the hand; then attach the
+thrown object (an effect, e.g. a spinning shield) as a projectile at the release frame.
+
 ### Prop (sprite stacking)
 
 New → type `prop` → anchor (a straight **front** view) → approve → **Sprite stack** →
