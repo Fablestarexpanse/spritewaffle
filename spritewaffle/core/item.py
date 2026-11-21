@@ -10,7 +10,6 @@ original. Any number of bases (races, bodies) can wear the same item; the item j
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from PIL import Image
 

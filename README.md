@@ -7,6 +7,8 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 **No AI agent needed.** The web UI and CLI do everything; the MCP server for agents is optional.
 
+**Docs:** the [wiki](docs/wiki/Home.md) (workflows, architecture, prompting lessons, development, roadmap); coding agents start with [AGENTS.md](AGENTS.md).
+
 **Let an agent install it:** paste this to Claude Code, Codex, Cursor or similar:
 
 > Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
