@@ -31,7 +31,7 @@ def _pixelized(job, facing="E", action="walk"):
     art = np.zeros((20, 20, 4), np.uint8)
     art[4:16, 6:10] = (200, 0, 0, 255)
     art[4:16, 10:14] = (0, 0, 200, 255)
-    stages._write_pixel_sets(job, GameProfile(name="p", cell_size=32), facing, action,
+    stages._write_pixel_sets(job, GameProfile(name="p", cell_size=32, sprite_height_px=24), facing, action,
                              {"12": ([art] * 12, list(range(12)))}, np.array([[200, 0, 0], [0, 0, 200]], np.uint8),
                              {"grid": {"size": 1}})
     d = job.action_dir(facing, action)
@@ -41,12 +41,12 @@ def _pixelized(job, facing="E", action="walk"):
 def test_mirror_action_flips_partner(tmp_path):
     job = Job.create("hero", "j", base=tmp_path)
     _pixelized(job)
-    out = stages.mirror_action(job, GameProfile(name="p", cell_size=32), "W", "walk")
+    out = stages.mirror_action(job, GameProfile(name="p", cell_size=32, sprite_height_px=24), "W", "walk")
     e = np.array(Image.open(job.root / "04_pixel/E/walk/12f/frames/000.png"))
     w = np.array(Image.open(job.root / "04_pixel/W/walk/12f/frames/000.png"))
     assert out["method"] == "mirror" and out["source"] == "E"
     np.testing.assert_array_equal(np.nonzero(w[..., 3])[0], np.nonzero(e[:, ::-1, 3])[0])
-    assert stages.qa(job, GameProfile(name="p", cell_size=32), "W", "walk")
+    assert stages.qa(job, GameProfile(name="p", cell_size=32, sprite_height_px=24), "W", "walk")
     with pytest.raises(RuntimeError, match="mirror_allowed"):
         stages.mirror_action(job, GameProfile(name="p", mirror_allowed=False), "W", "walk")
     with pytest.raises(FileNotFoundError, match="not pixelized"):

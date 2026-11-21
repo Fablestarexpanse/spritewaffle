@@ -128,10 +128,10 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     info = {**info, "palette": pal_list, "cell": cell, "sets": {}, "warnings": list(info.get("warnings", []))}
     for n, (art, sources) in sets.items():
         cells, places = layout.preserve_canvas(list(art), (cell, cell))
-        off = places[0].pivot[0] - cell / 2 if places and places[0].pivot else 0
-        if off and not any("pivot" in w for w in info["warnings"]):
-            info["warnings"].append(f"pivot: the action is too wide for the {cell}px cell, so the feet sit {abs(off):.0f}px "
-                                    f"{'left' if off < 0 else 'right'} of centre in this clip (a bigger profile cell fixes it)")
+        for w in (x.replace(" in this clip", "").replace(" (a ", f" in the {n}f frames (a ", 1)
+                  for x in _fit_warnings(places[0], cell, profile.cell_size)):
+            if not any(w.split(":")[0] == x.split(":")[0] for x in info["warnings"]):
+                info["warnings"].append(w)
         sd = out / f"{n}f"
         _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
         (sd / "indices.npy").unlink(missing_ok=True)
@@ -144,6 +144,28 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
         info["sets"][str(n)] = {"frames": len(cells), "sources": list(sources)}
     (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
     return info
+
+
+def _fit_warnings(pl, cell: int, profile_cell: int) -> list[str]:
+    """Does the action fit the cell with the feet centred? Too wide: the feet were moved off centre.
+    Too tall: the top was cut off. Both name the profile cell size that would fit (painted styles
+    draw at x4, so the suggestion is in profile units)."""
+    if pl.pivot is None:
+        return []
+    w, h = round(pl.crop[2] * pl.scale), round(pl.crop[3] * pl.scale)
+    feet = pl.pivot[0] - pl.paste[0]                         # feet, from the art's left edge
+    need = max(2 * max(feet, w - feet) + 2, h + 2)           # feet centred, 1 px margin all round
+    mult = max(1, cell // profile_cell)
+    fit = max(-(-int(-(-need // mult)) // 8) * 8, profile_cell + 8)
+    out = []
+    off = pl.pivot[0] - cell / 2
+    if off:
+        out.append(f"pivot: the action is too wide for the {cell}px cell, so the feet sit {abs(off):.0f}px "
+                   f"{'left' if off < 0 else 'right'} of centre in this clip (a {fit}px profile cell would fit it: Sizes…)")
+    if pl.paste[1] < 0:
+        out.append(f"cut off: the top {-pl.paste[1]}px of the action don't fit in the {cell}px cell "
+                   f"(a {fit}px profile cell would fit it: Sizes…)")
+    return out
 
 
 def _rgba_to_index(cell: np.ndarray, pal: np.ndarray) -> np.ndarray:

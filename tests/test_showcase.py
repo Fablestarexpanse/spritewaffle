@@ -18,7 +18,7 @@ def _job(tmp_path):
         frames = []
         for i in range(12):
             a = art.copy(); a[4:16, 6 + i % 2:12 + i % 2] = (200, 30, 30, 255); frames.append(a)
-        stages._write_pixel_sets(job, GameProfile(name="p", cell_size=32), f, "walk",
+        stages._write_pixel_sets(job, GameProfile(name="p", cell_size=32, sprite_height_px=24), f, "walk",
                                  {"12": (frames, list(range(12)))}, np.array([[200, 30, 30]], np.uint8), {})
     return job
 

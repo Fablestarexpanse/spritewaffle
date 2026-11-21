@@ -35,6 +35,15 @@ class GameProfile:
             raise ValueError(f"outline must be one of {OUTLINES}")
         if self.directions not in (4, 8):
             raise ValueError("directions must be 4 or 8")
+        if not 8 <= int(self.cell_size) <= 1024:
+            raise ValueError("cell size must be 8-1024 px")
+        if not 4 <= int(self.sprite_height_px) <= int(self.cell_size) - 2:
+            raise ValueError(f"sprite height must be 4 to {int(self.cell_size) - 2} px (cell size minus a 1 px "
+                             "margin top and bottom)")
+        if not isinstance(self.palette, list) and not 2 <= int(self.palette) <= 256:
+            raise ValueError("palette size must be 2-256 colours")
+        if any(not 1 <= int(v) <= 60 for v in self.fps_per_action.values()):
+            raise ValueError("fps must be 1-60")
 
     @property
     def palette_size(self) -> int:
@@ -55,6 +64,38 @@ class GameProfile:
     @classmethod
     def load(cls, path: Path) -> "GameProfile":
         return cls(**json.loads(Path(path).read_text()))
+
+
+EDITABLE = ("projection", "cell_size", "sprite_height_px", "palette", "outline", "directions",
+            "mirror_allowed", "fps_per_action")
+
+
+def save_named(name: str, fields: dict, profiles_dir: Path | None = None) -> GameProfile:
+    """Create or update profiles/<name>.json from the editable fields (others kept)."""
+    import re
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,39}", name or ""):
+        raise ValueError("profile name: lowercase letters, digits, - and _ (max 40)")
+    if name == "default":
+        raise ValueError("'default' is the built-in profile; save under another name")
+    d = Path(profiles_dir) if profiles_dir else paths.profiles()
+    p = d / f"{name}.json"
+    base = asdict(GameProfile.load(p)) if p.exists() else asdict(GameProfile(name=name))
+    for k in EDITABLE:
+        if k in fields and fields[k] is not None:
+            v = fields[k]
+            if k in ("cell_size", "sprite_height_px", "directions"):
+                v = int(v)
+            elif k == "palette" and not isinstance(v, list):
+                v = int(v)
+            elif k == "mirror_allowed":
+                v = bool(v)
+            elif k == "fps_per_action":
+                v = {str(a): int(f) for a, f in dict(v).items()}
+            base[k] = v
+    base["name"] = name
+    prof = GameProfile(**base)                      # validates
+    prof.save(p)
+    return prof
 
 
 def list_all(profiles_dir: Path | None = None) -> list[str]:

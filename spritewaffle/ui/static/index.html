@@ -107,6 +107,8 @@
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; margin: 4px 0 10px; }
   .pgroup > summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
   .pgroup textarea { width: 100%; min-height: 54px; }
+  #dlg .field { align-items: stretch; }
+  .ok-note { color: var(--ok, #3a3); margin: 0 0 8px; }
   .pgroup .field { align-items: stretch; margin: 6px 0; }      /* labels left, inputs full width */
   #viewer .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
@@ -294,6 +296,70 @@ async function showNewAction(a, o) {
   if (t) { t.scrollIntoView({block: "center"}); t.focus(); }
 }
 
+// --- profile editor: cell size, sprite height, palette, fps ----------------------------------
+async function showProfiles(name, note = "") {
+  const d = $("#dlg"), all = await api("/api/profiles");
+  const p = all.find(x => x.name === name) || all[0];
+  const mult = job.style === "pixel" ? 1 : 4;
+  const nClips = (job.actions || []).filter(a => a.sets["12f"].preview).length;
+  const jobKey = `${job.character}/${job.job_id}`, mine = (job.inputs.profile || "default") === p.name;
+  const num = (k, label, min, max, hint = "") => `<label class="field"><span>${label}</span>
+    <input type="number" data-pf="${k}" value="${esc(String(p[k]))}" min="${min}" max="${max}">${hint ? `<span class="hint">${hint}</span>` : ""}</label>`;
+  const sel = (k, label, opts) => `<label class="field"><span>${label}</span><select data-pf="${k}">
+    ${opts.map(o => `<option ${String(o) === String(p[k]) ? "selected" : ""}>${o}</option>`).join("")}</select></label>`;
+  d.innerHTML = `<h2>Sizes & profile <span class="spacer"></span><button class="ghost" id="pfClose">Close</button></h2>
+    ${note ? `<p class="ok-note">${esc(note)}</p>` : ""}
+    <div class="row"><label>Profile <select id="pfPick">${all.map(x => `<option ${x.name === p.name ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
+      <span class="muted">${p.builtin ? "built-in: change the values, then save a copy under a new name" : ""} · used by ${p.used_by.length} job${p.used_by.length === 1 ? "" : "s"}${p.used_by.length ? `: ${esc(p.used_by.slice(0, 5).join(", "))}${p.used_by.length > 5 ? "…" : ""}` : ""}</span></div>
+    ${p.error ? `<p class="warn">${esc(p.error)}</p>` : `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:8px">
+      ${num("cell_size", "Cell size (px)", 8, 1024, mult > 1 ? `this job's style draws at ×${mult}: ${p.cell_size * mult} px` : "one frame of the sheet")}
+      ${num("sprite_height_px", "Sprite height (px)", 4, 1022, mult > 1 ? `×${mult}: ${p.sprite_height_px * mult} px` : "how tall the character is")}
+      ${num("palette", "Palette size (colours)", 2, 256, "pixel art only")}
+      ${sel("outline", "Outline", ["none", "dark_1px", "selout"])}
+      ${sel("projection", "Camera angle", ["side", "topdown_34", "iso_2to1"])}
+      ${sel("directions", "Directions", [8, 4])}
+      <label class="field"><span>Mirroring</span><label><input type="checkbox" data-pf="mirror_allowed" ${p.mirror_allowed ? "checked" : ""}> W/NW/SW may be mirrored</label></label>
+    </div>
+    <h3 style="margin-bottom:4px">Frames per second</h3>
+    <div class="row" style="flex-wrap:wrap">${Object.entries(p.fps_per_action).map(([a, f]) =>
+      `<label>${esc(a)} <input type="number" data-fps="${esc(a)}" value="${f}" min="1" max="60" style="width:64px"></label>`).join("")}</div>
+    <p class="hint">A sprite needs a 1 px margin, so the height must be at most the cell size − 2. A clip whose action is too wide for the cell gets a QA warning suggesting a cell size.</p>
+    <div class="row" style="flex-wrap:wrap;margin-top:10px">
+      ${p.builtin ? "" : `<button class="primary" id="pfSave">Save ${esc(p.name)}</button>`}
+      <input id="pfNew" placeholder="new profile name" style="width:170px"><button id="pfSaveAs">${p.builtin ? "Save a copy" : "Save as new"} and use for this job</button>
+      ${!mine ? `<button id="pfUse">Use ${esc(p.name)} for this job</button>` : ""}
+      ${mine && nClips ? `<button id="pfReprocess" title="Re-pixelize from the frames already rendered: no new renders">Re-process this job's ${nClips} clip${nClips === 1 ? "" : "s"} with these sizes</button>` : ""}
+    </div>`}`;
+  const fields = () => {
+    const f = {};
+    $$("#dlg [data-pf]").forEach(i => f[i.dataset.pf] = i.type === "checkbox" ? i.checked : i.value);
+    f.fps_per_action = {};
+    $$("#dlg [data-fps]").forEach(i => f.fps_per_action[i.dataset.fps] = +i.value);
+    return f;
+  };
+  $("#pfClose").onclick = () => d.close();
+  $("#pfPick").onchange = e => showProfiles(e.target.value);
+  if ($("#pfSave")) $("#pfSave").onclick = async () => {
+    await api("/api/profiles", {...fields(), name: p.name});
+    showProfiles(p.name, `Saved ${p.name}${p.used_by.length > 1 ? ` (used by ${p.used_by.length} jobs)` : ""}. Existing clips keep their old size until re-processed.`);
+  };
+  if ($("#pfSaveAs")) $("#pfSaveAs").onclick = async () => {
+    const n = $("#pfNew").value.trim().toLowerCase();
+    if (!n) return toast("Give the new profile a name", true);
+    await api("/api/profiles", {...fields(), name: n, use_for: jobKey});
+    await loadStatus(); lastSig = ""; await refreshAll();
+    showProfiles(n, `Saved ${n} and switched this job to it.`);
+  };
+  if ($("#pfUse")) $("#pfUse").onclick = async () => {
+    await api(jobPath() + "/settings", {profile: p.name === "default" ? null : p.name});
+    lastSig = ""; await refreshAll();
+    showProfiles(p.name, `This job now uses ${p.name}.`);
+  };
+  if ($("#pfReprocess")) $("#pfReprocess").onclick = () => { run("reprocess", {}, "Clips queued with the new sizes"); d.close(); };
+  if (!d.open) d.showModal();
+}
+
 function toast(msg, bad = false) {
   const t = document.createElement("div");
   t.className = "toast" + (bad ? " bad" : ""); t.textContent = msg;
@@ -381,7 +447,8 @@ function renderJob() {
         <div class="muted">${esc(j.job_id)}</div></div>
       <span class="spacer"></span>
       <label>Profile <select id="jProfile"><option value="">default</option>
-        ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+        ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
+        <button class="ghost" id="jSizes" title="Cell size, sprite height, palette size, fps…">Sizes…</button></label>
       <label title="Art style for new generations; generate a new anchor after switching">Style
         <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
@@ -398,6 +465,7 @@ function renderJob() {
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
+  $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
     await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };

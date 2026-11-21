@@ -179,6 +179,9 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 raise ValueError("prompt_writer must be 'template' or 'ai'")
             j.update_inputs(profile=body.get("profile"), asset_type=body.get("asset_type"),
                             prompt_writer=body.get("prompt_writer"), style=body.get("style"))
+            if "profile" in body and not body["profile"]:        # back to the built-in default
+                with j.mutate() as meta:
+                    meta["inputs"].pop("profile", None)
         except (FileNotFoundError, ValueError) as e:
             bad(e)
         return {"ok": True}
@@ -340,6 +343,39 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except ValueError as e:
             bad(e)
         return prompt_view.view(j)
+
+    @app.get("/api/profiles")
+    def profiles_full():
+        """Every profile with its settings and which jobs use it ('default' = built-in, read-only)."""
+        from dataclasses import asdict
+        used: dict[str, list[str]] = {}
+        for jj in base.glob("*/*/job.json"):
+            if jj.parent.parent.name.startswith("_"):
+                continue
+            prof = (read_json(jj) or {}).get("inputs", {}).get("profile") or "default"
+            used.setdefault(prof, []).append(f"{jj.parent.parent.name}/{jj.parent.name}")
+        out = []
+        for name in ["default"] + list_profiles():
+            try:
+                p = asdict(resolve(None if name == "default" else name))
+            except (FileNotFoundError, ValueError, TypeError) as e:
+                out.append({"name": name, "error": str(e), "used_by": used.get(name, [])})
+                continue
+            out.append(p | {"name": name, "builtin": name == "default", "used_by": sorted(used.get(name, []))})
+        return out
+
+    @app.post("/api/profiles")
+    def profile_save(body: dict = Body(...)):
+        from dataclasses import asdict
+        from ..core.profile import save_named
+        try:
+            prof = save_named(str(body.get("name", "")).strip(), body)
+        except (ValueError, TypeError) as e:
+            bad(e)
+        if body.get("use_for"):                      # "char/jid": switch that job to this profile
+            c, jid = str(body["use_for"]).split("/", 1)
+            job_or_404(c, jid).update_inputs(profile=prof.name)
+        return asdict(prof)
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):
