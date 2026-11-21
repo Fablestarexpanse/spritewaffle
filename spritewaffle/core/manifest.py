@@ -14,7 +14,8 @@ import numpy as np
 from PIL import Image
 
 from ..frames import layout
-from . import angles, camera
+from ..frames.video import colour_frames
+from . import angles, camera, timeline
 from .job import Job
 from .profile import GameProfile, resolve
 
@@ -98,11 +99,12 @@ def _mirror_record(source: dict, placement: dict | None, cell) -> dict:
 def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, elev: float, profile: GameProfile,
                align: bool) -> list[dict]:
     sd = job.root / "04_pixel" / facing / action / f"{n}f"
-    frames = sorted((sd / "frames").glob("[0-9][0-9][0-9].png"))
+    frames = colour_frames(sd / "frames")
     if not frames:
         return []
-    aligned = sorted((sd / "frames_aligned").glob("[0-9][0-9][0-9].png")) if align else []
+    aligned = colour_frames(sd / "frames_aligned") if align else []
     use = aligned if len(aligned) == len(frames) else frames
+    edits = {item.source.name: item for item in timeline.frames(job.root, sd, frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
     places = json.loads((sd / "placements.json").read_text()) if (sd / "placements.json").exists() else []
     src_facing = rep.get("source") if rep.get("method") == "mirror" else None
@@ -116,13 +118,23 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
     yaw = angles.yaw_of(facing)
     out = []
     for k, f in enumerate(use):
+        edit = edits[frames[k].name]
+        foot = pts[k] if k < len(pts) else None
+        maps = _maps(job, frames[k])
+        if edit.replaced:
+            foot = layout.foot_point(timeline.pixels([edit.image])[0])
+            maps = {"depth": None, "normal": None}
         out.append({"view_index": angles.view_index(yaw, vc), "frame": k, "yaw_degrees": yaw,
                     "camera_elevation_degrees": elev, "view_count": vc,
-                    "mirrored": bool(src_facing),
-                    "source_view_index": angles.view_index(angles.yaw_of(src_facing), vc) if src_facing else None,
-                    "foot_point": pts[k] if k < len(pts) else None,
-                    "color": _rel(job, f), "color_unaligned": _rel(job, frames[k]) if use is aligned else None,
-                    **_maps(job, frames[k]),
+                    "mirrored": bool(src_facing and not edit.replaced),
+                    "source_view_index": angles.view_index(angles.yaw_of(src_facing), vc)
+                    if src_facing and not edit.replaced else None,
+                    "foot_point": foot,
+                    "color": _rel(job, edit.image if edit.replaced else f),
+                    "color_unaligned": _rel(job, frames[k]) if use is aligned and not edit.replaced else None,
+                    **maps,
+                    **({"duration_ms": edit.duration_ms} if edit.duration_ms is not None else {}),
+                    **({"color_source": _rel(job, f)} if edit.replaced else {}),
                     "master": _rel(job, masters[k]) if k < len(masters) else None,
                     "downscale": (_mirror_record(_downscale(src_rep, src_places[k] if k < len(src_places) else None, profile, None),
                                                  places[k] if k < len(places) else None, rep.get("cell"))

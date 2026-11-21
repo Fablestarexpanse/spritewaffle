@@ -1,11 +1,9 @@
 """Track the exact inputs and output files of a completed export."""
 from __future__ import annotations
 
-import errno
 import hashlib
 import json
 import os
-from contextlib import contextmanager
 from pathlib import Path
 
 from ..core import fsutil
@@ -78,20 +76,7 @@ def compare(record: dict, out_dir: Path, current: dict) -> dict:
             "changed_outputs": sorted(changed_outputs)}
 
 
-@contextmanager
 def locked(out_dir: Path):
     """Serialize writes to one bundle across processes. Closing releases the OS lock."""
-    with out_dir.with_name(f".{out_dir.name}.export.lock").open("a+b") as lock:
-        lock.seek(0)
-        try:
-            if os.name == "nt":
-                import msvcrt
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            if error.errno not in (errno.EACCES, errno.EAGAIN):
-                raise
-            raise RuntimeError("An export is already running for this bundle. Retry when it finishes.") from error
-        yield
+    return fsutil.locked(out_dir.with_name(f".{out_dir.name}.export.lock"),
+                         "An export is already running for this bundle. Retry when it finishes.")

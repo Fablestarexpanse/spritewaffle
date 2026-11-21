@@ -25,7 +25,7 @@ def _preview(frames: np.ndarray, scale: int) -> list[Image.Image]:
 
 def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = True,
                events: list | dict | None = None, hitboxes: dict | None = None, preview_scale: int = 4,
-               pivot=None) -> dict:
+               pivot=None, durations_ms: list[int] | None = None) -> dict:
     """frames (F,h,w,4) uint8 cells -> files. Returns {'strip','json','gif','apng','frames'} paths."""
     out = Path(out_dir)
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -42,10 +42,11 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
     paths["frames"] = frame_paths
 
     dur = round(1000 / fps)
+    durations = durations_ms if durations_ms is not None else [dur] * n
     meta = {
         "name": name, "cell": [w, h], "frame_count": n, "fps": fps, "loop": loop,
         "pivot": list(pivot) if pivot is not None else feet_pivot(frames), "pivot_norm": None,
-        "frames": [{"index": i, "rect": [i * w, 0, w, h], "duration_ms": dur,
+        "frames": [{"index": i, "rect": [i * w, 0, w, h], "duration_ms": durations[i],
                     **({"hitbox": hitboxes[i]} if hitboxes and i in hitboxes else {})} for i in range(n)],
         "events": events or [],
     }
@@ -53,9 +54,10 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
     paths["json"].write_text(json.dumps(meta, indent=2))
 
     imgs = _preview(frames, preview_scale)
-    imgs[0].save(paths["apng"], save_all=True, append_images=imgs[1:], duration=dur, loop=0, disposal=1)
+    preview_duration = dur if durations_ms is None else durations_ms
+    imgs[0].save(paths["apng"], save_all=True, append_images=imgs[1:], duration=preview_duration, loop=0, disposal=1)
     gif_frames = [_gif_frame(im) for im in imgs]
-    gif_frames[0].save(paths["gif"], save_all=True, append_images=gif_frames[1:], duration=dur,
+    gif_frames[0].save(paths["gif"], save_all=True, append_images=gif_frames[1:], duration=preview_duration,
                        loop=0, disposal=2, transparency=255, optimize=False)
     return paths
 

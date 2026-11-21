@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..core import attach
+from ..core import attach, timeline
 from ..core.job import Job
 from ..frames.video import colour_frames
 from ..qa import checks
@@ -32,15 +32,14 @@ def _valid_set(frame_set) -> bool:
     return isinstance(frame_set, str) and re.fullmatch(r"[a-zA-Z0-9_-]+", frame_set) is not None
 
 
-def _frames(sd: Path, aligned: bool) -> list[Path]:
-    """The colour frames of a set (000.png, 001.png... only: never a _depth/_normal map). The
-    aligned copies when the asset uses align_feet and they are complete."""
-    plain = colour_frames(sd / "frames")
-    if aligned:
-        al = colour_frames(sd / "frames_aligned")
-        if len(al) == len(plain):
-            return al
-    return plain
+def _aligned_frames(sd: Path, aligned: bool, count: int) -> list[Path]:
+    files = colour_frames(sd / "frames_aligned") if aligned else []
+    return files if len(files) == count else []
+
+
+def _images(sd: Path, aligned: bool, items: list[timeline.Frame]) -> list[Path]:
+    files = _aligned_frames(sd, aligned, len(items))
+    return [files[i] if files and not item.replaced else item.image for i, item in enumerate(items)]
 
 
 def _sets(root: Path, frame_set: str):
@@ -50,10 +49,12 @@ def _sets(root: Path, frame_set: str):
         yield directory, directory.parent.parent.name, directory.parent.name
 
 
-def _qa_problem(path: Path) -> str | None:
+def _qa_problem(path: Path, replacements: dict) -> str | None:
     report = checks.read(path)
     if report is None:
-        return "no QA report"
+        return "QA needs to review frame replacements" if replacements else "no QA report"
+    if (report.get("timeline_replacements") or {}) != replacements:
+        return "QA needs to review frame replacements"
     if report["status"] != "pass":
         return "QA failed"
     return None
@@ -66,19 +67,20 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
     aligned = bool(Job(job_root).read_meta()["inputs"].get("align_feet"))
     for sd, facing, action in _sets(job_root, frame_set):
         qa = job_root / "05_qa" / facing / action / frame_set / "report.json"
-        if require_pass and (problem := _qa_problem(qa)):
+        items = timeline.frames(job_root, sd)
+        replaced = timeline.replacements(items)
+        if require_pass and (problem := _qa_problem(qa, replaced)):
             skipped.append(f"{action}_{facing}: {problem}")
             continue
-        files = _frames(sd, aligned)
-        if not files:
+        if not items:
             skipped.append(f"{action}_{facing}: no colour frames")
             continue
-        cells = np.stack([np.array(Image.open(p).convert("RGBA")) for p in files])
+        cells = timeline.pixels(_images(sd, aligned, items))
         maps = {}
         for kind in MAPS:
-            mp = [sd / "frames" / f"{p.stem}_{kind}.png" for p in files]
-            if any(m.exists() for m in mp):
-                maps[kind] = np.stack([np.array(Image.open(m).convert("RGBA")) if m.exists() else np.zeros_like(cells[0])
+            mp = [None if f.replaced else sd / "frames" / f"{f.source.stem}_{kind}.png" for f in items]
+            if any(m and m.exists() for m in mp):
+                maps[kind] = np.stack([np.array(Image.open(m).convert("RGBA")) if m and m.exists() else np.zeros_like(cells[0])
                                        for m in mp])
         sel = job_root / "03_actions" / facing / action / "selection_report.json"
         loop = json.loads(sel.read_text())["loop"] if sel.exists() else True
@@ -86,7 +88,7 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
         places = json.loads(pl.read_text()) if pl.exists() else []
         pivot = places[0].get("pivot") if places else None
         anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells, "loop": loop,
-                      "pivot": pivot or feet_pivot(cells), "maps": maps})
+                      "pivot": pivot or feet_pivot(cells), "maps": maps, "timeline": items})
     return anims, skipped
 
 
@@ -107,16 +109,20 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
     settings = {"align_feet": aligned, "fps": {}, "attachments": {}}
     for directory, facing, action in _sets(root, frame_set):
         qa = root / "05_qa" / facing / action / frame_set / "report.json"
+        items = timeline.frames(root, directory)
+        replaced = timeline.replacements(items)
         if require_pass:
             files.append(qa)
-            if _qa_problem(qa):
+            if _qa_problem(qa, replaced):
                 continue
-        frames = _frames(directory, aligned)
-        if not frames:
+        if not items:
             continue
         settings["fps"][action] = fps_for(action)
-        files.extend(frames)
-        files.extend(directory / "frames" / f"{frame.stem}_{kind}.png" for frame in frames for kind in MAPS)
+        files.extend(_images(directory, aligned, items))
+        files.extend(directory / "frames" / f"{f.source.stem}_{kind}.png" for f in items
+                     if not f.replaced for kind in MAPS)
+        if edits := timeline.export_settings(items):
+            settings.setdefault("timeline", {})[f"{facing}/{action}"] = edits
         files.extend([directory / "placements.json", root / "03_actions" / facing / action / "selection_report.json"])
         name = f"{action}_{facing}"
         if att := attachments.get(name):
@@ -186,11 +192,14 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
         n = len(a["cells"])
         fps = fps_for(a["action"]) * (n // 12 if n > 12 else 1)       # 24f plays twice as fast
         frames += list(a["cells"])
-        durations += [round(1000 / fps)] * n
+        clip_durations = timeline.timings(a["timeline"], round(1000 / fps))
+        durations.extend(clip_durations)
         tags.append((a["name"], start, start + n - 1, "forward", 0 if a["loop"] else 1))
         meta_anims.append({"name": a["name"], "facing": a["facing"], "action": a["action"], "frames": n,
                            "fps": fps, "loop": a["loop"], "pivot": a["pivot"],
                            "row": len(meta_anims), "first": start})
+        if any(f.duration_ms is not None for f in a["timeline"]):
+            meta_anims[-1]["durations_ms"] = clip_durations
     frames = np.stack(frames)
 
     pal = merged_palette(anims)
@@ -227,7 +236,7 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
             last = pv
     slices = [("pivot", keys)]
     ase_path = out_dir / f"{character}.aseprite"
-    if len(pal) <= 255:
+    if len(pal) <= 255 and not any(timeline.replacements(a["timeline"]) for a in anims):
         lut = {tuple(c): i for i, c in enumerate(pal.tolist())}
         idx = np.full(frames.shape[:3], -1, int)
         m = frames[..., 3] > 0

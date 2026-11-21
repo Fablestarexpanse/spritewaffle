@@ -168,6 +168,32 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return stages.export_status(job, resolve(job.read_meta()["inputs"].get("profile")), facing, action)
 
     @mcp.tool()
+    def animation_timeline(character: str, job_id: str, facing: str, action: str, frame_set: str = "12f") -> dict:
+        """Read the effective frames and timing of one processed animation."""
+        from .core import timeline
+        from .core.profile import resolve
+        job = job_for(character, job_id)
+        directory = timeline.directory(job.root, facing, action, frame_set)
+        return timeline.describe(job.root, directory, resolve(job.read_meta()["inputs"].get("profile")).fps(action))
+
+    @mcp.tool()
+    def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, frame: str,
+                            operation: str, frame_set: str = "12f",
+                            duration_ms: int | None = None, png_path: str | None = None) -> dict:
+        """Edit a numbered frame. Use duration (null resets), replace (png_path), or restore."""
+        from .core import timeline
+        job = job_for(character, job_id)
+        directory = timeline.directory(job.root, facing, action, frame_set)
+        value = duration_ms
+        if operation == "replace":
+            if not png_path:
+                raise ValueError("Pass png_path to replace a frame.")
+            with Path(png_path).open("rb") as stream:
+                value = stream.read(timeline.MAX_IMAGE_BYTES + 1)
+        timeline.update(job.root, directory, frame, operation, value)
+        return animation_timeline(character, job_id, facing, action, frame_set)
+
+    @mcp.tool()
     def showcase(character: str, job_id: str, size: int = 512) -> dict:
         """GIF for showing the character to people: a turnaround through its facings, then each saved
         action with all its facings playing in a compass grid. Returns the file path."""

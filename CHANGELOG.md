@@ -14,6 +14,9 @@
   frames disagree.
 - Animation details show the frames named by saved QA findings, with thumbnails that open the
   full-size frame. Passing reports with warnings display a Warning badge.
+- Added an animation timeline with playback, scrubbing, saved per-frame timing, and reversible
+  PNG replacement. Action and character exports use the edited frames. Character export checks
+  that QA reviewed active replacements, and the asset manifest records the effective images.
 
 ## 2026-11-21: directional sprite readiness
 

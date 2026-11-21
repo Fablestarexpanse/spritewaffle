@@ -13,6 +13,14 @@ the index data and palette when the frames are indexed. Saved QA is read from ex
 reports. The presentation derives per-frame findings from the measured fields and retains
 the original pass/fail verdict for export.
 
+The timeline keeps a versioned JSON sidecar under
+`edits/animations/<facing>/<action>/<set>/`. Replacements live beside it as immutable,
+content-addressed PNGs. The sidecar records the original frame fingerprint. If the processed
+image changes, the saved replacement is kept and stops applying. A duration override follows
+the numbered slot. The action and character writers fingerprint these effective inputs.
+QA records the replacement hashes it checked, and character export uses that record when
+applying its usual pass filter. The manifest refreshes on timeline saves.
+
 One Python package (`spritewaffle/`), local only. ComfyUI is the only external service; it is
 driven through exported API-format workflow templates. Everything after generation is
 SpriteWaffle's own code.

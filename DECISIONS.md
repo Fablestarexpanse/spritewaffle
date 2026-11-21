@@ -1,6 +1,11 @@
-NEXT: Action export freshness and frame-level QA verified on studio-modernization. Next start the animation timeline with persistent frame timing and reversible replacement. Item and effect freshness and upstream invalidation are still on the upgrade roadmap. The official media kit is pending.
+NEXT: Animation timeline playback, timing, and source restoration verified. Next add replacement history and onion skinning, then reversible duplication and reordering. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Timeline edits are scoped to an action, facing, frame set, and source filename. Timings follow the frame slot. Replacement PNGs are stored by content hash and apply only while the processed source matches the saved fingerprint. Restore source keeps the generated frame and the uploaded file.
+- 2026-11-21 Aseprite uses RGBA for active replacements to preserve their colors and alpha. Replacements use their authored position and omit old depth and normal maps. Character export retains aligned copies for untouched frames and requires a QA report for the active replacement hashes. Timing-only edits keep the current QA verdict.
+- 2026-11-21 On a disposable copy of `hare/courier S/walk`, all 46 untouched outputs matched the prior writer byte for byte. The edited Aseprite decoded with the uploaded pixels at 147 ms, and its processed source PNG still matched the original bytes. Chromium verified loop and one-shot playback, editing after reopen, PNG upload and restore, frame-set switching, and QA queuing at 1440, 800, and 390 px.
+- 2026-11-21 The timeline baseline passed 235 tests in 61.75 s. The final suite passed 239 tests in 60.73 s with the existing Starlette deprecation warning. Export tests read the saved duration from Aseprite, SpriteWaffle JSON, APNG, and GIF.
 
 - 2026-11-21 Baseline at `7b42f9d` passed 226 tests in 59.73 s. Action export reuses the character receipt format and lock, with independent PNG and Aseprite receipts because either can be exported alone. It refuses indexed Aseprite output when the indices and PNG frames disagree.
 - 2026-11-21 Frame review derives its classification and frame links from saved QA measurements. Preserve the existing pass/fail verdict so export gating stays compatible. Frame review also works on older reports with those fields.

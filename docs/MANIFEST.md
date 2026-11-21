@@ -6,7 +6,7 @@ files and the downscale that made it, plus the camera profile and mirror policy.
 
 The manifest is **derived** from the files the job already has (`core/manifest.py → build`), so
 it never disagrees with them. The queue rewrites it after anchor, facings, sheet, pixelize, mirror,
-flow, transfer, export and align. `read` returns the stored file with defaults for any missing
+flow, transfer, export and align. A timeline save refreshes it as well. `read` returns the stored file with defaults for any missing
 field, or builds one for an asset that has none, so old assets always load.
 
 ## Angles
@@ -39,7 +39,7 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | `mirror_map` | object\|null | custom only: `{"<view_index>": <source view_index>}` |
 | `view_count` | int | views in the set |
 | `canvas` | [w, h] | one cell size for every frame of the asset |
-| `align_feet` | bool | true after the Align feet step: `color` points at the aligned frames |
+| `align_feet` | bool | true after Align feet. Untouched frames use their aligned copies when available. |
 | `base_job` | str\|null | a variant's base job (fitted item, one-change variant) |
 | `views` | list | one per view: `view_index`, `yaw_degrees`, `label`, `facing_image` (the still, or null), `mirrored`, `source_view_index` |
 | `animations` | list | one per action × frame set: `action`, `frame_set` (`12f`/`24f`), `fps`, `loop`, `views` (indices present), `frames` |
@@ -54,11 +54,13 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | `mirrored` | bool | made by flipping another view's frame |
 | `source_view_index` | int\|null | the view it was flipped from |
 | `foot_point` | [x, y]\|null | where the character touches the ground, in cell px: x = centre of the lowest opaque band, y = bottom edge of the lowest opaque row (a pixel boundary) |
-| `color` | path | the final frame, `04_pixel/<facing>/<action>/<n>f/frames/000.png` (or `frames_aligned/…` when `align_feet`) |
+| `color` | path | the effective frame. This can be a processed frame, its aligned copy, or a saved replacement. |
 | `color_unaligned` | path\|null | the original frame when `color` is the aligned copy |
-| `depth`, `normal` | path\|null | reserved slots: `<frame>_depth.png`, `<frame>_normal.png` next to the colour frame, null when absent |
+| `color_source` | optional path | the processed or aligned image behind an active timeline replacement |
+| `duration_ms` | optional int | saved timeline duration for this frame |
+| `depth`, `normal` | path\|null | reserved slots: `<frame>_depth.png`, `<frame>_normal.png`. Replaced frames omit their old maps. |
 | `master` | path\|null | the high-res source, `03_actions/<facing>/<action>/selected_<n>f/<k>_src<i>.png`; a mirrored frame points at its source view's master |
-| `downscale` | object | how `color` was made from `master` (below), so it can be replayed |
+| `downscale` | object | how the processed frame was made from `master` (below), so it can be replayed |
 
 Paths are relative to the job folder. Old frames that predate a field get its default
 (`mirrored: false`, `foot_point / depth / normal / master / downscale: null`).

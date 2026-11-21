@@ -12,6 +12,7 @@ from ..export import aseprite, receipt, sheet as sheetmod
 from ..frames import analysis, contact, layout, picker, video
 from ..pixel.pipeline import PixelParams, pixelize
 from ..qa import checks
+from . import timeline
 from .job import Job
 from .profile import GameProfile
 
@@ -200,13 +201,9 @@ def _rgba_to_index(cell: np.ndarray, pal: np.ndarray) -> np.ndarray:
     return idx
 
 
-def _load_set(sd: Path) -> tuple[np.ndarray, list[dict], list[Path]]:
-    sources = video.colour_frames(sd / "frames")
-    cells = np.stack(video.load(sources))
-    if cells.shape[-1] == 3:
-        alpha = np.full((*cells.shape[:3], 1), 255, np.uint8)
-        cells = np.concatenate((cells, alpha), axis=-1)
-    return cells, json.loads((sd / "placements.json").read_text()), sources
+def _load_set(sd: Path, items: list[timeline.Frame]) -> tuple[np.ndarray, list[dict]]:
+    cells = timeline.pixels([frame.image for frame in items])
+    return cells, json.loads((sd / "placements.json").read_text(encoding="utf-8"))
 
 
 def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
@@ -220,10 +217,13 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
-        cells, places, sources = _load_set(sd)
+        items = timeline.frames(job.root, sd)
+        cells, places = _load_set(sd, items)
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
-        r["frame_files"] = [path.name for path in sources]
+        r["frame_files"] = [frame.source.name for frame in items]
+        if active := timeline.replacements(items):
+            r["timeline_replacements"] = active
         r.setdefault("warnings", []).extend(prep.get("warnings", []))
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
@@ -261,7 +261,7 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
     report = pdir / "pixel_report.json"
     sets = _action_sets(pdir)
     indices = [sd / "indices.npy" for sd in sets if (sd / "indices.npy").is_file()]
-    files = [p for sd in sets for p in [sd / "placements.json", *video.colour_frames(sd / "frames")]]
+    files = [sd / "placements.json" for sd in sets]
     settings = {"fps": profile.fps(action), "sets": [sd.name for sd in sets],
                 "loop": json.loads(sel.read_text(encoding="utf-8"))["loop"] if sel.is_file() else None,
                 "indexed_sets": [p.parent.name for p in indices]}
@@ -270,6 +270,11 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
     elif indices:
         settings["palette"] = json.loads(report.read_text(encoding="utf-8"))["palette"] if report.is_file() else None
         files.extend(indices)
+    for sd in sets:
+        items = timeline.frames(job.root, sd)
+        files.extend(frame.image for frame in items)
+        if edits := timeline.export_settings(items):
+            settings.setdefault("timeline", {})[sd.name] = edits
     return receipt.snapshot(job.root, files, settings)
 
 
@@ -325,14 +330,16 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
     written = {}
     artifacts = {kind: [] for kind in formats}
     for sd in sets:
-        n = int(sd.name.rstrip("f"))
-        fps = base_fps if n <= 12 else base_fps * n // 12            # same duration for 12f and 24f
-        cells, places, _ = _load_set(sd)
+        fps = timeline.action_fps(base_fps, sd.name)
+        items = timeline.frames(job.root, sd)
+        cells, places = _load_set(sd, items)
+        durations = timeline.timings(items, round(1000 / fps))
         pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
         name = f"{action}_{facing}_{sd.name}"
         out = out_dir / sd.name
         files = {}
-        indexed = (sd / "indices.npy").is_file()
+        original_indexed = (sd / "indices.npy").is_file()
+        indexed = original_indexed and not timeline.replacements(items)
         if "aseprite" in formats and indexed:
             ind = np.load(sd / "indices.npy")
             opaque = cells[..., 3] > 0
@@ -344,7 +351,8 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
             if not artifacts["png"]:
                 receipt.incomplete(_action_receipt(out_dir, "png"))
             png = sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot, events=events,
-                                      preview_scale=4 if indexed else 1)
+                                      preview_scale=4 if original_indexed else 1,
+                                      durations_ms=durations if any(f.duration_ms is not None for f in items) else None)
             artifacts["png"].extend(png.pop("frames"))
             artifacts["png"].extend(png.values())
             files.update({key: str(path) for key, path in png.items()})
@@ -355,10 +363,10 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
             if not artifacts["aseprite"]:
                 receipt.incomplete(_action_receipt(out_dir, "aseprite"))
             if indexed:
-                p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags,
+                p = aseprite.write(out / f"{name}.aseprite", ind, pal, durations, tags=tags,
                                    slices=slices)
             else:
-                p = aseprite.write_rgba(out / f"{name}.aseprite", cells, [round(1000 / fps)] * len(cells), tags=tags,
+                p = aseprite.write_rgba(out / f"{name}.aseprite", cells, durations, tags=tags,
                                          slices=slices)
             files["aseprite"] = str(p)
             artifacts["aseprite"].append(p)

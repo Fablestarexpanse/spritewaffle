@@ -381,6 +381,23 @@ def cmd_action_export_status(a):
     _print(stages.export_status(job, _profile(a, job), a.facing, a.action))
 
 
+def cmd_timeline(a):
+    from .core import timeline
+    job = _job(a.job)
+    directory = timeline.directory(job.root, a.facing, a.action, a.set)
+    if a.duration is not None or a.reset_duration or a.replace or a.restore:
+        if not a.frame:
+            raise ValueError("Pass --frame for an edit, such as --frame 001.png.")
+        if a.replace:
+            with Path(a.replace).open("rb") as stream:
+                timeline.update(job.root, directory, a.frame, "replace", stream.read(timeline.MAX_IMAGE_BYTES + 1))
+        elif a.restore:
+            timeline.update(job.root, directory, a.frame, "restore")
+        else:
+            timeline.update(job.root, directory, a.frame, "duration", a.duration)
+    _print(timeline.describe(job.root, directory, _profile(a, job).fps(a.action)))
+
+
 # --- motion library (experimental) ------------------------------------------------------------
 
 def cmd_motion(a):
@@ -595,6 +612,14 @@ def build() -> argparse.ArgumentParser:
         OPT_ACTION, (("--format",), {"choices": ("png", "aseprite", "both"), "default": "both"}))
     cmd("export-action-status", cmd_action_export_status, "check the PNG and Aseprite files for one action",
         JOB, PROFILE, OPT_FACING, OPT_ACTION)
+    ep = cmd("timeline", cmd_timeline, "read or edit the timing and replacement frames of one action",
+             JOB, PROFILE, FACING, ACTION, (("--set",), {"default": "12f"}),
+             (("--frame",), {"help": "numbered source filename, such as 001.png"}))
+    edits = ep.add_mutually_exclusive_group()
+    edits.add_argument("--duration", type=int, help="frame duration in milliseconds")
+    edits.add_argument("--reset-duration", action="store_true", help="restore the profile duration")
+    edits.add_argument("--replace", metavar="PNG", help="replace the frame with a same-size PNG")
+    edits.add_argument("--restore", action="store_true", help="restore the source image")
 
     # motion library
     mp = sub.add_parser("motion", help="[experimental] library of approved driving clips").add_subparsers(dest="sub", required=True)

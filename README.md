@@ -78,6 +78,25 @@ Use **Check action exports** to see freshness for PNG and Aseprite separately.
 MCP exposes QA findings in `status`, export freshness in `action_export_status`,
 and export from processed frames in `export_action`.
 
+### Animation timeline
+
+In **Animations**, open a facing and choose **Timeline**. Choose the frame set, then scrub
+or play it with its saved timing. **Save duration** overrides one frame in milliseconds.
+**Reset duration** restores its profile timing. **Replace frame** takes a single PNG at the
+same cell size. **Restore source** brings back the processed image and keeps the saved timing.
+A replacement becomes inactive if its processed source changes.
+
+Run **QA** after replacing or restoring artwork, then re-export the action or character.
+Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
+the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
+existing aligned copies for untouched frames. A replacement uses the uploaded pixel position
+and its old depth and normal maps are omitted. GIF preview timing uses 10 ms ticks.
+
+Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
+To edit, add `--frame 001.png` and one of `--duration 160`, `--reset-duration`,
+`--replace repair.png`, or `--restore`. MCP exposes `animation_timeline` and
+`edit_timeline_frame`. The HTTP route is `GET` or `POST /api/jobs/{character}/{job}/timeline`.
+
 ## Workflows
 
 ### Character (or creature)

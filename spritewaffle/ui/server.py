@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import time
+from base64 import b64decode
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate
+from ..core import generate, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -274,8 +275,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                     sets[n]["frames"] = [url(p) for p in frames]
                 if qa and qa["frame_findings"]:
                     by_name = {p.name: p for p in frames}
+                    qa_replacements = report.get("timeline_replacements") or {}
                     for finding in qa["frame_findings"]:
-                        path = by_name.get(finding["file"])
+                        digest = qa_replacements.get(finding["file"])
+                        path = (timeline.replacement_path(j.root, folder.parent, digest)
+                                if digest else by_name.get(finding["file"]))
                         finding["preview"] = url(path) if path else None
             att = (meta["inputs"].get("attachments") or {}).get(f"{action}_{facing}")
             fxgif = j.root / "06_export" / facing / action / "12f" / f"{action}_{facing}_12f_with_fx.gif"
@@ -617,6 +621,37 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             return stages.export_status(j, resolve(job_profile(j)), facing, action)
         except (ValueError, OSError, KeyError) as e:
+            bad(e)
+
+    def timeline_view(j: Job, facing: str, action: str, frame_set: str):
+        directory = timeline.directory(j.root, facing, action, frame_set)
+        view = timeline.describe(j.root, directory, resolve(job_profile(j)).fps(action))
+        for frame in view["frames"]:
+            frame["url"] = url(j.root / frame["image"])
+        return view
+
+    @app.get("/api/jobs/{char}/{jid}/timeline")
+    def get_timeline(char: str, jid: str, facing: str, action: str, frame_set: str = "12f"):
+        try:
+            return timeline_view(job_or_404(char, jid), facing, action, frame_set)
+        except (ValueError, OSError) as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/timeline")
+    def edit_timeline(char: str, jid: str, facing: str, action: str, frame_set: str = "12f", body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            directory = timeline.directory(j.root, facing, action, frame_set)
+            operation = body.get("operation")
+            value = body.get("duration_ms")
+            if operation == "replace":
+                encoded = body.get("png")
+                if not isinstance(encoded, str) or len(encoded) > 4 * ((timeline.MAX_IMAGE_BYTES + 2) // 3):
+                    raise ValueError("Choose a PNG no larger than 32 MiB.")
+                value = b64decode(encoded, validate=True)
+            timeline.update(j.root, directory, body.get("frame", ""), operation, value)
+            return timeline_view(j, facing, action, frame_set)
+        except (ValueError, TypeError, OSError, RuntimeError) as e:
             bad(e)
 
     # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------
