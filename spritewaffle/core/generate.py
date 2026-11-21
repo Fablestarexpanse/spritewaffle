@@ -235,6 +235,9 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
+    if job.read_meta()["inputs"].get("base_job"):          # a variant: every facing from the base's
+        from . import variant
+        return variant.facings(job, profile, client, only=only, seed=seed)
     styles.use(styles.of_job(job))
     job.require_approved("anchor")
     client = client or ComfyClient()

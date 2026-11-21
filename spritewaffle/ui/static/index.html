@@ -502,6 +502,7 @@ function renderJob() {
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
+      ${st("facings") === "approved" ? `<button id="jVariant" title="This character with one change: add an item, clothing, a different weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
@@ -513,6 +514,23 @@ function renderJob() {
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
+  if ($("#jVariant")) $("#jVariant").onclick = () => {
+    const d = $("#dlg");
+    d.innerHTML = `<h2>Make a variant of ${esc(j.character)} <span class="spacer"></span><button class="ghost" id="vClose2">Close</button></h2>
+      <p class="hint" style="margin-top:0">A new job: this character with one change. Its anchor is this anchor edited; each facing is redrawn from this job's facing (same pose and angle) with the change added.</p>
+      <label class="field"><span>The change</span><input id="vEdit" placeholder="e.g. add a long green cape and a round wooden shield on the left arm"></label>
+      <label class="field"><span>Job name (optional)</span><input id="vName" placeholder="${esc(j.job_id)}_…"></label>
+      <div class="row" style="margin-top:10px"><button class="primary" id="vGo">Create variant</button></div>`;
+    $("#vClose2").onclick = () => d.close();
+    $("#vGo").onclick = async () => {
+      const instruction = $("#vEdit").value.trim();
+      if (!instruction) return toast("Describe the change", true);
+      const r = await api(jobPath() + "/variant", {instruction, job_id: $("#vName").value.trim()});
+      d.close(); toast("Variant created: rendering its anchor");
+      location.hash = `${r.character}/${r.job_id}/anchor`;
+    };
+    d.showModal();
+  };
   $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
@@ -523,6 +541,9 @@ function paneAnchor(j, st) {
   const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
   $("#pane").innerHTML = `<section>
     <h2>Anchor ${badge(st("anchor"))}</h2>
+    ${j.variant ? `<p class="muted" style="margin-top:0">Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
+      Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
+      <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
     <div style="display:grid;grid-template-columns:minmax(200px,320px) 1fr;gap:20px">
       <div>${j.anchor ? `<a href="${esc(j.anchor_full)}" data-view="Anchor" title="enlarge">${img(j.anchor, "anchor")}</a>` : img(null)}
         ${takesHtml(j.anchor_takes, "01_anchor/anchor.png", "Anchor")}</div>
@@ -551,6 +572,7 @@ function paneAnchor(j, st) {
           ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
       </div>
     </div></section>`;
+  if ($("#vReroll")) $("#vReroll").onclick = () => run("anchor", {}, "Variant anchor queued");
   $("#genAnchor").onclick = () => {
     const describe = $("#desc").value.trim();
     if (!describe) return toast("Describe the asset first", true);

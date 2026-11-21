@@ -248,6 +248,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "anchor_takes": takes_of("01_anchor/anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
                 "directions": profile_directions(j),
+                "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit")}
+                            if meta["inputs"].get("base_job") else None),
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
                 "stack": {"views": {v: crop(j.root / "02_ortho" / f"{v}.png") for v in ("front", "back", "right", "top")},
@@ -383,6 +385,18 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             c, jid = str(body["use_for"]).split("/", 1)
             job_or_404(c, jid).update_inputs(profile=prof.name)
         return asdict(prof)
+
+    @app.post("/api/jobs/{char}/{jid}/variant")
+    def make_variant(char: str, jid: str, body: dict = Body(...)):
+        """New job: this character with one change. Queues its edited anchor."""
+        from ..core import variant
+        base_job = job_or_404(char, jid)
+        try:
+            v = variant.create(base_job, str(body.get("instruction", "")), (body.get("job_id") or "").strip() or None)
+        except (ValueError, FileExistsError, RuntimeError) as e:
+            bad(e)
+        t = queue.submit(v.root, "anchor", {}, job_profile(v))
+        return {"character": char, "job_id": v.root.name, "tasks": [t["id"]]}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):

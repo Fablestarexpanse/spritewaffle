@@ -127,6 +127,27 @@ def facing(target: str, refs: list[str], first: str = "S", note: str = "", raise
     return " ".join(parts)
 
 
+# --- variants: an approved character with one change ---------------------------------------
+def edit_anchor(instruction: str) -> str:
+    """Image-edit prompt: the anchor (Picture 1) with only the requested change."""
+    return (f"<Picture 1> shows a character, {VIEW['S']}. Draw this exact character again in the same relaxed idle "
+            f"pose and view, changed only like this: {instruction.strip().rstrip('.')}. Everything else stays "
+            f"identical: face, body, proportions, size, colors, {styles.get()['noun']} style and outline. "
+            "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
+
+
+def edit_facing(target: str, instruction: str, raised: bool = False) -> str:
+    """Image-edit prompt: one base facing (Picture 1) with the change, said in words only.
+    Measured 2026-11-20: giving the edited front view as Picture 2 made every facing come out as
+    that front view; one picture keeps the base pose."""
+    V = VIEW_RAISED if raised else VIEW
+    return (f"<Picture 1> shows a character, {V[target]}. Draw this exact character again in exactly the same "
+            f"view, pose and position, changed only like this: {instruction.strip().rstrip('.')}, as it looks "
+            f"from this side. Everything else stays identical: face, body, outfit, proportions, size, colors, "
+            f"{styles.get()['noun']} style and outline. "
+            "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
+
+
 # --- actions (rules 5, 6) ---------------------------------------------------------------------
 # motion: short and literal; transition: a small step away from idle, never the extreme pose.
 ACTIONS = {

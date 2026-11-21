@@ -67,6 +67,9 @@ def _stages():
             raise ValueError(f"missing args {missing}")
 
     def anchor(job, prof, a):
+        if job.read_meta()["inputs"].get("base_job") and not (a.get("describe") or a.get("image")):
+            from . import variant                          # a variant re-rolls its edited anchor
+            return str(variant.anchor(job, prof, seed=a.get("seed")))
         return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed"),
                                    asset_type=a.get("asset_type", "character"), style_ref=a.get("style_ref")))
 

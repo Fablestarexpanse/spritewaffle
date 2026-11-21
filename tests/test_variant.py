@@ -1,0 +1,86 @@
+"""Variants: a character with one change, drawn from the base job's own facings."""
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from PIL import Image
+
+from spritewaffle.core import generate, variant
+from spritewaffle.core.job import Job
+from spritewaffle.core.profile import GameProfile
+from spritewaffle.prompts import builder
+from spritewaffle.ui.server import create_app
+from synth import draw_sprite, render
+
+
+class FakeComfy:
+    def __init__(self):
+        self.calls = []
+
+    def run_template(self, slot, values, out_dir):
+        self.calls.append((slot, values))
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        p = out_dir / "o.png"
+        Image.fromarray(render(draw_sprite(len(self.calls) % 3), canvas=(256, 256), seed=len(self.calls))).save(p)
+        return {"files": [str(p)], "values": {"prompt": values.get("prompt"), "seed": 1}, "template": slot}
+
+
+def _base(tmp_path):
+    b = Job.create("knight", "k1", base=tmp_path, description="small knight", style="pixel")
+    Image.fromarray(render(draw_sprite(), canvas=(256, 256))).save(b.root / "01_anchor" / "anchor.png")
+    for i, f in enumerate(builder.CARDINALS + builder.DIAGONALS):
+        Image.fromarray(render(draw_sprite(i % 3), canvas=(256, 256), seed=i)).save(b.root / "02_facings" / f"{f}.png")
+    b.set_stage("anchor", "approved")
+    return b
+
+
+def test_create_needs_approved_facings_and_a_change(tmp_path):
+    b = _base(tmp_path)
+    with pytest.raises(ValueError):
+        variant.create(b, "  ")
+    with pytest.raises(RuntimeError):
+        variant.create(b, "add a cape")                    # facings not approved yet
+    b.set_stage("facings", "approved")
+    v = variant.create(b, "Add a long green cape.")
+    m = v.read_meta()["inputs"]
+    assert v.root.name == "k1_add_a_long_green" and m["edit"] == "Add a long green cape"
+    assert m["description"] == "small knight; Add a long green cape" and Path(m["base_job"]) == b.root
+    with pytest.raises(FileExistsError):
+        variant.create(b, "add a long green cape")
+
+
+def test_edit_prompts_keep_the_rules():
+    a = builder.edit_anchor("add a cape")
+    f = builder.edit_facing("NE", "add a cape")
+    for p in (a, f):
+        assert "add a cape" in p and builder.FRAMING in p and "Same camera angle" in p
+    assert "<Picture 2>" not in f and builder.VIEW["NE"] in f
+
+
+def test_variant_anchor_and_facings_come_from_the_base(tmp_path):
+    b = _base(tmp_path)
+    b.set_stage("facings", "approved")
+    v = variant.create(b, "add a cape")
+    c = FakeComfy()
+    prof = GameProfile(name="p")
+    variant.anchor(v, prof, client=c)
+    assert c.calls[0][1]["ref_images"] == [b.root / "01_anchor" / "anchor.png"]
+    v.set_stage("anchor", "approved")
+    rep = generate.facings(v, prof, client=c)              # the normal entry point routes variants
+    assert rep["edit"] == "add a cape" and set(rep["facings"]) == set(builder.CARDINALS + builder.DIAGONALS) - {"S"}
+    ne = next(vals for slot, vals in c.calls if "turned 45" in vals["prompt"] or builder.VIEW["NE"] in vals["prompt"])
+    assert ne["ref_images"] == [b.root / "02_facings" / "NE.png"]
+    assert v.read_meta()["stages"]["facings"]["status"] == "review"
+
+
+def test_variant_api(tmp_path):
+    b = _base(tmp_path)
+    with TestClient(create_app(tmp_path, worker=False)) as c:
+        assert c.post("/api/jobs/knight/k1/variant", json={"instruction": "add a cape"}).status_code == 400
+        b.set_stage("facings", "approved")
+        r = c.post("/api/jobs/knight/k1/variant", json={"instruction": "add a cape", "job_id": "caped"}).json()
+        assert r["job_id"] == "caped" and len(r["tasks"]) == 1
+        j = c.get("/api/jobs/knight/caped").json()
+        assert j["variant"] == {"base": "k1", "edit": "add a cape"}
+        assert c.get("/api/queue").json()[0]["stage"] == "anchor"
