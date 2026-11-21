@@ -147,6 +147,10 @@ onto a grey card, `01_anchor/item_ref.png`), so the item keeps its real design; 
 and every facing are the base's own images with the item fitted on, so poses line up. Back views show
 only the back of the item (no chest gem on the back).
 
+Every variant also writes the change on its own: `02_facings/layers/<facing>.png`, transparent, same
+canvas as the facings. Drawn over the base, it gives the variant back: an equipment layer for
+paper-doll games. A facing where the variant moved the body gets a warning (the layer won't fit).
+
 ### Animals (four-legged)
 
 New → type `animal`. The anchor step draws one **turnaround sheet** (front, side, back and two
