@@ -25,7 +25,7 @@ from ..prompts import builder, styles
 STATIC = Path(__file__).parent / "static"
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 EXPORT_SUFFIXES = (".aseprite", ".png", ".gif", ".json")
-COMFY_URL = "http://127.0.0.1:8188"
+from ..comfy.client import DEFAULT_URL as COMFY_URL
 
 
 def create_app(base: str | Path | None = None, worker: bool = True, limits: dict | None = None,

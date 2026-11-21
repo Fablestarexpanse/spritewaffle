@@ -21,7 +21,7 @@ def _combo_values(info: dict, cls: str, name: str) -> list | None:
     return None
 
 
-def check(comfy_url: str = "http://127.0.0.1:8188") -> list[tuple[str, str, str]]:
+def check(comfy_url: str | None = None) -> list[tuple[str, str, str]]:
     from .comfy import templates
     from .comfy.client import ComfyClient, ComfyError
     from .core import motion
@@ -52,6 +52,7 @@ def check(comfy_url: str = "http://127.0.0.1:8188") -> list[tuple[str, str, str]
             out.append((FAIL, f"template {slot}", str(e)))
 
     try:
+        comfy_url = comfy_url or ComfyClient().base
         client = ComfyClient(comfy_url, timeout=10)
         info = client.check()
         out.append((OK, "ComfyUI", f"{info['version']} at {comfy_url}, {info['node_count']} nodes"))
@@ -64,7 +65,7 @@ def check(comfy_url: str = "http://127.0.0.1:8188") -> list[tuple[str, str, str]
                         allowed = _combo_values(obj, node["class_type"], name)
                         if allowed is not None and val not in allowed:
                             problems.append(f"model missing: {val}")
-            out.append((FAIL if problems else OK, f"template {slot}", "; ".join(problems) or "nodes + models present"))
+            out.append((FAIL if problems else OK, f"template {slot}", ("; ".join(problems) + " (see docs/COMFYUI_SETUP.md)") if problems else "nodes + models present"))
     except ComfyError as e:
         out.append((FAIL, "ComfyUI", f"{e} (generation stages need it; frame processing does not)"))
 

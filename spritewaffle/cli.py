@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, paths
+from .comfy.client import DEFAULT_URL
 from .core import stages
 from .core.job import Job
 from .core.profile import GameProfile, resolve
@@ -410,7 +411,7 @@ def build() -> argparse.ArgumentParser:
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",
-        (("--url",), {"default": "http://127.0.0.1:8188", "help": "ComfyUI address"}))
+        (("--url",), {"default": DEFAULT_URL, "help": "ComfyUI address ($SPRITEWAFFLE_COMFY)"}))
     pp = sub.add_parser("profile", help="game profiles: list, show, new").add_subparsers(dest="sub", required=True)
     pp.add_parser("list", help="list saved profiles")
     pp.add_parser("show", help="print one profile").add_argument("name")
@@ -426,7 +427,7 @@ def build() -> argparse.ArgumentParser:
         spp.set_defaults(fn=cmd_profile)
     cp = sub.add_parser("comfy", help="ComfyUI connection and templates").add_subparsers(dest="sub", required=True)
     cc = cp.add_parser("check", help="connect and validate exported templates")
-    cc.add_argument("--url", default="http://127.0.0.1:8188")
+    cc.add_argument("--url", default=DEFAULT_URL)
     cc.add_argument("--template", help="only this slot")
     cc.set_defaults(fn=cmd_comfy_check)
 

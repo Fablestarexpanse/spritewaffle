@@ -6,10 +6,14 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import os
 import uuid
 from pathlib import Path
 
 from . import templates
+
+
+DEFAULT_URL = os.environ.get("SPRITEWAFFLE_COMFY", "http://127.0.0.1:8188")
 
 
 class ComfyError(RuntimeError):
@@ -17,7 +21,7 @@ class ComfyError(RuntimeError):
 
 
 class ComfyClient:
-    def __init__(self, base: str = "http://127.0.0.1:8188", timeout: float = 30):
+    def __init__(self, base: str = DEFAULT_URL, timeout: float = 30):
         self.base = base.rstrip("/")
         self.timeout = timeout
         self.client_id = uuid.uuid4().hex

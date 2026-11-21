@@ -1,0 +1,380 @@
+{
+  "id": "fd2fe5bd-7b4b-463c-bc5c-135730bd238b",
+  "revision": 0,
+  "last_node_id": 8,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CLIPLoader",
+      "pos": [
+        850.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        133.0
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_4b_bf16.safetensors",
+        "flux3",
+        "default"
+      ],
+      "title": "Load CLIP: qwen3vl_4b_bf16",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        0.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        130.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 3,
+      "type": "TextGenerateV2",
+      "pos": [
+        360.0,
+        0.0
+      ],
+      "size": [
+        400.0,
+        537.0
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "system_prompt",
+          "type": "STRING",
+          "link": 2
+        },
+        {
+          "name": "images.image1",
+          "type": "*",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "generated_text",
+          "type": "STRING",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "thinking",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextGenerateV2"
+      },
+      "widgets_values": [
+        "",
+        600,
+        "on",
+        0.6,
+        64,
+        0.95,
+        0.05,
+        1.05,
+        0,
+        0,
+        false,
+        true,
+        "auto"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 4,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        0.0,
+        170.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "You write short, literal prompts."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 5,
+      "type": "PreviewAny",
+      "pos": [
+        360.0,
+        577.0
+      ],
+      "size": [
+        400.0,
+        211.0
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "MarkdownNote",
+      "pos": [
+        0.0,
+        -246.0
+      ],
+      "size": [
+        300.0,
+        206.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Inputs\n\nLoad your source image/media here.\n\nThe green value boxes here feed settings\nfurther along the graph - change them\nhere, not at the node they connect to.\n\n| knob | now | range / choices | effect |\n|---|---|---|---|\n| PrimitiveStringMultiline #4 | You write short, literal prompts. | | A hand-set value wired into the graph - the node title says what it sets. |"
+      ],
+      "title": "Inputs",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 7,
+      "type": "MarkdownNote",
+      "pos": [
+        360.0,
+        -195.0
+      ],
+      "size": [
+        380.0,
+        155.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Prompt Building\n\nBuilds the final prompt automatically (word banks,\nconcatenation, or an LLM/VLM step) - edit the pieces\nhere; the wired prompt box further along can't be\ntyped into."
+      ],
+      "title": "Prompt Building",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 8,
+      "type": "MarkdownNote",
+      "pos": [
+        850.0,
+        -144.0
+      ],
+      "size": [
+        300.0,
+        104.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Models\n\nSwap models here to change the whole look."
+      ],
+      "title": "Models",
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      4,
+      0,
+      3,
+      1,
+      "STRING"
+    ],
+    [
+      3,
+      2,
+      0,
+      3,
+      2,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      5,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Inputs",
+      "bounding": [
+        -30.0,
+        -316.0,
+        360.0,
+        606.0
+      ],
+      "color": "#88553d",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Prompt Building",
+      "bounding": [
+        330.0,
+        -265.0,
+        460.0,
+        1073.0
+      ],
+      "color": "#3d5c47",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Models",
+      "bounding": [
+        820.0,
+        -214.0,
+        360.0,
+        367.0
+      ],
+      "color": "#3f5159",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "draftsman_title": "SpriteWaffle prompt_writer"
+  },
+  "version": 0.4
+}

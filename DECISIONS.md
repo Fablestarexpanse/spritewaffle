@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Everything built and verified (phases 1-3, character export, sprite stacking in CLI/queue/MCP/UI). Open: SAM 3 masks for non-green driving clips; Ronan to review the test-approved assets.
+NEXT: Repo complete for a fresh install (setup doc, editor workflows, lock, agent install guide). Open: SAM 3 masks for non-green driving clips; Ronan to review the test-approved assets; hare other directions/actions if wanted.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
@@ -246,3 +246,7 @@ NEXT: Everything built and verified (phases 1-3, character export, sprite stacki
   walks S + E (H3) + W (mirror): QA pass on all six sets (height CV 0.008–0.012), not frozen,
   character export hare.aseprite (RGBA, 3 tags). Approvals in this run were test approvals.
 - 2026-11-20 Showcase GIF (Ronan: export a GIF that shows off walking, turning angles and actions): export/showcase.py — turnaround through the facing stills (2 turns), then per action a compass grid with every facing playing at once (missing facings shown standing, dimmed), one scale and foot line, pixel art nearest / others Lanczos, 255-colour GIF. Export tab button + preview, `spritewaffle showcase`, API /showcase, MCP showcase. Hare: 40 frames / 7.6 s at 512²; knight: 64 frames / 9.6 s.
+- 2026-11-20 Repo completeness (Ronan: "make sure the repo contains everything they need including comfyui workflows"; "a simple, give this to your agent to install option"; "will it still work without you?").
+  Confirmed: no Claude/Anthropic call anywhere in spritewaffle/ (grep); UI + CLI run everything, MCP optional — README now says so.
+  Added comfyui/workflows/ (editor-format copies of all 9 API templates, laid out with comfy-draftsman; templates/ stays the source of truth), docs/COMFYUI_SETUP.md (every model file the templates load: folder, measured size, official HF URL from ComfyUI's own template package; required set ~94 GB; TARA LoRA from Alissonerdx/Minimax-H3-ComfyUI, BFSNodes only for TARA), AGENT_INSTALL.md (paste-to-agent install; agent must ask before downloading models), requirements-lock.txt (pip freeze of the tested venv), SPRITEWAFFLE_COMFY env for the ComfyUI address (was hardcoded 127.0.0.1:8188 in four places). doctor's missing-model failures now point to the setup doc.
+  Refuses now: tests/test_repo_complete.py fails if a template lacks an editor copy, a model isn't in the setup doc, a runtime dep isn't locked, or the README stops linking the guides.

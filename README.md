@@ -5,11 +5,20 @@ Local tool that turns AI-generated images and video into game-ready pixel-art sp
 Generation runs on your own ComfyUI (MiniMax H3 video + H3 Image); everything else — chroma key,
 frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud.
 
+**No AI agent needed.** The web UI and CLI do everything; the MCP server for agents is optional.
+
+**Let an agent install it:** paste this to Claude Code, Codex, Cursor or similar:
+
+> Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
+
 ## Requirements
 
 - Windows 11 (tested), Python 3.11+, an NVIDIA GPU for ComfyUI (tested on an RTX 4090).
-- ComfyUI 0.45+ at `http://127.0.0.1:8188` with the MiniMax H3 / H3 Image models. The workflows
-  SpriteWaffle sends live in [`templates/`](templates/README.md).
+- ComfyUI 0.45+ at `http://127.0.0.1:8188` (or set `SPRITEWAFFLE_COMFY`) with the MiniMax H3 /
+  H3 Image models (~94 GB). **Model list, folders, download links, custom nodes:
+  [`docs/COMFYUI_SETUP.md`](docs/COMFYUI_SETUP.md).**
+- The ComfyUI workflows: [`comfyui/workflows/`](comfyui/workflows/) (drag onto the ComfyUI canvas)
+  and [`templates/`](templates/README.md) (the API copies SpriteWaffle sends).
 - Frame processing (pixelize, QA, export, mirror, flow transfer, sprite stacking) works without
   ComfyUI.
 
@@ -18,7 +27,8 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 ```powershell
 cd "F:\Tools\Sprite tool"
 python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
+.venv\Scripts\python -m pip install -r requirements-lock.txt   # exact tested versions
+.venv\Scripts\python -m pip install -e ".[dev]" --no-deps
 .venv\Scripts\spritewaffle doctor
 ```
 
@@ -141,7 +151,8 @@ jobs/<character>/<job_id>/
 jobs/_queue/        background tasks        jobs/_library/motions/   motion library
 jobs/_archive/      archived jobs (move one back to restore it)
 profiles/           game profiles (cell size, sprite height, palette, fps per action, ...)
-templates/          ComfyUI workflows + parameter maps
+templates/          ComfyUI workflows (API format) + parameter maps
+comfyui/workflows/  the same workflows in editor format
 ```
 
 `SPRITEWAFFLE_HOME` moves the whole project root; `SPRITEWAFFLE_JOBS` just the jobs folder.
