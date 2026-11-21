@@ -114,6 +114,9 @@
   #dlg .field { align-items: stretch; }
   .ok-note { color: var(--ok, #3a3); margin: 0 0 8px; }
   .pgroup .field { align-items: stretch; margin: 6px 0; }      /* labels left, inputs full width */
+  .stackview { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .stackview canvas { border-radius: 8px; max-width: 100%; cursor: grab; touch-action: none; }
+  figure { margin: 0; } figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
   #viewer .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
   .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 420px; }
@@ -419,7 +422,7 @@ async function loadStatus() {
 
 // --- sidebar -----------------------------------------------------------------------------
 function fillNewForm() {
-  $("#nType").innerHTML = status.asset_types.map(t => `<option ${t === "character" ? "selected" : ""}>${t}</option>`).join("");
+  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t}</option>`).join("");
   $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
   $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
 }
@@ -782,21 +785,103 @@ function paneStack(j, st) {
       <label>Slices <input id="stH" type="number" value="${info?.slices || form.stackH}" min="4" max="96" style="width:70px"></label>
       <button id="buildStack" ${s.views.top ? "" : "disabled"}>Rebuild from views</button>
     </div>
-    ${s.turntable ? `<div class="row" style="align-items:flex-start;margin-top:16px">
-      <img class="pix" src="${esc(s.turntable)}" style="width:180px">
-      <img class="pix" src="${esc(s.rotations)}" style="max-width:calc(100% - 200px)"></div>` : ""}
+    ${s.slices ? `<h3 style="margin:16px 0 6px">Viewer <span class="muted">drag to turn</span></h3>
+      <div class="stackview">
+        <canvas id="svCanvas" width="360" height="360"></canvas>
+        <div class="field" style="gap:8px;min-width:200px">
+          <label><input type="checkbox" id="svSpin" ${sv.spin ? "checked" : ""}> spin</label>
+          <label>Speed <input type="range" id="svSpeed" min="5" max="180" value="${sv.speed}"></label>
+          <label>Tilt <input type="range" id="svTilt" min="20" max="100" value="${sv.tilt * 100}"> <span class="muted">camera angle</span></label>
+          <label>Layer spacing <input type="range" id="svLayer" min="1" max="4" value="${sv.layer}"></label>
+          <label>Zoom <input type="range" id="svZoom" min="1" max="10" value="${sv.zoom}"></label>
+          <button id="svBuild">Replay build-up</button>
+          <div class="row" style="margin:6px 0 0"><button class="primary" id="svGifSpin">Spin GIF</button><button id="svGifBuild">Build-up GIF</button></div>
+          <span class="hint">GIFs use the tilt, spacing and zoom set here.</span>
+        </div>
+      </div>
+      <div class="row" style="align-items:flex-start;margin-top:12px">
+        ${s.spin_gif ? `<figure><img class="pix" src="${esc(s.spin_gif)}" style="max-width:220px"><figcaption><a href="${esc(s.spin_gif)}&download=1">spin GIF</a></figcaption></figure>` : ""}
+        ${s.build_gif ? `<figure><img class="pix" src="${esc(s.build_gif)}" style="max-width:220px"><figcaption><a href="${esc(s.build_gif)}&download=1">build-up GIF</a></figcaption></figure>` : ""}
+        <figure><img class="pix" src="${esc(s.rotations)}" style="max-width:min(100%,520px)"><figcaption>8 angles (rotation sheet)</figcaption></figure>
+      </div>` : ""}
     <p class="hint">Rigid props only: the shape is carved from the front, side and top outlines, so hollows come out solid and the left side mirrors the right.</p></section>`;
   const h = () => parseInt($("#stH").value) || 24;
   $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: h()}, "Views + stack queued");
   $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: h()}, "Stack rebuild queued");
+  if (s.slices) startStackViewer(s);
+}
+
+// --- sprite stack viewer: the same drawing as the exported GIFs, in the browser ---------------
+const sv = (() => { try { return {spin: true, speed: 60, tilt: 0.6, layer: 1, zoom: 6, ...JSON.parse(localStorage.getItem("sw.stackview") || "{}")}; }
+                    catch { return {spin: true, speed: 60, tilt: 0.6, layer: 1, zoom: 6}; } })();
+let svRaf = 0;
+function startStackViewer(s) {
+  cancelAnimationFrame(svRaf);
+  const cv = $("#svCanvas"), ctx = cv.getContext("2d"), info = s.info, img = new Image();
+  const W = info.slice_size[0], D = info.slice_size[1], H = info.slices;
+  let angle = 30, count = H, last = performance.now(), drag = null, building = false;
+  const save = () => { try { localStorage.setItem("sw.stackview", JSON.stringify(sv)); } catch {} };
+  const draw = () => {
+    const z = sv.zoom, side = Math.ceil(Math.hypot(W, D)) * z, sq = side * sv.tilt;
+    const need = sq + H * sv.layer * z + 20;
+    if (cv.height !== Math.max(360, need) || cv.width !== Math.max(360, side + 20)) { cv.height = Math.max(360, need); cv.width = Math.max(360, side + 20); }
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "#151622"; ctx.fillRect(0, 0, cv.width, cv.height);
+    const cx = cv.width / 2, base = cv.height - 10 - sq / 2;
+    for (let k = 0; k < count; k++) {
+      ctx.save();
+      ctx.translate(cx, base - k * sv.layer * z);
+      ctx.scale(1, sv.tilt);
+      ctx.rotate(-angle * Math.PI / 180);
+      ctx.drawImage(img, k * W, 0, W, D, -W * z / 2, -D * z / 2, W * z, D * z);
+      ctx.restore();
+    }
+  };
+  const tick = t => {
+    if (!document.body.contains(cv)) return;              // left the tab: stop
+    const dt = (t - last) / 1000; last = t;
+    if (sv.spin && !drag) angle = (angle + sv.speed * dt) % 360;
+    draw();
+    svRaf = requestAnimationFrame(tick);
+  };
+  img.onload = () => { svRaf = requestAnimationFrame(tick); };
+  img.src = s.slices;
+  cv.onpointerdown = e => { drag = {x: e.clientX, a: angle}; cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (drag) angle = drag.a + (e.clientX - drag.x) * 0.8; };
+  cv.onpointerup = cv.onpointercancel = () => { drag = null; };
+  $("#svSpin").onchange = e => { sv.spin = e.target.checked; save(); };
+  $("#svSpeed").oninput = e => { sv.speed = +e.target.value; save(); };
+  $("#svTilt").oninput = e => { sv.tilt = +e.target.value / 100; save(); };
+  $("#svLayer").oninput = e => { sv.layer = +e.target.value; save(); };
+  $("#svZoom").oninput = e => { sv.zoom = +e.target.value; save(); };
+  $("#svBuild").onclick = () => {
+    if (building) return; building = true; count = 0;
+    const step = () => { count++; if (count < H) setTimeout(step, Math.max(30, 2400 / H)); else building = false; };
+    step();
+  };
+  const gif = async kind => {
+    const b = $(kind === "spin" ? "#svGifSpin" : "#svGifBuild"), t = b.textContent;
+    b.disabled = true; b.textContent = "Making…";
+    try {
+      const r = await api(jobPath() + "/stack_gif", {kind, tilt: sv.tilt, layer_px: sv.layer, scale: Math.max(2, Math.min(8, sv.zoom))});
+      toast(`${kind === "spin" ? "Spin" : "Build-up"} GIF ready: ${r.frames} frames, ${r.seconds} s`);
+    } finally { b.disabled = false; b.textContent = t; lastSig = ""; refreshAll(); }
+  };
+  $("#svGifSpin").onclick = () => gif("spin");
+  $("#svGifBuild").onclick = () => gif("build");
 }
 
 function renderHome() {
   $("#main").innerHTML = `<div class="empty"><h2>Pixel-art sprites from AI images and video</h2>
     <p>Pick a job on the left, or click <b>New</b>.</p>
+    <div class="row" style="justify-content:center;margin:14px 0"><button class="primary" id="homeChar">New character</button>
+      <button id="homeStack">New sprite stack</button></div>
     <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
-      Props: anchor → sprite stack (slices + rotations).</p>
+      Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
     ${status.comfy.ok ? "" : `<p class="warn">ComfyUI isn't reachable (${esc(status.comfy.detail)}). Frame processing works, generation won't.</p>`}</div>`;
+  const openNew = type => { $("#newForm").hidden = false; fillNewForm(); $("#nType").value = type; $("#nName").focus(); };
+  $("#homeChar").onclick = () => openNew("character");
+  $("#homeStack").onclick = () => openNew("prop");
 }
 
 // --- queue + library ---------------------------------------------------------------------

@@ -255,7 +255,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "stack": {"views": {v: crop(j.root / "02_ortho" / f"{v}.png") for v in ("front", "back", "right", "top")},
                           "turntable": next((url(p) for p in st.glob("*_turntable.gif")), None) if st.is_dir() else None,
                           "rotations": next((url(p) for p in st.glob("*_rotations.png")), None) if st.is_dir() else None,
-                          "info": read_json(next(st.glob("*_slices.json"), Path("_none"))) if st.is_dir() else None},
+                          "info": read_json(next(st.glob("*_slices.json"), Path("_none"))) if st.is_dir() else None,
+                          "slices": next((url(p) for p in st.glob("*_slices.png")), None) if st.is_dir() else None,
+                          "spin_gif": next((url(p) for p in st.glob("*_spin.gif")), None) if st.is_dir() else None,
+                          "build_gif": next((url(p) for p in st.glob("*_build.gif")), None) if st.is_dir() else None},
                 "exports": exports,
                 "palette": palette_info(j),
                 "showcase": next((url(p) for p in (exp / "showcase").glob("*_showcase.gif")), None)
@@ -397,6 +400,32 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             bad(e)
         t = queue.submit(v.root, "anchor", {}, job_profile(v))
         return {"character": char, "job_id": v.root.name, "tasks": [t["id"]]}
+
+    @app.post("/api/jobs/{char}/{jid}/stack_gif")
+    def stack_gif(char: str, jid: str, body: dict = Body(default={})):
+        """kind 'spin' (one turn) or 'build' (slices stack up, then a turn), drawn like the viewer."""
+        from ..stack import gifs
+        j = job_or_404(char, jid)
+        d = j.root / "06_export" / "stack"
+        name = j.read_meta()["character"]
+        if not (d / f"{name}_slices.json").exists():
+            bad(FileNotFoundError("build the sprite stack first"))
+        kind = body.get("kind", "spin")
+        try:
+            opts = {"layer_px": max(1, min(4, int(body.get("layer_px", 1)))),
+                    "tilt": max(0.2, min(1.0, float(body.get("tilt", 0.6)))),
+                    "scale": max(1, min(8, int(body.get("scale", 4)))),
+                    "steps": max(8, min(96, int(body.get("steps", 32))))}
+            sl = gifs.load(d, name)
+            if kind == "spin":
+                out = gifs.spin(sl, d / f"{name}_spin.gif", **opts)
+            elif kind == "build":
+                out = gifs.build_up(sl, d / f"{name}_build.gif", angle=float(body.get("angle", 30)), **opts)
+            else:
+                raise ValueError("kind must be 'spin' or 'build'")
+        except (ValueError, OSError) as e:
+            bad(e)
+        return out | {"url": url(Path(out["file"]))}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):
