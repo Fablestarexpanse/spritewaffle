@@ -83,6 +83,50 @@ def preserve_canvas(frames: list[np.ndarray], cell: tuple[int, int], scale: floa
     return np.stack([_place(f, p, cell) for f in frames]), [p] * len(frames)
 
 
+def foot_point(rgba: np.ndarray, band: float = 0.12) -> list[float] | None:
+    """Where this frame touches the ground: x = centre of the opaque columns in the lowest `band` of
+    the sprite, y = the bottom edge of its lowest opaque row (a pixel boundary, like the pivot).
+    None for an empty frame."""
+    bb = _bbox(rgba[..., 3] > 0)
+    if bb is None:
+        return None
+    x, y, w, h = bb
+    y0 = y + h - max(1, round(h * band))
+    cols = np.where((rgba[y0:y + h, x:x + w, 3] > 0).any(0))[0]
+    return [round(float(x + (cols.min() + cols.max() + 1) / 2), 1), float(y + h)]
+
+
+def align_feet(cells: list[np.ndarray], border: int = 2) -> tuple[np.ndarray, list[list[float] | None], list[str]]:
+    """Move every frame so its foot point sits on the set's median foot point (whole pixels, no
+    resampling), keeping a `border` px transparent margin. A frame that can't move all the way
+    without crossing the border moves as far as it can and is reported."""
+    pts = [foot_point(c) for c in cells]
+    have = [p for p in pts if p]
+    if not have:
+        return np.stack(cells), pts, []
+    tx, ty = float(np.median([p[0] for p in have])), float(np.median([p[1] for p in have]))
+    ch, cw = cells[0].shape[:2]
+    out, warns, new_pts = [], [], []
+    for k, (c, p) in enumerate(zip(cells, pts)):
+        if not p:
+            out.append(c); new_pts.append(None); continue
+        bb = _bbox(c[..., 3] > 0)
+        dx, dy = round(tx - p[0]), round(ty - p[1])
+        lo_x, hi_x = border - bb[0], cw - border - (bb[0] + bb[2])
+        lo_y, hi_y = border - bb[1], ch - border - (bb[1] + bb[3])
+        cx, cy = min(max(dx, lo_x), hi_x) if lo_x <= hi_x else dx, min(max(dy, lo_y), hi_y) if lo_y <= hi_y else dy
+        if (cx, cy) != (dx, dy):
+            warns.append(f"frame {k}: kept {border}px border, foot point off by {dx - cx},{dy - cy}px")
+        m = np.zeros_like(c)
+        ys, xs = np.nonzero(c[..., 3] > 0)
+        ny, nx = ys + cy, xs + cx
+        ok = (ny >= 0) & (ny < ch) & (nx >= 0) & (nx < cw)
+        m[ny[ok], nx[ok]] = c[ys[ok], xs[ok]]
+        out.append(m)
+        new_pts.append([p[0] + cx, p[1] + cy])
+    return np.stack(out), new_pts, warns
+
+
 def foot_anchor(sprites: list[np.ndarray], cell: tuple[int, int], foot_y: int | None = None,
                 scale: float = 1.0) -> tuple[np.ndarray, list[Placement]]:
     """Image pose sheets: each sprite's own bbox placed at fixed centre-X and fixed foot-Y."""

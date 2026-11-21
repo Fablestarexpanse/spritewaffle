@@ -286,6 +286,20 @@ def cmd_archive(a):
     print(f"archived to {_job(a.job).archive()}")
 
 
+def cmd_manifest(a):
+    """Write asset manifests (docs/MANIFEST.md): one job, or every job (the migration)."""
+    from .core import manifest
+    if a.job:
+        job = _job(a.job)
+        print(manifest.write(job) if a.rebuild or not manifest.path(job).exists() else f"kept {manifest.path(job)}")
+        return
+    counts = {}
+    for job, st in manifest.migrate(paths.jobs(), rebuild=a.rebuild):
+        counts[st.split(":")[0]] = counts.get(st.split(":")[0], 0) + 1
+        print(f"{job.root.parent.name}/{job.root.name}: {st}")
+    print(", ".join(f"{v} {k}" for k, v in counts.items()) or "no jobs")
+
+
 # --- props ------------------------------------------------------------------------------------
 
 def cmd_ortho(a):
@@ -535,6 +549,9 @@ def build() -> argparse.ArgumentParser:
         JOB, PROFILE, (("--size",), {"type": int, "default": 512, "help": "square size in px"}),
         (("--set",), {"default": "12f", "choices": ("12f", "24f")}))
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
+    cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
+        (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),
+        (("--rebuild",), {"action": "store_true", "help": "rewrite manifests that already exist"}))
 
     # props
     cmd("ortho", cmd_ortho, "sprite stacking: back/right/top views of an approved prop anchor",

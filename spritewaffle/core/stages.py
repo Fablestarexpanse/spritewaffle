@@ -141,6 +141,7 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
         if palette is not None:
             np.save(sd / "indices.npy", np.stack([_rgba_to_index(c, palette) for c in cells]))
         (sd / "placements.json").write_text(json.dumps([p.as_dict() for p in places], indent=2))
+        (sd / "footpoints.json").write_text(json.dumps([layout.foot_point(c) for c in cells]))   # manifest
         prev = np.concatenate(list(cells), axis=1)
         k = 4 if palette is not None else 1                      # pixel art previews upscaled, smooth art as is
         Image.fromarray(prev).resize((prev.shape[1] * k, prev.shape[0] * k), Image.NEAREST).save(sd / "preview_4x.png")

@@ -156,6 +156,8 @@ def _stages():
 
 STAGE_NAMES = ("model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
+# stages after which the asset manifest (core/manifest.py) is rebuilt
+MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align")
 
 
 # --- store ------------------------------------------------------------------------------------
@@ -374,6 +376,9 @@ class Worker:
             job = Job.open(t["job"])
             result = fn(job, resolve(t.get("profile")), t["args"])
             self.q.update(t["id"], status="done", finished=_now(), result=result)
+            if t["stage"] in MANIFEST_STAGES:              # keep the asset manifest current (JSON only)
+                from . import manifest
+                manifest.refresh(job)
         except Exception as e:                               # a failed task never kills the worker
             err = f"{type(e).__name__}: {e}"
             attempt = t.get("attempt", 1)
