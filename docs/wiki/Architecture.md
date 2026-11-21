@@ -6,6 +6,13 @@ fingerprints for the relevant inputs and resulting files. The UI, CLI, and MCP u
 same read-only check. Generation and preprocessing have their own inputs, so a change
 to a raw clip is outside this receipt until the processed frames or selection change.
 
+Action exports reuse the receipt format and bundle lock. Each facing and action has a
+receipt for PNG and one for Aseprite beside its export directory. PNG includes the
+strip, previews, JSON, and individual exported frames. Aseprite also fingerprints
+the index data and palette when the frames are indexed. Saved QA is read from existing
+reports. The presentation derives per-frame findings from the measured fields and retains
+the original pass/fail verdict for export.
+
 One Python package (`spritewaffle/`), local only. ComfyUI is the only external service; it is
 driven through exported API-format workflow templates. Everything after generation is
 SpriteWaffle's own code.

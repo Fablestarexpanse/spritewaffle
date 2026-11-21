@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..export import aseprite, sheet as sheetmod
+from ..export import aseprite, receipt, sheet as sheetmod
 from ..frames import analysis, contact, layout, picker, video
 from ..pixel.pipeline import PixelParams, pixelize
 from ..qa import checks
@@ -159,7 +159,8 @@ def _events(job: Job, facing: str, action: str) -> list:
     if not att:
         return []
     try:
-        _, meta, _ = attach.effect_files(job.root.parent.parent / att["effect_job"])
+        directory = attach.effect_directory(job.root.parent.parent / att["effect_job"])
+        meta = json.loads((directory / f"{directory.name}.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
         return []
     return [attach.event(att, meta["fps"])]
@@ -199,11 +200,13 @@ def _rgba_to_index(cell: np.ndarray, pal: np.ndarray) -> np.ndarray:
     return idx
 
 
-def _load_set(sd: Path) -> tuple[np.ndarray, list[dict]]:
-    cells = np.stack(video.load(video.colour_frames(sd / "frames")))
+def _load_set(sd: Path) -> tuple[np.ndarray, list[dict], list[Path]]:
+    sources = video.colour_frames(sd / "frames")
+    cells = np.stack(video.load(sources))
     if cells.shape[-1] == 3:
-        cells = np.dstack([cells, np.full(cells.shape[:3], 255, np.uint8)])
-    return cells, json.loads((sd / "placements.json").read_text())
+        alpha = np.full((*cells.shape[:3], 1), 255, np.uint8)
+        cells = np.concatenate((cells, alpha), axis=-1)
+    return cells, json.loads((sd / "placements.json").read_text()), sources
 
 
 def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
@@ -217,9 +220,10 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
-        cells, places = _load_set(sd)
+        cells, places, sources = _load_set(sd)
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
+        r["frame_files"] = [path.name for path in sources]
         r.setdefault("warnings", []).extend(prep.get("warnings", []))
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
@@ -228,41 +232,138 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     return results
 
 
+def qa_review(job: Job, facing=None, action=None) -> dict:
+    facing, action = _ctx(job, facing, action)
+    directory = _clip_path(job, "05_qa", facing, action)
+    return {path.parent.name: checks.review(report) for path in sorted(directory.glob("*/report.json"))
+            if (report := checks.read(path)) is not None}
+
+
+def _clip_path(job: Job, stage: str, facing: str, action: str) -> Path:
+    if any(name in (".", "..") or any(c in name for c in "/\\:\0") for name in (facing, action)):
+        raise ValueError("Facing and action must each be a single name.")
+    path = job.root / stage / facing / action
+    if job.root.resolve() not in path.resolve().parents:
+        raise ValueError("Action paths must stay inside the job.")
+    return path
+
+
+def _action_sets(pdir: Path) -> list[Path]:
+    return sorted(p for p in pdir.iterdir() if p.is_dir() and p.name.rstrip("f").isdecimal()) if pdir.is_dir() else []
+
+
+def _action_receipt(out: Path, fmt: str) -> Path:
+    return out.with_name(f".{out.name}.{fmt}.receipt")
+
+
+def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, pdir: Path, fmt: str) -> dict:
+    sel = _clip_path(job, "03_actions", facing, action) / "selection_report.json"
+    report = pdir / "pixel_report.json"
+    sets = _action_sets(pdir)
+    indices = [sd / "indices.npy" for sd in sets if (sd / "indices.npy").is_file()]
+    files = [p for sd in sets for p in [sd / "placements.json", *video.colour_frames(sd / "frames")]]
+    settings = {"fps": profile.fps(action), "sets": [sd.name for sd in sets],
+                "loop": json.loads(sel.read_text(encoding="utf-8"))["loop"] if sel.is_file() else None,
+                "indexed_sets": [p.parent.name for p in indices]}
+    if fmt == "png":
+        settings["events"] = _events(job, facing, action)
+    elif indices:
+        settings["palette"] = json.loads(report.read_text(encoding="utf-8"))["palette"] if report.is_file() else None
+        files.extend(indices)
+    return receipt.snapshot(job.root, files, settings)
+
+
+def export_status(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
+    """Check the PNG and Aseprite packages from the most recent write of each format."""
+    facing, action = _ctx(job, facing, action)
+    pdir = _clip_path(job, "04_pixel", facing, action)
+    out = _clip_path(job, "06_export", facing, action)
+    result = {}
+    for fmt, patterns in (("png", ("*.png", "*.json", "*_preview.gif", "frames/*.png")), ("aseprite", ("*.aseprite",))):
+        path = _action_receipt(out, fmt)
+        record = receipt.load(path)
+        if record is None:
+            legacy = path.exists() or any(any(out.glob(f"*/{pattern}")) for pattern in patterns)
+            result[fmt] = {"status": "untracked" if legacy else "missing"}
+        elif record.get("incomplete"):
+            result[fmt] = {"status": "incomplete"}
+        else:
+            result[fmt] = receipt.compare(record, out, _action_snapshot(job, profile, facing, action, pdir, fmt))
+    return {"facing": facing, "action": action, "formats": result}
+
+
 def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = "both") -> dict:
     facing, action = _ctx(job, facing, action)
-    pdir = job.root / "04_pixel" / facing / action
-    loop = json.loads((job.action_dir(facing, action) / "selection_report.json").read_text())["loop"]
+    if fmt not in ("png", "aseprite", "both"):
+        raise ValueError("Export format must be png, aseprite, or both.")
+    pdir = _clip_path(job, "04_pixel", facing, action)
+    out = _clip_path(job, "06_export", facing, action)
+    formats = ("png", "aseprite") if fmt == "both" else (fmt,)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with receipt.locked(out):
+        before = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
+        sets = [pdir / name for name in before[formats[0]]["settings"]["sets"]]
+        if not sets:
+            raise RuntimeError(f"No processed frame sets for {facing}/{action}. Pixelize the action first.")
+        written, artifacts = _write_action_export(job, profile, facing, action, pdir, out, sets, formats)
+        after = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
+        if before != after:
+            raise RuntimeError("Action export inputs changed during export. Wait for processing to finish, then export again.")
+        for kind in formats:
+            receipt.save(_action_receipt(out, kind), out, before[kind], artifacts[kind])
+        job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
+    return written
+
+
+def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, formats):
+    sel = _clip_path(job, "03_actions", facing, action) / "selection_report.json"
+    loop = json.loads(sel.read_text(encoding="utf-8"))["loop"]
     pal = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)]
-                    for h in json.loads((pdir / "pixel_report.json").read_text())["palette"]], np.uint8).reshape(-1, 3)
+                    for h in json.loads((pdir / "pixel_report.json").read_text(encoding="utf-8"))["palette"]], np.uint8).reshape(-1, 3)
     base_fps = profile.fps(action)
+    events = _events(job, facing, action) if "png" in formats else []
     written = {}
-    for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
+    artifacts = {kind: [] for kind in formats}
+    for sd in sets:
         n = int(sd.name.rstrip("f"))
         fps = base_fps if n <= 12 else base_fps * n // 12            # same duration for 12f and 24f
-        cells, places = _load_set(sd)
+        cells, places, _ = _load_set(sd)
         pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
         name = f"{action}_{facing}_{sd.name}"
-        out = job.stage_dir("06_export") / facing / action / sd.name
+        out = out_dir / sd.name
         files = {}
-        indexed = (sd / "indices.npy").exists()
-        if fmt in ("png", "both"):
-            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot, events=_events(job, facing, action),
-                                                                    preview_scale=4 if indexed else 1).items() if k != "frames"})
-        if fmt in ("aseprite", "both"):
+        indexed = (sd / "indices.npy").is_file()
+        if "aseprite" in formats and indexed:
+            ind = np.load(sd / "indices.npy")
+            opaque = cells[..., 3] > 0
+            if (not np.issubdtype(ind.dtype, np.integer) or ind.shape != opaque.shape or
+                    not np.array_equal(ind >= 0, opaque) or np.any(ind[opaque] >= len(pal)) or
+                    not np.array_equal(pal[ind[opaque]], cells[opaque, :3])):
+                raise ValueError(f"{sd.name} indexed pixels disagree with the PNG frames. Pixelize again before exporting Aseprite.")
+        if "png" in formats:
+            if not artifacts["png"]:
+                receipt.incomplete(_action_receipt(out_dir, "png"))
+            png = sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot, events=events,
+                                      preview_scale=4 if indexed else 1)
+            artifacts["png"].extend(png.pop("frames"))
+            artifacts["png"].extend(png.values())
+            files.update({key: str(path) for key, path in png.items()})
+        if "aseprite" in formats:
             tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward", 0 if loop else 1)]
             pv = pivot or sheetmod.feet_pivot(cells)
             slices = [("pivot", [(0, 0, 0, cells.shape[2], cells.shape[1], int(pv[0]), int(pv[1]))])]
+            if not artifacts["aseprite"]:
+                receipt.incomplete(_action_receipt(out_dir, "aseprite"))
             if indexed:
-                ind = np.load(sd / "indices.npy")
                 p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags,
                                    slices=slices)
             else:
                 p = aseprite.write_rgba(out / f"{name}.aseprite", cells, [round(1000 / fps)] * len(cells), tags=tags,
                                          slices=slices)
             files["aseprite"] = str(p)
+            artifacts["aseprite"].append(p)
         written[sd.name] = files
-    job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
-    return written
+    return written, artifacts
 
 
 def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, motion_name: str,

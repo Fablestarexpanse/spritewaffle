@@ -69,6 +69,15 @@ This check is also available through `spritewaffle export-character-status --job
 HTTP `GET /api/jobs/{character}/{job}/export_character`, and MCP `character_export_status`.
 If you exported with a CLI profile override, use the same `--profile` when checking in the CLI.
 
+In **Animations**, open a facing to review its saved QA report. Expand **frames with findings**
+to inspect individual processed frames. QA numbers frames from zero and keeps the source
+filenames so a missing frame cannot shift a finding to another image.
+Use **Check action exports** to see freshness for PNG and Aseprite separately.
+**Re-export action** queues export from the existing processed frames. The CLI equivalents are
+`qa-review` and `export-action-status`. Both accept `--job`, `--facing`, and `--action`.
+MCP exposes QA findings in `status`, export freshness in `action_export_status`,
+and export from processed frames in `export_action`.
+
 ## Workflows
 
 ### Character (or creature)

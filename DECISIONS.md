@@ -1,6 +1,12 @@
-NEXT: (2026-11-21) Appearance and character export freshness verified. Next extend freshness to action exports and surface QA findings. Official badge and icons are pending the media kit. Start at docs/UPGRADE_ROADMAP.md.
+NEXT: Action export freshness and frame-level QA verified on studio-modernization. Next start the animation timeline with persistent frame timing and reversible replacement. Item and effect freshness and upstream invalidation are still on the upgrade roadmap. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Baseline at `7b42f9d` passed 226 tests in 59.73 s. Action export reuses the character receipt format and lock, with independent PNG and Aseprite receipts because either can be exported alone. It refuses indexed Aseprite output when the indices and PNG frames disagree.
+- 2026-11-21 Frame review derives its classification and frame links from saved QA measurements. Preserve the existing pass/fail verdict so export gating stays compatible. Frame review also works on older reports with those fields.
+- 2026-11-21 Saved QA links use the captured filenames. A sparse-frame regression test reproduced the shifted preview after deleting an earlier image. Old reports fall back to the numbered frame filenames.
+- 2026-11-21 A disposable copy of `hare/courier S/walk` exported both frame sets. The baseline and updated writers returned the same paths and 46 byte-identical files. Two historical JSON files on disk used an empty events object, and both tested writers emitted an empty array. The original job stayed read-only. Chromium verified keyboard access, QA thumbnails, separate PNG and Aseprite statuses, and an export-only queue task at 1440, 800, and 390 px.
+- 2026-11-21 Final action review suite passed 235 tests in 60.71 s with the existing Starlette deprecation warning. The legacy RGB fixture verifies that action exports add opaque alpha before export.
 
 - 2026-11-21 Studio baseline: clean `main` at `f694ddf`, matching GitHub HEAD. GitHub returned no open issues. Doctor reached ComfyUI 0.45.0 and validated the installed workflow nodes and models. The H3 turntable template was missing and the queue lock referred to an exited worker. No new inference was run.
 - 2026-11-21 The official media kit was absent from the repository and the checked Tools, Downloads, Desktop, and Documents folders. Keep the text wordmark pending the official files. Use the supplied palette for Midnight and keep brand colors independent of user accents.

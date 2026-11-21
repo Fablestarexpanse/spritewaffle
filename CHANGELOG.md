@@ -9,6 +9,11 @@
 - Added character export freshness checks to the Export tab, HTTP API, CLI, and MCP. They report
   changed inputs, changed or missing bundle files, and interrupted writes. Re-export an older bundle
   once to start tracking it.
+- Added action export freshness and export-only retries to animation details. PNG and Aseprite have
+  independent receipts. Indexed Aseprite export reports a mismatch if the stored indices and PNG
+  frames disagree.
+- Animation details show the frames named by saved QA findings, with thumbnails that open the
+  full-size frame. Passing reports with warnings display a Warning badge.
 
 ## 2026-11-21: directional sprite readiness
 

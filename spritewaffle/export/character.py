@@ -6,21 +6,18 @@ colours, no requantization). Above 255 colours the .aseprite falls back to RGBA.
 """
 from __future__ import annotations
 
-import errno
-import hashlib
 import json
-import os
 import re
-from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-from ..core import attach, fsutil
+from ..core import attach
 from ..core.job import Job
 from ..frames.video import colour_frames
-from . import aseprite
+from ..qa import checks
+from . import aseprite, receipt
 from .sheet import feet_pivot
 
 
@@ -54,9 +51,10 @@ def _sets(root: Path, frame_set: str):
 
 
 def _qa_problem(path: Path) -> str | None:
-    if not path.exists():
+    report = checks.read(path)
+    if report is None:
         return "no QA report"
-    if json.loads(path.read_text(encoding="utf-8"))["status"] != "pass":
+    if report["status"] != "pass":
         return "QA failed"
     return None
 
@@ -100,14 +98,6 @@ def merged_palette(anims: list[dict]) -> np.ndarray:
     return np.array(sorted(colours), np.uint8).reshape(-1, 3)
 
 
-def _digest(path: Path) -> str | None:
-    try:
-        with path.open("rb") as stream:
-            return hashlib.file_digest(stream, "sha256").hexdigest()
-    except FileNotFoundError:
-        return None
-
-
 def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> dict:
     inputs = Job(root).read_meta()["inputs"]
     aligned = bool(inputs.get("align_feet"))
@@ -139,68 +129,27 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
             except FileNotFoundError:
                 continue
             files.extend(p for p in effect_dir.rglob("*") if p.is_file())
-    return {
-        "settings": settings,
-        "files": {Path(os.path.relpath(p, root)).as_posix(): digest for p in files if (digest := _digest(p)) is not None},
-    }
+    return receipt.snapshot(root, files, settings)
 
 
 def export_status(job_root: Path, out_dir: Path, fps_for) -> dict:
     """Check the latest character bundle using the options it was exported with."""
     out_dir = Path(out_dir)
-    try:
-        receipt = json.loads(fsutil.read_text(_receipt(out_dir)))
-    except FileNotFoundError:
-        return {"status": "untracked" if any(out_dir.glob("*.aseprite")) else "missing"}
-    except (ValueError, UnicodeError):
-        return {"status": "untracked"}
-    if not isinstance(receipt, dict) or receipt.get("version") != 1:
-        return {"status": "untracked"}
-    if receipt.get("incomplete"):
+    path = _receipt(out_dir)
+    record = receipt.load(path)
+    if record is None:
+        return {"status": "untracked" if path.exists() or any(out_dir.glob("*.aseprite")) else "missing"}
+    if record.get("incomplete"):
         return {"status": "incomplete"}
     try:
-        frame_set = receipt["options"]["frame_set"]
-        require_pass = receipt["options"]["require_pass"]
-        previous = receipt["inputs"]
-        outputs = receipt["outputs"]
-        if (not _valid_set(frame_set) or not isinstance(require_pass, bool) or
-                not isinstance(previous["files"], dict) or not isinstance(previous["settings"], dict) or
-                not isinstance(outputs, dict) or not outputs or not all(isinstance(digest, str) for digest in outputs.values())):
+        frame_set = record["options"]["frame_set"]
+        require_pass = record["options"]["require_pass"]
+        if not _valid_set(frame_set) or not isinstance(require_pass, bool):
             return {"status": "untracked"}
     except (KeyError, TypeError):
         return {"status": "untracked"}
     current = _input_snapshot(Path(job_root), fps_for, frame_set, require_pass)
-    changed_inputs = sorted(name for name in previous["files"].keys() | current["files"].keys()
-                            if previous["files"].get(name) != current["files"].get(name))
-    settings_changed = sorted(name for name in current["settings"] if previous["settings"].get(name) != current["settings"][name])
-    changed_outputs = []
-    resolved_out = out_dir.resolve()
-    for name, digest in outputs.items():
-        path = (out_dir / name).resolve()
-        if resolved_out not in path.parents or _digest(path) != digest:
-            changed_outputs.append(name)
-    return {"status": "stale" if changed_inputs or settings_changed or changed_outputs else "current",
-            "frame_set": frame_set, "changed_inputs": changed_inputs,
-            "settings_changed": settings_changed, "changed_outputs": sorted(changed_outputs)}
-
-
-@contextmanager
-def _bundle_lock(out_dir: Path):
-    """The OS releases this lock when the writer exits, including after a crash."""
-    with out_dir.with_name(f".{out_dir.name}.export.lock").open("a+b") as lock:
-        lock.seek(0)
-        try:
-            if os.name == "nt":
-                import msvcrt
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            if error.errno not in (errno.EACCES, errno.EAGAIN):
-                raise
-            raise RuntimeError("A character export is already running for this job. Retry when it finishes.") from error
-        yield
+    return {"frame_set": frame_set, **receipt.compare(record, out_dir, current)}
 
 
 def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: str = "12f",
@@ -209,18 +158,14 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
     limit in px; mirror='flip' leaves exact W/NW/SW mirrors out of the atlas (flip at runtime)."""
     job_root, out_dir = Path(job_root), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    with _bundle_lock(out_dir):
+    with receipt.locked(out_dir):
         snapshot = _input_snapshot(job_root, fps_for, frame_set, require_pass)
         result, files = _write_bundle(job_root, out_dir, character, fps_for, frame_set, require_pass, max_size, mirror)
         if snapshot != _input_snapshot(job_root, fps_for, frame_set, require_pass):
             raise RuntimeError("Character export inputs changed during export. Wait for processing to finish, then export again.")
-        outputs = {p.relative_to(out_dir).as_posix(): _digest(p) for p in files}
-        if any(digest is None for digest in outputs.values()):
-            raise RuntimeError("An export file disappeared before the bundle finished. Export again.")
-        fsutil.write_text(_receipt(out_dir), json.dumps({
-            "version": 1, "options": {"frame_set": frame_set, "require_pass": require_pass, "max_size": max_size, "mirror": mirror},
-            "inputs": snapshot, "outputs": outputs,
-        }, indent=2))
+        receipt.save(_receipt(out_dir), out_dir, snapshot, files, options={
+            "frame_set": frame_set, "require_pass": require_pass, "max_size": max_size, "mirror": mirror,
+        })
     return result
 
 
@@ -233,7 +178,7 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     if len(sizes) > 1:
         raise ValueError(f"animations have different cell sizes {sizes}; re-run them with one profile")
     h, w = sizes.pop()
-    fsutil.write_text(_receipt(out_dir), json.dumps({"version": 1, "incomplete": True}))
+    receipt.incomplete(_receipt(out_dir))
 
     frames, durations, tags, meta_anims = [], [], [], []
     for a in anims:

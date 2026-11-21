@@ -152,6 +152,22 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return char_export.export_status(job.root, job.root / "06_export" / "character", profile.fps)
 
     @mcp.tool()
+    def export_action(character: str, job_id: str, facing: str, action: str, format: str = "both") -> dict:
+        """Export processed frames for one facing and action. Format is png, aseprite, or both."""
+        from .core import stages
+        from .core.profile import resolve
+        job = job_for(character, job_id)
+        return stages.export(job, resolve(job.read_meta()["inputs"].get("profile")), facing, action, format)
+
+    @mcp.tool()
+    def action_export_status(character: str, job_id: str, facing: str, action: str) -> dict:
+        """Check the PNG and Aseprite exports of one facing and action for changed or missing files."""
+        from .core import stages
+        from .core.profile import resolve
+        job = job_for(character, job_id)
+        return stages.export_status(job, resolve(job.read_meta()["inputs"].get("profile")), facing, action)
+
+    @mcp.tool()
     def showcase(character: str, job_id: str, size: int = 512) -> dict:
         """GIF for showing the character to people: a turnaround through its facings, then each saved
         action with all its facings playing in a compass grid. Returns the file path."""
@@ -277,16 +293,12 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         meta = job.read_meta()
         r = job.root
         fr = r / "02_facings" / "facings_report.json"
+        from .core import stages
         actions = {}
         for d in sorted((r / "03_actions").glob("*/*")):
             if d.is_dir():
                 key = f"{d.parent.name}/{d.name}"
-                qa = {}
-                for n in ("12f", "24f"):
-                    rp = r / "05_qa" / d.parent.name / d.name / n / "report.json"
-                    if rp.exists():
-                        rep = json.loads(rp.read_text())
-                        qa[n] = {k: rep[k] for k in ("status", "errors", "warnings", "reroll")}
+                qa = stages.qa_review(job, d.parent.name, d.name)
                 exp = r / "06_export" / d.parent.name / d.name
                 actions[key] = {"qa": qa, "exports": sorted(str(p) for p in exp.glob("*/*") if p.suffix in (".png", ".aseprite", ".gif", ".json"))}
         failed = [t for t in q.list("failed") if Path(t["job"]).resolve() == r][-5:]

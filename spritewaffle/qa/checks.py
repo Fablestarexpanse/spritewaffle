@@ -7,6 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
+from ..core import fsutil
+
 
 @dataclass
 class Thresholds:
@@ -106,8 +108,62 @@ def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_siz
     }
 
 
+def review(report: dict) -> dict:
+    """Summarize saved QA without rerunning it. Frame indices are zero-based."""
+    status = report.get("status", "review")
+    errors = report.get("errors", [])
+    warnings = report.get("warnings", [])
+    classification = "fail" if errors or status == "fail" else "warn" if warnings else status
+    count = report.get("frame_count", 0)
+    thresholds = report.get("thresholds") or {}
+    frames: dict[int, list[dict]] = {}
+
+    def add(index: int, code: str, severity: str, message: str) -> None:
+        if 0 <= index < count:
+            frames.setdefault(index, []).append({"code": code, "severity": severity, "message": message})
+
+    for index, box in enumerate(report.get("bbox_per_frame", [])):
+        if box is None:
+            add(index, "empty", "fail", "No visible pixels.")
+    for index in report.get("edge_contact_frames", []):
+        add(index, "border", "fail", "Sprite touches the cell border.")
+    for index in report.get("motion_pops", []):
+        add(index, "motion-pop", "warn", f"Abrupt silhouette change to frame {index + 1:03d}.")
+        add(index + 1, "motion-pop", "warn", f"Abrupt silhouette change from frame {index:03d}.")
+    duplicates = report.get("duplicate_frames", [])
+    if len(duplicates) > thresholds.get("max_duplicates", Thresholds.max_duplicates):
+        for index in duplicates:
+            add(index + 1, "duplicate", "warn", f"Repeats frame {index:03d}.")
+    for index, pixels in enumerate(report.get("stray_pixels", [])):
+        if pixels > thresholds.get("stray_px", Thresholds.stray_px):
+            add(index, "stray", "warn", f"{pixels} isolated opaque pixels.")
+    if report.get("layout") == "preserve-canvas" and report.get("placements_identical") is False:
+        placements = report.get("placements") or []
+        for index, placement in enumerate(placements):
+            if placement != placements[0]:
+                add(index, "placement", "fail", "Placement differs from frame 000.")
+    if any(message.startswith("loop seam ") for message in warnings):
+        add(0, "loop-seam", "warn", "Abrupt transition from the last frame.")
+        add(count - 1, "loop-seam", "warn", "Abrupt transition to the first frame.")
+    names = report.get("frame_files") or []
+    findings = []
+    for index in sorted(frames):
+        name = names[index] if isinstance(names, list) and index < len(names) else None
+        findings.append({"frame": index, "file": name if isinstance(name, str) else f"{index:03d}.png",
+                         "issues": frames[index]})
+    return {"status": status, "classification": classification, "errors": errors, "warnings": warnings,
+            "reroll": report.get("reroll", []), "frame_findings": findings}
+
+
+def read(path: Path) -> dict | None:
+    try:
+        return json.loads(fsutil.read_text(path))
+    except FileNotFoundError:
+        return None
+
+
 def write(report: dict, path: str | Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2))
+    fsutil.write_text(path, json.dumps(report, indent=2))
     return path

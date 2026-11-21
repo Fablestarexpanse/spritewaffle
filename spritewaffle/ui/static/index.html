@@ -143,7 +143,13 @@
   .pick label { justify-content: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; height: 32px; color: var(--text); cursor: pointer; }
   .pick label:has(input:checked) { border-color: var(--link); color: var(--link); }
   .actrow { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
-  .anim { cursor: pointer; } .anim:hover { border-color: var(--muted); }
+  .anim { cursor: pointer; text-align: start; } .anim:hover { border-color: var(--muted); }
+  .qa-sets { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space); }
+  .qa-sets > div { min-width: 0; }
+  .qa-findings { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr)); gap: .6rem; margin-top: .6rem; }
+  .qa-findings .card { overflow-wrap: anywhere; }
+  .qa-findings img { max-height: 7rem; }
+  #dExportStatus { overflow-wrap: anywhere; }
   .drift-ok { color: var(--ok); } .drift-warn { color: var(--warn); } .drift-bad { color: var(--bad); }
   table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: .93rem; }
   th { color: var(--muted); font-weight: 500; font-size: .86rem; }
@@ -1084,10 +1090,11 @@ function paneAnimations(j, st) {
       <div class="animrow">${COMPASS.filter(f => f && byAction[action][f]).map(f => {
         const a = byAction[action][f];
         const qa = a.sets["12f"].qa, mode = a.report?.mode_used || "";
-        return `<div class="card anim" data-detail="${esc(f)}|${esc(action)}">
-          ${a.sets["12f"].preview ? img(a.sets["12f"].preview, f + " " + action) : `<div class="ph">${a.has_clip ? "processing" : "rendering"}</div>`}
-          <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
-            <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${badge(qa?.status)}</span></div></div>`;
+        const set = a.sets["12f"];
+        return `<button class="card anim" type="button" data-detail="${esc(f)}|${esc(action)}" aria-label="${esc(f + " " + action + " details")}">
+          ${set.preview ? img(set.preview, f + " " + action) : `<span class="ph">${set.has_frames ? "Frames ready" : a.has_clip ? "Processing" : "Rendering"}</span>`}
+          <span class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
+            <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${qaBadge(qa, set.has_frames)}</span></span></button>`;
       }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}
     ${j.style === "pixel" ? `<section><h2>Palette <span class="muted">one for every facing and action</span></h2>
       ${j.palette ? `<div class="swatches">${j.palette.colours.map(c => `<span title="${c}" style="background:${c}"></span>`).join("")}</div>
@@ -1123,18 +1130,44 @@ function paneAnimations(j, st) {
   if ($("#palApply")) $("#palApply").onclick = () => run("reprocess", {}, "Clips queued for the new palette");
 }
 
+function qaBadge(qa, hasFrames) {
+  const classification = qa?.classification || (hasFrames ? "review" : "");
+  const labels = {fail: "Fail", warn: "Warning", pass: "Pass", review: "Needs review"};
+  return badge(classification, labels[classification]);
+}
+
+function qaFrameDetails(set) {
+  const findings = set.qa?.frame_findings || [];
+  if (!findings.length) return "";
+  return `<details><summary>${findings.length} frame${findings.length === 1 ? "" : "s"} with findings</summary>
+    <div class="qa-findings">${findings.map(f => {
+      const label = `Frame ${String(f.frame).padStart(3, "0")}`;
+      return `<article class="card"><b>${label}</b>
+        ${f.preview ? `<a href="${esc(f.preview)}" data-view="${label}" aria-label="Enlarge ${label.toLowerCase()}">
+          <img class="pix" src="${esc(f.preview)}" loading="lazy" alt="${label}"></a>` : `<span class="muted">Preview unavailable</span>`}
+        ${f.issues.map(issue => `<span class="${issue.severity === "fail" ? "err" : "warn"}">${esc(issue.message)}</span>`).join("")}</article>`;
+    }).join("")}</div></details>`;
+}
+
 function showAnim(a) {
   const r = a.report || {}, d = $("#dlg");
+  const hasFrames = Object.values(a.sets).some(set => set.has_frames);
   d.innerHTML = `<h2>${esc(a.facing)} · ${esc(a.action)} ${badge(a.status)} ${r.mode_used ? `<span class="chip">${esc(r.mode_used)}</span>` : ""}
       <span class="spacer"></span><button class="ghost" id="dClose">Close</button></h2>
-    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+    <div class="qa-sets">
       ${a.transition ? `<div><h3>Transition pose</h3><img class="pix" src="${esc(a.transition)}" style="width:140px"></div>` : ""}
-      ${["12f", "24f"].map(n => `<div><h3>${n} ${badge(a.sets[n].qa?.status)}</h3>
+      ${["12f", "24f"].map(n => `<div><h3>${n} ${qaBadge(a.sets[n].qa, a.sets[n].has_frames)}</h3>
         ${a.sets[n].preview ? `<img class="pix" src="${esc(a.sets[n].preview)}" style="width:200px">` : `<div class="ph" style="width:200px">not exported</div>`}
         ${(a.sets[n].qa?.errors || []).map(e => `<div class="err">${esc(e)}</div>`).join("")}
         ${(a.sets[n].qa?.warnings || []).map(e => `<div class="warn">${esc(e)}</div>`).join("")}
-        ${a.sets[n].qa?.reroll?.length ? `<div class="muted">suggested re-roll: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}</div>`).join("")}
+        ${a.sets[n].qa?.reroll?.length ? `<div class="muted">Suggested fix: ${esc(a.sets[n].qa.reroll.join(", "))}</div>` : ""}
+        ${qaFrameDetails(a.sets[n])}</div>`).join("")}
     </div>
+    <div class="row">
+      <button id="dCheckExports">Check action exports</button>
+      <button id="dExportAction" ${hasFrames ? "" : "disabled"}>Re-export action</button>
+    </div>
+    <p id="dExportStatus" class="muted" role="status" hidden></p>
     ${r.spec ? `<h3>Motion text <span class="chip">${esc(r.spec.writer || "template")}</span></h3>
       <p class="muted" style="margin:0">${esc(r.spec.motion)}<br>first step: ${esc(r.spec.transition)}<br>sound: ${esc(r.spec.sound)}</p>` : ""}
     ${(r.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
@@ -1167,6 +1200,32 @@ function showAnim(a) {
     </div>`;
   d.showModal();
   $("#dClose").onclick = () => d.close();
+  $("#dCheckExports").onclick = async event => {
+    const button = event.currentTarget, note = $("#dExportStatus");
+    button.disabled = true;
+    note.hidden = false;
+    note.textContent = "Checking action export files…";
+    const query = new URLSearchParams({facing: a.facing, action: a.action});
+    try {
+      const {formats} = await api(jobPath() + "/action_export_status?" + query);
+      const messages = {current: "Current", missing: "Missing", untracked: "Untracked. Re-export to track freshness.",
+                        incomplete: "Incomplete. Check again or re-export."};
+      note.replaceChildren(...Object.entries({png: "PNG", aseprite: "Aseprite"}).map(([kind, label]) => {
+        const result = formats[kind], line = document.createElement("span");
+        const changes = [...(result.settings_changed || []), ...(result.changed_inputs || []), ...(result.changed_outputs || [])];
+        const extra = changes.length > 3 ? ` and ${changes.length - 3} more` : "";
+        line.style.display = "block";
+        line.className = ["stale", "untracked", "incomplete"].includes(result.status) ? "warn" : "muted";
+        line.textContent = `${label} · ${messages[result.status] || `Stale. Changed or missing: ${changes.slice(0, 3).join(", ")}${extra}.`}`;
+        return line;
+      }));
+    } catch {
+      note.textContent = "The export check failed. See the error message for details.";
+    } finally {
+      button.disabled = false;
+    }
+  };
+  $("#dExportAction").onclick = () => { d.close(); run("export", {facing: a.facing, action: a.action}, "Action export queued"); };
   if ($("#axCanvas")) attachEditor(a);
   $("#dRegen").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action}, "Re-render queued"); };
   $("#dReproc").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action, generate: false}, "Re-processing queued"); };

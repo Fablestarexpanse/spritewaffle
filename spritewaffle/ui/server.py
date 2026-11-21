@@ -239,6 +239,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
 
     @app.get("/api/jobs/{char}/{jid}")
     def job(char: str, jid: str):
+        from ..frames.video import colour_frames
+        from ..qa import checks
         j = job_or_404(char, jid)
         meta = j.read_meta()
         fr = read_json(j.root / "02_facings" / "facings_report.json") or {}
@@ -262,10 +264,19 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             facing, action = d.parent.name, d.name
             sets = {}
             for n in ("12f", "24f"):
-                qa = read_json(j.root / "05_qa" / facing / action / n / "report.json")
+                report = checks.read(j.root / "05_qa" / facing / action / n / "report.json")
+                qa = checks.review(report) if report else None
+                folder = j.root / "04_pixel" / facing / action / n / "frames"
+                frames = colour_frames(folder)
                 sets[n] = {"preview": url(j.root / "06_export" / facing / action / n / f"{action}_{facing}_{n}_preview.gif"),
-                           "qa": qa and {k: qa[k] for k in ("status", "errors", "warnings", "reroll")}}
-            sets["12f"]["frames"] = [url(p) for p in sorted((j.root / "04_pixel" / facing / action / "12f" / "frames").glob("[0-9][0-9][0-9].png"))]
+                           "qa": qa, "has_frames": bool(frames)}
+                if n == "12f":
+                    sets[n]["frames"] = [url(p) for p in frames]
+                if qa and qa["frame_findings"]:
+                    by_name = {p.name: p for p in frames}
+                    for finding in qa["frame_findings"]:
+                        path = by_name.get(finding["file"])
+                        finding["preview"] = url(path) if path else None
             att = (meta["inputs"].get("attachments") or {}).get(f"{action}_{facing}")
             fxgif = j.root / "06_export" / facing / action / "12f" / f"{action}_{facing}_12f_with_fx.gif"
             actions.append({"facing": facing, "action": action, "attachment": att, "fx_preview": url(fxgif) if att else None,
@@ -597,6 +608,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             return character.export_status(j.root, j.root / "06_export" / "character", resolve(job_profile(j)).fps)
         except (ValueError, OSError) as e:
+            bad(e)
+
+    @app.get("/api/jobs/{char}/{jid}/action_export_status")
+    def action_export_status(char: str, jid: str, facing: str, action: str):
+        from ..core import stages
+        j = job_or_404(char, jid)
+        try:
+            return stages.export_status(j, resolve(job_profile(j)), facing, action)
+        except (ValueError, OSError, KeyError) as e:
             bad(e)
 
     # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------

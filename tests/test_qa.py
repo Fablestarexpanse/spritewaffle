@@ -40,3 +40,28 @@ def test_motion_pop_detected():
     c[4, 2:22, 2:18] = (200, 50, 50, 255)                           # sudden big change
     r = checks.run(c, P * 8, "preserve-canvas", palette_size=4, loop=False)
     assert 3 in r["motion_pops"] or 4 in r["motion_pops"]
+
+
+def test_review_locates_findings_from_existing_report_fields():
+    cells = _cells()
+    cells[2] = 0
+    cells[4, 0, 5] = (200, 50, 50, 255)
+    cells[5, 2, [1, 3, 5, 7]] = (200, 50, 50, 255)
+    report = checks.run(cells, P * len(cells), "preserve-canvas", palette_size=4, loop=False)
+    review = checks.review(report)
+    by_frame = {f["frame"]: f["issues"] for f in review["frame_findings"]}
+    assert review["classification"] == "fail"
+    assert any(i["code"] == "empty" for i in by_frame[2])
+    assert any(i["code"] == "border" for i in by_frame[4])
+    assert any(i["code"] == "stray" and i["severity"] == "warn" for i in by_frame[5])
+    assert review["errors"] == report["errors"]
+
+
+def test_review_labels_passing_reports_with_warnings_and_loads_legacy_reports():
+    cells = np.repeat(_cells(1), 6, axis=0)
+    report = checks.run(cells, P * len(cells), "preserve-canvas", palette_size=4, loop=False)
+    review = checks.review(report)
+    assert review["status"] == "pass" and review["classification"] == "warn"
+    assert review["frame_findings"][0]["frame"] == 1
+    assert review["frame_findings"][0]["issues"][0]["code"] == "duplicate"
+    assert checks.review({"status": "pass"})["frame_findings"] == []

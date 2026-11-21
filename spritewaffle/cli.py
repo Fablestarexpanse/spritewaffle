@@ -367,9 +367,18 @@ def cmd_qa(a):
     return 1 if "fail" in r.values() else 0
 
 
+def cmd_qa_review(a):
+    _print(stages.qa_review(_job(a.job), a.facing, a.action))
+
+
 def cmd_export(a):
     job = _job(a.job)
     _print(stages.export(job, _profile(a, job), a.facing, a.action, a.format))
+
+
+def cmd_action_export_status(a):
+    job = _job(a.job)
+    _print(stages.export_status(job, _profile(a, job), a.facing, a.action))
 
 
 # --- motion library (experimental) ------------------------------------------------------------
@@ -581,8 +590,11 @@ def build() -> argparse.ArgumentParser:
     cmd("pixelize", cmd_pixelize, "turn the selected frames into pixel art (one palette)", JOB, PROFILE,
         OPT_FACING, OPT_ACTION, (("--palette",), {"type": int, "help": "override max colours"}))
     cmd("qa", cmd_qa, "check the pixel art and write report.json", JOB, PROFILE, OPT_FACING, OPT_ACTION)
+    cmd("qa-review", cmd_qa_review, "read the saved QA findings for one action", JOB, OPT_FACING, OPT_ACTION)
     cmd("export", cmd_export, "PNG strip, sheet.json, GIF and .aseprite for one action", JOB, PROFILE, OPT_FACING,
         OPT_ACTION, (("--format",), {"choices": ("png", "aseprite", "both"), "default": "both"}))
+    cmd("export-action-status", cmd_action_export_status, "check the PNG and Aseprite files for one action",
+        JOB, PROFILE, OPT_FACING, OPT_ACTION)
 
     # motion library
     mp = sub.add_parser("motion", help="[experimental] library of approved driving clips").add_subparsers(dest="sub", required=True)
