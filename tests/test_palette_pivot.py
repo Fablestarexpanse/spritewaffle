@@ -128,3 +128,12 @@ def test_palette_endpoint_load_and_stale(tmp_path):
         assert c.get("/api/jobs/hero/j").json()["palette"]["source"] == "file p.hex"
         assert c.post("/api/jobs/hero/j/palette", json={"op": "nope"}).status_code == 400
         assert len(c.post("/api/jobs/hero/j/run", json={"stage": "reprocess"}).json()) == 3
+
+
+def test_shifted_action_keeps_off_the_border():
+    f = np.zeros((40, 100, 4), np.uint8)
+    f[5:40, 10:20] = 255
+    f[10:14, 20:60] = 255                       # 50 px wide: fits only if moved off centre
+    cells, _ = layout.preserve_canvas([f], (64, 64))
+    a = cells[0][..., 3] > 0
+    assert not (a[:, 0].any() or a[:, -1].any())

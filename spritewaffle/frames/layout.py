@@ -75,8 +75,9 @@ def preserve_canvas(frames: list[np.ndarray], cell: tuple[int, int], scale: floa
     feet = (feet_x(frames, bb) - bb[0]) * scale             # feet, from the crop's left edge
     px = round(cw / 2 - feet)                                # feet within half a pixel of the centre line
     pivot_x = cw / 2
-    if w <= cw and not 0 <= px <= cw - w:
-        px = min(max(px, 0), cw - w)                         # never cut a swing off for the pivot's sake
+    m = 1 if w <= cw - 2 else 0                              # keep off the border (QA fails a touching sprite)
+    if w <= cw and not m <= px <= cw - w - m:
+        px = min(max(px, m), cw - w - m)                     # never cut a swing off for the pivot's sake
         pivot_x = float(round(px + feet))                    # ...and say where the feet are instead
     p = Placement(scale, bb, (px, ch - foot_margin - h), (pivot_x, float(ch - foot_margin)))
     return np.stack([_place(f, p, cell) for f in frames]), [p] * len(frames)
