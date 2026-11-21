@@ -13,7 +13,8 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 ## Requirements
 
-- Windows 11 (tested), Python 3.11+, an NVIDIA GPU for ComfyUI (tested on an RTX 4090).
+- Python 3.11+, an NVIDIA GPU for ComfyUI (tested: Windows 11, 24 GB VRAM; less VRAM untested).
+  Linux/macOS: same steps with `.venv/bin/` (untested).
 - ComfyUI 0.45+ at `http://127.0.0.1:8188` (or set `SPRITEWAFFLE_COMFY`) with the MiniMax H3 /
   H3 Image models (~94 GB). **Model list, folders, download links, custom nodes:
   [`docs/COMFYUI_SETUP.md`](docs/COMFYUI_SETUP.md).**
@@ -25,7 +26,8 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 ## Install
 
 ```powershell
-cd "F:\Tools\Sprite tool"
+git clone https://github.com/Fablestarexpanse/spritewaffle.git
+cd spritewaffle
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements-lock.txt   # exact tested versions
 .venv\Scripts\python -m pip install -e ".[dev]" --no-deps
@@ -135,7 +137,7 @@ spritewaffle export-character --job knight/k1
 `approve`, `export_character` and `stack`. For Claude Code:
 
 ```powershell
-claude mcp add spritewaffle -- "F:\Tools\Sprite tool\.venv\Scripts\spritewaffle.exe" mcp
+claude mcp add spritewaffle -- "C:\path	o\spritewaffle\.venv\Scripts\spritewaffle.exe" mcp
 ```
 
 The agent skill in [`skill/spritewaffle/SKILL.md`](skill/spritewaffle/SKILL.md) teaches the

@@ -1,4 +1,4 @@
-"""Workflow templates (API-format JSON exported from Ronan's ComfyUI) + parameter-injection maps.
+"""Workflow templates (API-format JSON exported from ComfyUI) + parameter-injection maps.
 
 templates/<slot>.json      API-format workflow ({"<node id>": {"class_type", "inputs"}})
 templates/<slot>.map.json  {

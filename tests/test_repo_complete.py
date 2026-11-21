@@ -48,3 +48,9 @@ def test_comfy_address_from_env():
                          env={**__import__("os").environ, "SPRITEWAFFLE_COMFY": "http://10.0.0.5:9000/"},
                          capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "http://10.0.0.5:9000"
+
+
+def test_install_docs_assume_nothing_about_this_machine():
+    for name in ("README.md", "AGENT_INSTALL.md", "docs/COMFYUI_SETUP.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert not re.search(r"\b[D-Z]:\\", text), f"{name} has a machine-specific drive path"

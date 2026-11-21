@@ -18,11 +18,15 @@ git --version
 nvidia-smi              # an NVIDIA GPU; 24 GB VRAM tested
 ```
 
-**ASK** where their ComfyUI is installed (the folder with `main.py` and `models/`), and whether
-it is running at `http://127.0.0.1:8188`. If they have no ComfyUI, point them to
+Assume nothing about this computer: no paths, drives or launchers carried over from any other
+setup. **ASK** where their ComfyUI is installed (the folder with `main.py` and `models/`; with a
+launcher, where it keeps models) and whether it is running at `http://127.0.0.1:8188`. If they have no ComfyUI, point them to
 https://github.com/comfyanonymous/ComfyUI (or Stability Matrix) and wait. It must be **0.45 or newer**.
 
 ## 2. Get the code and install
+
+The repo is private: the human's GitHub account needs access (`gh auth login`, or clone over SSH).
+If they gave you a copy of the folder instead, skip `git clone` and `cd` into it.
 
 ```powershell
 git clone https://github.com/Fablestarexpanse/spritewaffle.git

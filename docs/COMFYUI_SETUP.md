@@ -6,7 +6,7 @@ export, mirror, flow transfer, sprite stacking, showcase) runs without ComfyUI.
 
 ## ComfyUI
 
-- ComfyUI **0.45 or newer** (tested on 0.45, Windows 11, RTX 4090 24 GB).
+- ComfyUI **0.45 or newer** (tested on 0.45, Windows 11, a 24 GB NVIDIA GPU; less VRAM untested).
 - Listening on `http://127.0.0.1:8188` (set `SPRITEWAFFLE_COMFY`, e.g. `http://192.168.1.20:8188`, to use another address).
 - Every node SpriteWaffle uses ships with ComfyUI core, **except** the TARA motion-transfer
   template, which needs [ComfyUI-BFSNodes](https://github.com/alisson-anjos/ComfyUI-BFSNodes)
@@ -45,7 +45,9 @@ About 94 GB in total.
 | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` | `loras/MiniMax H3/` | 1.9 GB | TARA | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors) |
 | `minimax_h3_motion_transfer_tara_v1.0_ref2va.safetensors` | `loras/MiniMax H3/` | 0.1 GB | TARA (community) | [Alissonerdx/Minimax-H3-ComfyUI](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI) |
 
-Stability Matrix users: its shared folders are `Models/DiffusionModels`, `TextEncoders`, `VAE`,
+Any ComfyUI install works (portable, git, desktop app, a launcher). `<ComfyUI>/models/` is the
+default model root; if yours keeps models elsewhere (`extra_model_paths.yaml`, or a launcher's
+shared folder), use that. Stability Matrix, for example, uses `Models/DiffusionModels`, `TextEncoders`, `VAE`,
 `Lora`, `StableDiffusion` (checkpoints).
 
 ## Check it

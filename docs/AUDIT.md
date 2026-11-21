@@ -48,7 +48,7 @@ lines of package code, 100 tests passing, everything verified with real runs.
 ## Not changing
 
 - Dependency set (pinned, `pip check` clean). The one test warning is inside starlette's test client.
-- Test-approved demo assets (knight, goblin, mannequin, chest) stay as they are for Ronan to review.
+- Test-approved demo assets (knight, goblin, mannequin, chest) stay as they are for the owner to review.
 
 ## Status (end of pass, 2026-11-20)
 
