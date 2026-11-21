@@ -1,6 +1,11 @@
-NEXT: Animation timeline playback, timing, and source restoration verified. Next add replacement history and onion skinning, then reversible duplication and reordering. The official media kit is pending.
+NEXT: Replacement history and onion skinning verified. Next implement reversible frame duplication and reordering while keeping edits, events, QA, and exports tied to the intended frame. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Keep replacement history as an additive list in the existing timeline schema. Reusing an older image is an explicit edit. It can bind to a changed source after validating the image again at the current cell size.
+- 2026-11-21 Baseline at `6494e7e` passed 239 tests in 61.34 s. On a disposable copy of `hare/courier S/walk`, version 2 made exports stale. Reapplying the reviewed version 1 made the existing PNG and Aseprite current again and restored the matching QA review. The processed PNG remained byte-identical.
+- 2026-11-21 Chromium verified the history picker and previous/next onion skins at 1440, 800, and 390 px. The browser checks confirmed loop wrap, one-shot ends, overlay suppression during playback, and a saved toggle on reopen. At 390 px and 150% interface scale, the file chooser initially caused 376 px of scroll width in a 310 px dialog. Constraining its label fixed the overflow.
+- 2026-11-21 The full suite passed 241 tests in 61.20 s with the existing Starlette deprecation warning. Chromium also verified that a missing saved PNG leaves the source visible and marks the affected version as missing.
 
 - 2026-11-21 Timeline edits are scoped to an action, facing, frame set, and source filename. Timings follow the frame slot. Replacement PNGs are stored by content hash and apply only while the processed source matches the saved fingerprint. Restore source keeps the generated frame and the uploaded file.
 - 2026-11-21 Aseprite uses RGBA for active replacements to preserve their colors and alpha. Replacements use their authored position and omit old depth and normal maps. Character export retains aligned copies for untouched frames and requires a QA report for the active replacement hashes. Timing-only edits keep the current QA verdict.

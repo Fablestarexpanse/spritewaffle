@@ -21,6 +21,13 @@ the numbered slot. The action and character writers fingerprint these effective 
 QA records the replacement hashes it checked, and character export uses that record when
 applying its usual pass filter. The manifest refreshes on timeline saves.
 
+Each frame keeps an ordered list of replacement hashes and the source fingerprint each
+version was saved against. The active pointer in an older sidecar supplies its first known
+version. Restoring the source clears the active pointer and retains history. Activating
+an earlier version verifies the file hash and cell size, then records its use against the
+current source. Only the active artwork and saved duration affect QA, manifests, and
+exports. Onion skins use the effective frame URLs in the browser preview.
+
 One Python package (`spritewaffle/`), local only. ComfyUI is the only external service; it is
 driven through exported API-format workflow templates. Everything after generation is
 SpriteWaffle's own code.

@@ -20,15 +20,23 @@ function showTimeline(action) {
     <fieldset id="timelineControls" disabled hidden>
       <div class="tl-workspace">
         <div class="tl-pane">
-          <img class="pix" id="tlPreview" alt="">
+          <div class="tl-stage">
+            <div id="tlPrevGhost" class="tl-ghost" aria-hidden="true" hidden></div>
+            <div id="tlNextGhost" class="tl-ghost" aria-hidden="true" hidden></div>
+            <img class="pix" id="tlPreview" alt="">
+          </div>
           <div class="row">
             <button id="tlPlay" type="button">Play</button>
             <input id="tlRange" type="range" min="0" step="1" aria-label="Scrub frames">
             <span class="muted" id="tlPosition"></span>
           </div>
+          <div class="row">
+            <label><input id="tlOnion" type="checkbox"> Onion skin</label>
+            <span id="tlOnionKey" class="muted" hidden><span>Previous frame</span><span>Next frame</span></span>
+          </div>
           <div id="tlStrip" role="group" aria-label="Animation frames"></div>
         </div>
-        <div class="tl-pane">
+        <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
           <form id="tlTiming">
             <label>Duration (ms) <input id="tlDuration" type="number" min="1" step="1" required></label>
@@ -46,6 +54,14 @@ function showTimeline(action) {
           </form>
           <p id="tlFrameNote" class="muted"></p>
           <p id="tlQaNote" class="warn" hidden>Run QA to review the changed artwork before character export.</p>
+          <details id="tlHistory" hidden>
+            <summary>Replacement history</summary>
+            <div class="row"><label>Version <select id="tlVersion"></select></label></div>
+            <div class="row">
+              <img class="pix" id="tlHistoryPreview" alt="">
+              <button id="tlUseVersion" type="button">Use version</button>
+            </div>
+          </details>
         </div>
       </div>
       <div class="row">
@@ -57,7 +73,12 @@ function showTimeline(action) {
   const controls = find("#timelineControls"), set = find("#tlSet"), status = find("#tlStatus");
   const strip = find("#tlStrip"), preview = find("#tlPreview"), play = find("#tlPlay"), scrub = find("#tlRange");
   const duration = find("#tlDuration"), upload = find("#tlFile"), replace = find("#tlReplace");
+  const onion = find("#tlOnion"), onionKey = find("#tlOnionKey");
+  const previousGhost = find("#tlPrevGhost"), nextGhost = find("#tlNextGhost");
+  const history = find("#tlHistory"), version = find("#tlVersion");
+  const historyPreview = find("#tlHistoryPreview"), useVersion = find("#tlUseVersion");
   let clip, selected = 0, timer, playing = false;
+  try { onion.checked = localStorage.getItem("sw.timeline.onion") === "true"; } catch {}
 
   const open = () => controls.isConnected && dialog.open;
   const query = () => "?" + new URLSearchParams({facing: action.facing, action: action.action, frame_set: set.value});
@@ -70,8 +91,45 @@ function showTimeline(action) {
     clearTimeout(timer);
     playing = false;
     play.textContent = "Play";
+    paintOnion();
   };
   dialog.addEventListener("close", stop, {once: true});
+
+  function paintOnion() {
+    const count = clip?.frames.length || 0;
+    const show = onion.checked && !playing && count > 1;
+    const previous = selected > 0 ? selected - 1 : clip?.loop ? count - 1 : -1;
+    const next = selected < count - 1 ? selected + 1 : clip?.loop ? 0 : -1;
+    for (const [layer, index] of [[previousGhost, previous], [nextGhost, next]]) {
+      const url = show ? clip.frames[index]?.url : null;
+      layer.hidden = !url;
+      layer.style.maskImage = url ? `url(${JSON.stringify(url)})` : "none";
+    }
+    onionKey.hidden = !show;
+  }
+
+  function showHistoryVersion() {
+    const entry = clip.frames[selected].history.find(item => item.version === Number(version.value));
+    historyPreview.hidden = !entry?.url;
+    if (entry?.url) {
+      historyPreview.src = entry.url;
+      historyPreview.alt = `Replacement version ${entry.version}`;
+    }
+    useVersion.disabled = !entry?.available || entry.active;
+    useVersion.textContent = entry && !entry.same_source ? "Apply to current source" : "Use version";
+  }
+
+  function showHistory(frame) {
+    history.hidden = !frame.history.length;
+    version.replaceChildren(...frame.history.map(item => {
+      const suffix = item.active ? " · Current" : !item.available ? " · Missing PNG" :
+        !item.same_source ? " · Earlier source" : "";
+      return new Option(`Version ${item.version}${suffix}`, item.version);
+    }));
+    const preferred = frame.history.find(item => item.active) || frame.history.at(-1);
+    if (preferred) version.value = preferred.version;
+    showHistoryVersion();
+  }
 
   function select(index) {
     selected = index;
@@ -84,8 +142,10 @@ function showTimeline(action) {
     duration.value = frame.duration_ms;
     find("#tlReset").disabled = !frame.timing_edited;
     find("#tlRestore").disabled = !frame.replaced && !frame.conflict;
-    find("#tlFrameNote").textContent = frame.conflict ? "Source changed. The saved replacement is inactive." :
+    find("#tlFrameNote").textContent = frame.conflict ? "The saved replacement is inactive. Its source or PNG changed." :
       frame.replaced ? "Using the saved replacement." : "";
+    showHistory(frame);
+    paintOnion();
     for (const button of strip.children) button.setAttribute("aria-pressed", String(Number(button.dataset.tlIndex) === index));
     const active = strip.children[index];
     const frameBox = active.getBoundingClientRect(), stripBox = strip.getBoundingClientRect();
@@ -134,6 +194,7 @@ function showTimeline(action) {
     try {
       const body = {operation, frame: clip.frames[selected].name};
       if (operation === "duration") body.duration_ms = value;
+      if (operation === "activate") body.version = value;
       if (operation === "replace") body.png = await new Promise((resolve, reject) => {
         if (value.size > clip.max_image_bytes) return reject(new Error("Choose a PNG no larger than 32 MiB."));
         const reader = new FileReader();
@@ -144,7 +205,7 @@ function showTimeline(action) {
       const data = await api(endpoint + query(), body);
       if (!open()) return;
       display(data, selected);
-      message("Saved.");
+      message(operation === "activate" ? `Version ${value} applied.` : "Saved.");
     } catch (error) {
       if (open()) message(error.message, true);
     } finally {
@@ -165,9 +226,14 @@ function showTimeline(action) {
     if (!clip.loop && selected === clip.frames.length - 1) select(0);
     playing = true;
     play.textContent = "Pause";
+    paintOnion();
     advance();
   };
   set.onchange = load;
+  onion.onchange = () => {
+    try { localStorage.setItem("sw.timeline.onion", String(onion.checked)); } catch {}
+    paintOnion();
+  };
   scrub.oninput = () => { stop(); select(Number(scrub.value)); };
   strip.onclick = event => {
     const button = event.target.closest("[data-tl-index]");
@@ -178,6 +244,9 @@ function showTimeline(action) {
   upload.onchange = () => { replace.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };
   find("#tlRestore").onclick = () => save("restore");
+  find("#tlEditor").onfocusin = stop;
+  version.onchange = showHistoryVersion;
+  useVersion.onclick = () => save("activate", Number(version.value));
   const queue = async (stage, label) => {
     stop();
     busy(true);

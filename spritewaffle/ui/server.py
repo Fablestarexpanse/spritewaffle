@@ -628,6 +628,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         view = timeline.describe(j.root, directory, resolve(job_profile(j)).fps(action))
         for frame in view["frames"]:
             frame["url"] = url(j.root / frame["image"])
+            for version in frame["history"]:
+                version["url"] = url(j.root / version["image"]) if version["image"] else None
         return view
 
     @app.get("/api/jobs/{char}/{jid}/timeline")
@@ -649,6 +651,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 if not isinstance(encoded, str) or len(encoded) > 4 * ((timeline.MAX_IMAGE_BYTES + 2) // 3):
                     raise ValueError("Choose a PNG no larger than 32 MiB.")
                 value = b64decode(encoded, validate=True)
+            elif operation == "activate":
+                value = body.get("version")
             timeline.update(j.root, directory, body.get("frame", ""), operation, value)
             return timeline_view(j, facing, action, frame_set)
         except (ValueError, TypeError, OSError, RuntimeError) as e:

@@ -179,8 +179,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, frame: str,
                             operation: str, frame_set: str = "12f",
-                            duration_ms: int | None = None, png_path: str | None = None) -> dict:
-        """Edit a numbered frame. Use duration (null resets), replace (png_path), or restore."""
+                            duration_ms: int | None = None, png_path: str | None = None,
+                            version: int | None = None) -> dict:
+        """Edit a frame using duration (null resets), replace (png_path), restore, or activate (version)."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -190,6 +191,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 raise ValueError("Pass png_path to replace a frame.")
             with Path(png_path).open("rb") as stream:
                 value = stream.read(timeline.MAX_IMAGE_BYTES + 1)
+        elif operation == "activate":
+            value = version
         timeline.update(job.root, directory, frame, operation, value)
         return animation_timeline(character, job_id, facing, action, frame_set)
 

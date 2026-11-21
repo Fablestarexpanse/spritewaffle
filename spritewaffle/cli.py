@@ -385,7 +385,7 @@ def cmd_timeline(a):
     from .core import timeline
     job = _job(a.job)
     directory = timeline.directory(job.root, a.facing, a.action, a.set)
-    if a.duration is not None or a.reset_duration or a.replace or a.restore:
+    if a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None:
         if not a.frame:
             raise ValueError("Pass --frame for an edit, such as --frame 001.png.")
         if a.replace:
@@ -393,6 +393,8 @@ def cmd_timeline(a):
                 timeline.update(job.root, directory, a.frame, "replace", stream.read(timeline.MAX_IMAGE_BYTES + 1))
         elif a.restore:
             timeline.update(job.root, directory, a.frame, "restore")
+        elif a.use_version is not None:
+            timeline.update(job.root, directory, a.frame, "activate", a.use_version)
         else:
             timeline.update(job.root, directory, a.frame, "duration", a.duration)
     _print(timeline.describe(job.root, directory, _profile(a, job).fps(a.action)))
@@ -620,6 +622,7 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--reset-duration", action="store_true", help="restore the profile duration")
     edits.add_argument("--replace", metavar="PNG", help="replace the frame with a same-size PNG")
     edits.add_argument("--restore", action="store_true", help="restore the source image")
+    edits.add_argument("--use-version", type=int, help="apply a saved replacement version")
 
     # motion library
     mp = sub.add_parser("motion", help="[experimental] library of approved driving clips").add_subparsers(dest="sub", required=True)

@@ -155,7 +155,20 @@
   #timelineControls { border: 0; padding: 0; margin: 0; min-width: 0; }
   .tl-workspace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--space); }
   .tl-pane { min-width: 0; }
-  #tlPreview { width: 100%; height: min(32vh, 18rem); object-fit: contain; }
+  .tl-stage { position: relative; height: min(32vh, 18rem); border-radius: 4px;
+    background: var(--preview-color) var(--preview-pattern) 0 0 / 16px 16px; }
+  #tlPreview { position: relative; width: 100%; height: 100%; object-fit: contain; background: none; }
+  .tl-ghost { position: absolute; inset: 0; pointer-events: none; opacity: .55; image-rendering: pixelated;
+    mask-size: contain; mask-position: center; mask-repeat: no-repeat; mask-mode: alpha; }
+  #tlPrevGhost { background: var(--bad); }
+  #tlNextGhost { background: var(--run); }
+  #tlOnionKey { display: inline-flex; flex-wrap: wrap; gap: .7rem; }
+  #tlOnionKey span:first-child { color: var(--bad); }
+  #tlOnionKey span:last-child { color: var(--run); }
+  #tlHistory { border-top: 1px solid var(--line); margin-top: var(--space); padding-top: .6rem; }
+  #tlHistory summary { cursor: pointer; }
+  #tlHistoryPreview { width: min(100%, 6.5rem); height: 6.5rem; object-fit: contain; }
+  #tlReplacement .field { min-width: 0; max-width: 100%; align-items: stretch; }
   #tlDuration { width: 8rem; }
   #tlStrip { display: flex; gap: .5rem; overflow-x: auto; padding: .4rem; margin-top: .6rem; }
   #tlStrip button { flex: 0 0 4.6rem; padding: .3rem; font-size: .8rem; }

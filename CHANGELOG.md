@@ -17,6 +17,8 @@
 - Added an animation timeline with playback, scrubbing, saved per-frame timing, and reversible
   PNG replacement. Action and character exports use the edited frames. Character export checks
   that QA reviewed active replacements, and the asset manifest records the effective images.
+- Added per-frame replacement history with previews and reuse after restoring the source.
+  Onion skinning shows the previous and next frames while paused and follows the clip's loop mode.
 
 ## 2026-11-21: directional sprite readiness
 

@@ -67,10 +67,14 @@ def _edits(path: Path) -> dict:
     return record["frames"]
 
 
-def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> list[Frame]:
-    if sources is None:
-        sources = colour_frames(frame_set / "frames")
-    edits = _edits(_edit_directory(root, frame_set) / "timeline.json")
+def _history(edit: dict) -> list[dict]:
+    versions = list(edit.get("history", []))
+    if (active := edit.get("replacement")) and active not in versions:
+        versions.append(active)
+    return versions
+
+
+def _frames(root: Path, frame_set: Path, sources: list[Path], edits: dict) -> list[Frame]:
     result = []
     for source in sources:
         edit = edits.get(source.name, {})
@@ -82,6 +86,12 @@ def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> li
                 image = path
         result.append(Frame(source, image, edit.get("duration_ms"), bool(replacement) and image == source))
     return result
+
+
+def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> list[Frame]:
+    if sources is None:
+        sources = colour_frames(frame_set / "frames")
+    return _frames(root, frame_set, sources, _edits(_edit_directory(root, frame_set) / "timeline.json"))
 
 
 def replacements(items: list[Frame]) -> dict[str, str]:
@@ -105,22 +115,49 @@ def export_settings(items: list[Frame]) -> dict:
             for f in items if f.duration_ms is not None or f.replaced}
 
 
+def _check_png(image: Image.Image, source: Path) -> None:
+    with Image.open(source) as original:
+        size = original.size
+    if image.size != size:
+        raise ValueError(f"Replacement must be {size[0]} × {size[1]} pixels.")
+    if image.n_frames != 1:
+        raise ValueError("Choose a single-frame PNG for the replacement.")
+
+
 def _png(data: bytes, source: Path) -> bytes:
     if not isinstance(data, bytes) or not data or len(data) > MAX_IMAGE_BYTES:
         raise ValueError("Choose a PNG no larger than 32 MiB.")
-    with Image.open(source) as original:
-        size = original.size
     buffer = io.BytesIO()
     try:
         with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
-            if image.size != size:
-                raise ValueError(f"Replacement must be {size[0]} × {size[1]} pixels.")
-            if image.n_frames != 1:
-                raise ValueError("Choose a single-frame PNG for the replacement.")
+            _check_png(image, source)
             image.convert("RGBA").save(buffer, format="PNG")
     except (OSError, Image.DecompressionBombError) as error:
         raise ValueError("The replacement could not be read as a PNG.") from error
     return buffer.getvalue()
+
+
+def _select_replacement(root: Path, frame_set: Path, source: Path, history: list[dict], operation: str, value) -> dict:
+    source_digest = _digest(source)
+    if operation == "activate":
+        if type(value) is not int or not 1 <= value <= len(history):
+            raise ValueError("Choose a saved replacement version for this frame.")
+        digest = history[value - 1]["digest"]
+        path = replacement_path(root, frame_set, digest)
+        if not path or not path.is_file() or _digest(path) != digest:
+            raise ValueError("The saved replacement PNG is missing or has changed.")
+        with Image.open(path, formats=["PNG"]) as image:
+            _check_png(image, source)
+    else:
+        png = _png(value, source)
+        digest = hashlib.sha256(png).hexdigest()
+        path = replacement_path(root, frame_set, digest)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.is_file() or _digest(path) != digest:
+            fsutil.write_bytes(path, png)
+    if _digest(source) != source_digest:
+        raise RuntimeError("The processed frame changed during the save. Open it and try again.")
+    return {"digest": digest, "source": source_digest}
 
 
 def update(root: Path, frame_set: Path, name: str, operation: str, value=None) -> None:
@@ -129,8 +166,8 @@ def update(root: Path, frame_set: Path, name: str, operation: str, value=None) -
 
     if re.fullmatch(r"[0-9]{3}\.png", name) is None:
         raise ValueError("Choose a numbered source frame such as 000.png.")
-    if operation not in ("duration", "replace", "restore"):
-        raise ValueError("Choose duration, replace, or restore.")
+    if operation not in ("duration", "replace", "restore", "activate"):
+        raise ValueError("Choose duration, replace, restore, or activate.")
     source = frame_set / "frames" / name
     if not source.is_file():
         raise FileNotFoundError(f"Processed frame {name} is missing.")
@@ -140,6 +177,7 @@ def update(root: Path, frame_set: Path, name: str, operation: str, value=None) -
     with fsutil.locked(folder / ".timeline.lock", "Another timeline save is in progress. Retry when it finishes."):
         edits = _edits(record)
         edit = edits.get(name, {})
+        history = _history(edit)
         if operation == "duration":
             if value is None:
                 edit.pop("duration_ms", None)
@@ -147,19 +185,15 @@ def update(root: Path, frame_set: Path, name: str, operation: str, value=None) -
                 raise ValueError(f"Frame duration must be a whole number from 1 to {MAX_DURATION_MS} ms.")
             else:
                 edit["duration_ms"] = value
-        elif operation == "replace":
-            source_digest = _digest(source)
-            png = _png(value, source)
-            if _digest(source) != source_digest:
-                raise RuntimeError("The processed frame changed during the save. Open it and try again.")
-            digest = hashlib.sha256(png).hexdigest()
-            path = replacement_path(root, frame_set, digest)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            if not path.is_file() or _digest(path) != digest:
-                fsutil.write_bytes(path, png)
-            edit["replacement"] = {"digest": digest, "source": source_digest}
-        else:
+        elif operation == "restore":
             edit.pop("replacement", None)
+        else:
+            active = _select_replacement(root, frame_set, source, history, operation, value)
+            edit["replacement"] = active
+            if active not in history:
+                history.append(active)
+        if history:
+            edit["history"] = history
         if edit:
             edits[name] = edit
         else:
@@ -173,8 +207,24 @@ def action_fps(base_fps: int, frame_set: str) -> int:
     return base_fps if count <= 12 else base_fps * count // 12
 
 
+def _history_view(root: Path, frame_set: Path, frame: Frame, edit: dict) -> list[dict]:
+    versions = _history(edit)
+    if not versions:
+        return []
+    source_digest = _digest(frame.source)
+    view = []
+    for number, version in enumerate(versions, 1):
+        path = replacement_path(root, frame_set, version["digest"])
+        available = path is not None and path.is_file()
+        view.append({"version": number, "image": path.relative_to(root).as_posix() if available else None,
+                     "available": available, "same_source": version["source"] == source_digest,
+                     "active": frame.replaced and version == edit.get("replacement")})
+    return view
+
+
 def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
-    items = frames(root, frame_set)
+    edits = _edits(_edit_directory(root, frame_set) / "timeline.json")
+    items = _frames(root, frame_set, colour_frames(frame_set / "frames"), edits)
     if not items:
         raise FileNotFoundError("Pixelize the action to open its timeline.")
     facing, action, name = frame_set.relative_to(root / "04_pixel").parts
@@ -189,5 +239,6 @@ def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
             "qa_needs_review": (report.get("timeline_replacements") or {}) != replacements(items),
             "frames": [{"name": f.source.name, "image": f.image.relative_to(root).as_posix(),
                         "duration_ms": t, "timing_edited": f.duration_ms is not None,
-                        "replaced": f.replaced, "conflict": f.conflict}
+                        "replaced": f.replaced, "conflict": f.conflict,
+                        "history": _history_view(root, frame_set, f, edits.get(f.source.name, {}))}
                        for f, t in zip(items, timings(items, default_ms))]}

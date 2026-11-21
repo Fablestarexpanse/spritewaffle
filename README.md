@@ -86,6 +86,16 @@ or play it with its saved timing. **Save duration** overrides one frame in milli
 same cell size. **Restore source** brings back the processed image and keeps the saved timing.
 A replacement becomes inactive if its processed source changes.
 
+Open **Replacement history** to preview and reuse an earlier upload. **Restore source**
+keeps the saved versions. An earlier version can be explicitly applied to a changed source
+if the PNG still fits the cell. Existing active replacements appear as the first version.
+Older PNG files whose frame assignments were cleared remain under
+`edits/animations/<facing>/<action>/<set>/replacements` in the job folder. They can be
+imported again with **Replace frame**.
+
+Turn on **Onion skin** to compare the previous and next frames while paused. The overlays
+wrap on loops and stop at the ends of one-shot clips. The toggle is saved in this browser.
+
 Run **QA** after replacing or restoring artwork, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
 the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
@@ -94,8 +104,10 @@ and its old depth and normal maps are omitted. GIF preview timing uses 10 ms tic
 
 Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
 To edit, add `--frame 001.png` and one of `--duration 160`, `--reset-duration`,
-`--replace repair.png`, or `--restore`. MCP exposes `animation_timeline` and
-`edit_timeline_frame`. The HTTP route is `GET` or `POST /api/jobs/{character}/{job}/timeline`.
+`--replace repair.png`, `--restore`, or `--use-version 1`. MCP exposes
+`animation_timeline` and `edit_timeline_frame`. The HTTP route is
+`GET` or `POST /api/jobs/{character}/{job}/timeline`. Use operation `activate` with a
+one-based `version` to reuse history through MCP or HTTP.
 
 ## Workflows
 
