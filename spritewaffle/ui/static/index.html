@@ -3,72 +3,105 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>SpriteWaffle</title>
+<script src="/static/appearance.js"></script>
 <style>
   :root {
-    --bg: #121317; --panel: #1b1d23; --panel2: #23262e; --line: #2f333d; --text: #e7e7ea; --muted: #9a9daa;
-    --accent: #f2b33d; --accent-ink: #1d1e22; --ok: #4fbf73; --bad: #e0554f; --warn: #e3a63a; --run: #5aa2e8;
-    --radius: 8px; --shadow: 0 8px 30px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+    font-size: 87.5%;
+    --bg: #130d1e; --panel: #1d1429; --panel2: #281c37; --line: #493956; --text: #fbf4ff; --muted: #c1b2cc;
+    --accent: #ffcb42; --accent-ink: #22102e; --link: #dbb4ff; --brand: #ffcb42;
+    --ok: #73d997; --bad: #ff938b; --warn: #ffd077; --run: #92c7ff;
+    --radius: 8px; --shadow: 0 8px 30px #0006;
+    --space: 1rem; --control-pad: .43em; --sidebar-width: clamp(14rem, 23vw, 19rem);
+    --preview-color: var(--bg);
+    --preview-pattern: repeating-conic-gradient(#8884 0 25%, transparent 0 50%);
   }
-  @media (prefers-color-scheme: light) {
-    :root { --bg: #f3f3f6; --panel: #fff; --panel2: #f6f6f9; --line: #dcdde3; --text: #1c1d21; --muted: #646876; --shadow: 0 8px 30px rgba(0, 0, 0, .12); }
+  :root[data-theme="slate"] {
+    --bg: #131b26; --panel: #1c2735; --panel2: #28374a; --line: #4a5b70; --text: #f0f5fb; --muted: #bfcddd;
+    --accent: #9ccaff; --link: #acd2ff;
   }
+  :root[data-theme="forest"] {
+    --bg: #111c18; --panel: #1a2922; --panel2: #25372e; --line: #435b4d; --text: #f2f8f3; --muted: #bbd0c2;
+    --accent: #a9d898; --link: #bbdea9;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f3eff6; --panel: #fff; --panel2: #f6f2fa; --line: #c9bdd1; --text: #22102e; --muted: #625469;
+    --accent: #682e86; --accent-ink: #fff; --link: #682e86; --brand: #542073;
+    --ok: #1c6940; --bad: #a12635; --warn: #835012; --run: #245c96; --shadow: 0 8px 30px #22102e24;
+  }
+  :root[data-theme="oled"] {
+    --bg: #000; --panel: #0b0b0d; --panel2: #19191e; --line: #3f3e47; --text: #f5f4f8; --muted: #bab8c3;
+  }
+  :root[data-density="compact"] { --space: .7rem; --control-pad: .25em; }
+  :root[data-density="spacious"] { --space: 1.35rem; --control-pad: .65em; }
+  :root[data-preview="dark"] { --preview-color: #17151b; --preview-pattern: none; }
+  :root[data-preview="light"] { --preview-color: #f3f0ee; --preview-pattern: none; }
+  :root[data-preview="neutral"] { --preview-color: #81818a; --preview-pattern: none; }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text);
-         display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 260px 1fr; grid-template-areas: "top top" "side main"; }
-  header { grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
-  header h1 { font-size: 17px; margin: 0 12px 0 0; letter-spacing: .2px; } header h1 b { color: var(--accent); }
-  header .ver { color: var(--muted); font-size: 12px; margin-right: auto; }
-  aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); }
-  main { grid-area: main; overflow: auto; padding: 18px 22px 40px; }
-  /* the queue is a drawer over the right edge (audit 2026-11-21: a fixed 340 px column pushed the job header off-screen) */
-  #queue { position: fixed; top: 52px; right: 0; bottom: 0; width: min(380px, 100vw); border-left: 1px solid var(--line); overflow: auto;
-           padding: 12px; background: var(--panel); box-shadow: var(--shadow); z-index: 20; }
-  #queue.hidden { display: none; }
-  button.pill { cursor: pointer; font: inherit; font-size: 12px; color: var(--text); }
-  h2 { font-size: 15px; margin: 0 0 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  h3 { font-size: 12px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-  section, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  body { position: relative; margin: 0; font: 1rem/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text);
+         display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-areas: "top top" "side main"; }
+  a { color: var(--link); }
+  :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  input { accent-color: var(--link); }
+  header { grid-area: top; display: flex; align-items: center; flex-wrap: wrap; gap: .55rem .8rem; padding: .6rem var(--space); border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 1.25rem; margin: 0; letter-spacing: .2px; } header h1 b { color: var(--brand); }
+  header .ver { color: var(--muted); font-size: .85rem; margin-right: auto; }
+  aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: var(--space); background: var(--panel); }
+  #search { flex: 1; min-width: 7rem; }
+  main { grid-area: main; overflow: auto; padding: var(--space) calc(var(--space) * 1.5) 3rem; }
+  :root[data-sidebar="false"] aside { display: none; }
+  :root[data-sidebar="false"] body { grid-template-areas: "top top" "main main"; }
+  #queue { position: absolute; grid-area: main; top: 0; right: 0; bottom: 0; width: min(28rem, 100vw); border-left: 1px solid var(--line); overflow: auto;
+           padding: var(--space); background: var(--panel); box-shadow: var(--shadow); z-index: 20; }
+  button.pill { cursor: pointer; font: inherit; font-size: .86rem; color: var(--text); }
+  h2 { font-size: 1.07rem; margin: 0 0 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  h3 { font-size: .86rem; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  section, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space); margin-bottom: var(--space); }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: var(--control-pad) .85em; cursor: pointer; font: inherit; }
   button:hover:not(:disabled) { border-color: var(--muted); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
   button.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
   button:disabled { opacity: .4; cursor: not-allowed; }
-  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: var(--control-pad) .6em; font: inherit; max-width: 100%; }
   textarea { width: 100%; min-height: 70px; resize: vertical; }
-  label { color: var(--muted); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
-  .field { display: flex; flex-direction: column; gap: 4px; } .field > span { color: var(--muted); font-size: 12px; }
+  label { color: var(--muted); font-size: .86rem; display: inline-flex; gap: 6px; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 4px; } .field > span { color: var(--muted); font-size: .86rem; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
   .spacer { flex: 1; }
-  .muted { color: var(--muted); font-size: 12px; } .warn { color: var(--warn); font-size: 12px; } .err { color: var(--bad); font-size: 12px; white-space: pre-wrap; }
-  .hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+  .muted { color: var(--muted); font-size: .86rem; } .warn { color: var(--warn); font-size: .86rem; } .err { color: var(--bad); font-size: .86rem; white-space: pre-wrap; }
+  .hint { color: var(--muted); font-size: .86rem; margin: 10px 0 0; }
   /* pills & badges */
-  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: .86rem; padding: 3px 10px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); } .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.run { background: var(--run); }
-  .badge { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  .badge { font-size: .79rem; padding: 1px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
   .badge.approved, .badge.pass, .badge.done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
   .badge.review, .badge.queued, .badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
   .badge.fail, .badge.failed { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
   .badge.running { color: var(--run); border-color: color-mix(in srgb, var(--run) 45%, transparent); }
-  .chip { font-size: 11px; padding: 1px 7px; border-radius: 4px; background: var(--panel2); color: var(--muted); }
+  .chip { font-size: .79rem; padding: 1px 7px; border-radius: 4px; background: var(--panel2); color: var(--muted); }
   /* images */
   .smooth img.pix { image-rendering: auto; }
-  img.pix { image-rendering: pixelated; max-width: 100%; height: auto; display: block; border-radius: 4px;
-            background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/16px 16px; }
-  .ph { display: grid; place-items: center; aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; color: var(--muted); font-size: 12px; }
+  img.pix { image-rendering: pixelated; max-width: 100%; height: auto; display: block; border-radius: 4px; }
+  img.pix, .tt canvas, .stackview canvas, .fxattach canvas, #viewer img {
+    background: var(--preview-color) var(--preview-pattern) 0 0 / 16px 16px;
+  }
+  .ph { display: grid; place-items: center; aspect-ratio: 1; border: 1px dashed var(--line); border-radius: 4px; color: var(--muted); font-size: .86rem; }
   /* sidebar jobs */
   .newjob { display: grid; gap: 6px; padding: 10px; background: var(--panel2); border-radius: var(--radius); margin: 8px 0; }
   .job { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 8px; border-radius: 6px; color: inherit; text-decoration: none; }
-  .job:hover, .job.on { background: var(--panel2); } .job.on { outline: 1px solid var(--line); }
+  .job:hover, .job.on { background: var(--panel2); } .job.on { box-shadow: inset 3px 0 var(--link); }
   .job img, .job .noimg { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; background: var(--bg); image-rendering: pixelated; }
-  .jfilters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; font-size: 12px; }
-  .jfilters select { font-size: 12px; padding: 2px 4px; max-width: 110px; }
-  .jgroup > summary { cursor: pointer; font-weight: 600; padding: 6px 4px 2px; color: var(--muted); font-size: 12px; }
-  .job .needs { color: var(--warn, #c80); font-size: 11px; }
-  .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: 11px; }
+  .jfilters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; font-size: .86rem; }
+  .jfilters select { font-size: .86rem; padding: 2px 4px; max-width: 110px; }
+  .jgroup > summary { cursor: pointer; font-weight: 600; padding: 6px 4px 2px; color: var(--muted); font-size: .86rem; }
+  .job .needs { color: var(--warn, #c80); font-size: .79rem; }
+  .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: .79rem; }
   /* job header + tabs */
   .jobhead { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 8px; }
   .jobsettings { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 10px;
@@ -76,21 +109,25 @@
   .job.sub { margin-left: 18px; grid-template-columns: 32px 1fr; } .job.sub img, .job.sub .noimg { width: 32px; height: 32px; }
   .types { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
   .types label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px; border: 1px solid var(--line);
-                 border-radius: var(--radius); background: var(--panel2); color: var(--text); font-size: 13px; cursor: pointer; }
-  .types label:has(input:checked) { border-color: var(--accent); } .types input { display: none; }
-  .types small { color: var(--muted); font-size: 11px; }
+                 border-radius: var(--radius); background: var(--panel2); color: var(--text); font-size: .93rem; cursor: pointer; }
+  .types label:has(input:checked) { border-color: var(--link); }
+  .types label:has(input:focus-visible), .pick label:has(input:focus-visible) { outline: 2px solid var(--link); outline-offset: 2px; }
+  .types input, .pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .types small { color: var(--muted); font-size: .79rem; }
   .frontback { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px; }
+  .anchor-layout { display: grid; grid-template-columns: minmax(0, 19rem) minmax(0, 1fr); gap: var(--space); }
+  .anchor-preview img, .anchor-preview .ph { width: 100%; height: min(58vw, 18rem); object-fit: contain; }
   .tt { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
-  .tt canvas { border-radius: 8px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/16px 16px; max-width: 100%; }
-  .tt .ctl { display: grid; gap: 8px; min-width: 240px; }
+  .tt canvas { border-radius: 8px; max-width: 100%; }
+  .tt .ctl { display: grid; gap: 8px; min-width: min(240px, 100%); }
   .animrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 900px; }
   .jobhead img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: var(--panel); border-radius: 6px; border: 1px solid var(--line); }
-  .jobhead h2 { margin: 0; font-size: 19px; }
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-  .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
-  .tab.on { color: var(--text); border-bottom-color: var(--accent); }
-  .tab .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--panel2); }
-  .tab .n.ok { background: var(--ok); color: #fff; }
+  .jobhead h2 { margin: 0; font-size: 1.36rem; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: var(--space); }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: .65em 1em; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+  .tab.on { color: var(--text); border-bottom-color: var(--link); }
+  .tab .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: .79rem; background: var(--panel2); }
+  .tab .n.ok { background: var(--panel2); color: var(--ok); }
   /* grids */
   .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .card { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -98,20 +135,19 @@
   .swatches { display: flex; flex-wrap: wrap; gap: 3px; }
 .swatches span { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line, #0003); }
 .compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
-  .compass .center { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+  .compass .center { display: grid; place-items: center; color: var(--muted); font-size: .86rem; }
   .compass.small { max-width: 420px; gap: 8px; } .compass.small .card { padding: 6px; gap: 4px; }
-  .compass.small .ph { font-size: 11px; border-color: color-mix(in srgb, var(--line) 60%, transparent); }
+  .compass.small .ph { font-size: .79rem; border-color: color-mix(in srgb, var(--line) 60%, transparent); }
   .pick { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
   .pick label { justify-content: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; height: 32px; color: var(--text); cursor: pointer; }
-  .pick label:has(input:checked) { border-color: var(--accent); color: var(--accent); }
-  .pick input { display: none; }
+  .pick label:has(input:checked) { border-color: var(--link); color: var(--link); }
   .actrow { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
   .anim { cursor: pointer; } .anim:hover { border-color: var(--muted); }
   .drift-ok { color: var(--ok); } .drift-warn { color: var(--warn); } .drift-bad { color: var(--bad); }
-  table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
-  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: .93rem; }
+  th { color: var(--muted); font-weight: 500; font-size: .86rem; }
   /* queue */
-  .task { border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 12px; }
+  .task { border-bottom: 1px solid var(--line); padding: 8px 0; font-size: .86rem; }
   .task code { color: var(--muted); word-break: break-all; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; padding: 4px 10px; } .seg button.on { background: var(--accent); color: var(--accent-ink); }
@@ -120,10 +156,21 @@
   dialog::backdrop { background: rgba(0, 0, 0, .55); }
   #viewer { width: auto; max-width: 96vw; max-height: 94vh; padding: 12px; text-align: center; }
   #viewer img { display: block; max-width: calc(96vw - 24px); max-height: calc(94vh - 70px); margin: 0 auto;
-    image-rendering: pixelated; background: repeating-conic-gradient(#0002 0 25%, #0000 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
+    image-rendering: pixelated; border-radius: 6px; }
+  #appearanceSettings { width: min(38rem, 94vw); }
+  #appearanceFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
+  #appearanceFields .field { align-items: stretch; min-width: 0; }
+  #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
+  #appearanceFields input:disabled { opacity: .6; }
+  #appearanceSettings footer { margin-top: calc(var(--space) * 1.5); }
+  @media (prefers-reduced-motion: no-preference) {
+    :root[data-motion="true"] button, :root[data-motion="true"] .job {
+      transition: background-color .14s, border-color .14s, color .14s;
+    }
+  }
   .takes .take { width: 96px; text-align: center; }
   .takes .take img { width: 96px; height: 96px; object-fit: contain; }
-  .prompt { white-space: pre-wrap; font: 12px/1.45 ui-monospace, Consolas, monospace; background: var(--bg, #0001);
+  .prompt { white-space: pre-wrap; font: .86rem/1.45 ui-monospace, Consolas, monospace; background: var(--bg, #0001);
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; margin: 4px 0 10px; }
   .pgroup > summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
   .pgroup textarea { width: 100%; min-height: 54px; }
@@ -136,21 +183,29 @@
   .fxattach canvas { border-radius: 6px; cursor: crosshair; max-width: 100%; }
   .stackview { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .stackview canvas { border-radius: 8px; max-width: 100%; cursor: grab; touch-action: none; }
-  figure { margin: 0; } figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  figure { margin: 0; } figcaption { font-size: .86rem; color: var(--muted); margin-top: 4px; }
   #viewer .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
-  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 420px; }
+  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: min(30rem, calc(100vw - 32px)); }
   .toast.bad { border-left-color: var(--bad); }
   .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
-  .empty h2 { justify-content: center; font-size: 20px; color: var(--text); }
+  .empty h2 { justify-content: center; font-size: 1.43rem; color: var(--text); }
   main, aside, #queue { min-width: 0; }
   @media (max-width: 1100px) {
-    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "side" "main"; height: auto; }
-    header { flex-wrap: wrap; padding: 8px 16px; row-gap: 6px; } header .ver { margin-right: 0; } header h1 { margin-right: auto; }
-    aside { max-height: 260px; } .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    main { padding: 14px 16px 30px; }
-    .jobhead { flex-wrap: wrap; } .tabs { overflow-x: auto; } .tab { white-space: nowrap; }
+    .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .anchor-layout { grid-template-columns: minmax(0, 1fr); }
     #pane section > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 950px) {
+    header { gap: .4rem .5rem; }
+    header button { padding-inline: .55em; }
+  }
+  @media (max-width: 760px) {
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "side" "main"; height: auto; min-height: 100%; }
+    :root[data-sidebar="false"] body { grid-template-rows: auto 1fr; grid-template-areas: "top" "main"; }
+    aside { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding-inline: var(--space); }
+    #queue { position: fixed; top: auto; max-height: 65dvh; border-top: 1px solid var(--line); }
   }
 </style>
 </head>
@@ -159,13 +214,15 @@
   <h1><b>Sprite</b>Waffle</h1><span class="ver" id="ver"></span>
   <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
   <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
-  <button class="pill" id="pQueue" title="Show or hide the queue">Queue</button>
+  <button class="pill" id="pQueue" aria-controls="queue" aria-expanded="false">Queue</button>
+  <button id="btnJobs" aria-controls="jobBrowser" aria-expanded="true">Jobs</button>
+  <button id="btnSettings" aria-haspopup="dialog">Settings</button>
   <button id="btnLib">Motion library</button>
 </header>
 
-<aside>
+<aside id="jobBrowser" aria-label="Job browser">
   <div class="row" style="margin:0">
-    <input id="search" placeholder="Search jobs" style="flex:1">
+    <input id="search" type="search" placeholder="Search jobs" aria-label="Search jobs" aria-keyshortcuts="/">
     <button class="primary" id="btnNew">New</button>
   </div>
   <div class="jfilters">
@@ -181,7 +238,7 @@
 
 <main id="main"></main>
 
-<div id="queue" class="hidden">
+<div id="queue" role="region" aria-label="Queue" hidden>
   <h2>Queue <span class="spacer"></span>
     <span class="seg" id="qFilter"><button data-f="all" class="on">All</button><button data-f="active">Active</button><button data-f="failed">Failed</button></span></h2>
   <div class="row" style="margin:0 0 6px"><button class="ghost" id="qClear">Clear finished</button></div>
@@ -190,6 +247,49 @@
 
 <dialog id="dlg"></dialog>
 <dialog id="viewer" aria-label="Image viewer"></dialog>
+<dialog id="appearanceSettings" aria-labelledby="settingsTitle">
+  <h2 id="settingsTitle">Appearance</h2>
+  <form id="appearanceFields" method="dialog">
+    <label class="field">Theme
+      <select name="theme" autofocus>
+        <option value="midnight">Midnight</option><option value="slate">Slate</option>
+        <option value="forest">Forest</option><option value="light">Light</option>
+        <option value="oled">OLED</option><option value="system">Follow system</option>
+      </select>
+    </label>
+    <label class="field">Accent color
+      <select name="accent">
+        <option value="default">Theme default</option><option value="gold">Gold</option>
+        <option value="violet">Violet</option><option value="blue">Blue</option>
+        <option value="mint">Mint</option><option value="custom">Custom</option>
+      </select>
+    </label>
+    <label class="field">Custom accent <input name="customAccent" type="color"></label>
+    <label class="field">Interface scale
+      <select name="fontSize">
+        <option value="90">90%</option><option value="100">100%</option>
+        <option value="115">115%</option><option value="130">130%</option><option value="150">150%</option>
+      </select>
+    </label>
+    <label class="field">Spacing
+      <select name="density">
+        <option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="spacious">Spacious</option>
+      </select>
+    </label>
+    <label class="field">Preview background
+      <select name="preview">
+        <option value="checker">Checkerboard</option><option value="dark">Dark</option>
+        <option value="light">Light</option><option value="neutral">Neutral gray</option>
+      </select>
+    </label>
+    <label><input name="motion" type="checkbox"> Animate interface transitions</label>
+  </form>
+  <footer class="row">
+    <button id="appearanceReset" type="button">Reset appearance</button>
+    <span class="spacer"></span>
+    <form method="dialog"><button class="primary">Done</button></form>
+  </footer>
+</dialog>
 <div id="toasts"></div>
 
 <script>
@@ -250,7 +350,7 @@ function takesHtml(list, file, label) {
     <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">${list.map(t => `<div class="take">
       ${t.thumb ? `<a href="${esc(t.url)}" data-view="${esc(label)} · ${esc(t.kept || "")}">${img(t.thumb, label + " take")}</a>`
                 : `<a href="${esc(t.url)}" data-view="${esc(label)} · ${esc(t.kept || "")}"><button class="ghost">▶ play</button></a>`}
-      <div class="muted" style="font-size:11px">${esc((t.kept || "").replace("_", " "))}${t.seed != null ? ` · seed ${esc(String(t.seed))}` : ""}</div>
+      <div class="muted" style="font-size:.79rem">${esc((t.kept || "").replace("_", " "))}${t.seed != null ? ` · seed ${esc(String(t.seed))}` : ""}</div>
       <button class="ghost" data-restore="${esc(file)}|${esc(t.take)}">Use this</button></div>`).join("")}</div></details>`;
 }
 document.addEventListener("click", async e => {
@@ -411,7 +511,7 @@ function attachEditor(a) {
   const img = new Image();
   const draw = () => {
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#1c1e2a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.clearRect(0, 0, cv.width, cv.height);
     if (img.complete && img.naturalWidth) { cell = img.naturalWidth; ctx.drawImage(img, 0, 0, cv.width, cv.height); }
     if (point) {
       const k = cv.width / cell, x = (point[0] + 0.5) * k, y = (point[1] + 0.5) * k;
@@ -488,7 +588,7 @@ async function loadStatus() {
   $("#pWorker").title = (status.running || []).map(x => `${x.job} · ${x.stage} ${x.action || ""} ${x.facing || ""}${x.attempt > 1 ? ` (attempt ${x.attempt})` : ""}`).join("\n");
   const q = status.queue;
   $("#pQueue").innerHTML = `Queue: ${q.running ? `${q.running} running · ` : ""}${q.queued} waiting${q.failed ? ` · <span style="color:var(--bad)">${q.failed} failed</span>` : ""}`;
-  if (q.failed > (loadStatus.failed ?? q.failed)) $("#queue").classList.remove("hidden");   // a task just failed: show it
+  if (q.failed > (loadStatus.failed ?? q.failed)) showQueue(true);
   loadStatus.failed = q.failed;
 }
 
@@ -757,11 +857,17 @@ function renderJob() {
       <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
     </div>
-    <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
-      <span class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
+    <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
+      <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
     <div id="pane"></div>`;
   ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
-  $$(".tab").forEach(b => b.onclick = () => { tab = b.dataset.tab; setHash(); renderJob(); });
+  $$(".tab").forEach(b => b.onclick = () => {
+    tab = b.dataset.tab;
+    setHash();
+    lastSig = JSON.stringify(j) + tab;
+    renderJob();
+    $(".tab.on").focus({preventScroll: true});
+  });
   $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
@@ -842,11 +948,11 @@ function paneAnchor(j, st) {
     <h2>Anchor ${badge(st("anchor"))}</h2>
     ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Equipment item: the anchor is its front, Facings draws its back. Once both are approved, open a character and use <b>Make a variant…</b> to fit it on.
       ${j.fits.length ? `Worn by: ${j.fits.map(f => `<a href="#${esc(f.character)}/${esc(f.job_id)}">${esc(f.character)} / ${esc(f.job_id)}</a>`).join(", ")}.` : ""}</p>` : ""}
-    ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;background:#00000022;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
+    ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
       <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
-    <div style="display:grid;grid-template-columns:minmax(200px,320px) 1fr;gap:20px">
-      <div>${j.anchor ? `<a href="${esc(j.anchor_full)}" data-view="Anchor" title="enlarge">${img(j.anchor, "anchor")}</a>` : img(null)}
+    <div class="anchor-layout">
+      <div>${j.anchor ? `<a class="anchor-preview" href="${esc(j.anchor_full)}" data-view="Anchor" aria-label="Enlarge anchor">${img(j.anchor, "anchor")}</a>` : `<div class="anchor-preview">${img(null)}</div>`}
         ${takesHtml(j.anchor_takes, "01_anchor/anchor.png", "Anchor")}</div>
       <div>
         <div class="field"><span>Description</span>
@@ -1049,7 +1155,7 @@ function showAnim(a) {
           <div class="row" style="margin:0"><button class="primary" id="axSave">Attach + preview</button>${a.attachment ? `<button class="ghost" id="axRemove">Remove</button>` : ""}</div>
           <span class="hint">The effect is drawn at its own size (change it on the effect's tab).</span>
         </div>
-        ${a.fx_preview ? `<figure><img class="pix" src="${esc(a.fx_preview)}" style="max-width:260px;background:#1c1e2a;border-radius:6px"><figcaption>with effect</figcaption></figure>` : ""}
+        ${a.fx_preview ? `<figure><img class="pix" src="${esc(a.fx_preview)}" style="max-width:260px;border-radius:6px"><figcaption>with effect</figcaption></figure>` : ""}
       </div>` : `<p class="muted">No effects yet: make one with <b>New effect</b> on the home page, then attach it here.</p>`}` : ""}
     <div class="row">
       <button id="dRegen" ${job.stages.facings?.status === "approved" ? "" : "disabled"}>Re-render clip</button>
@@ -1164,8 +1270,8 @@ function paneEffect(j, st) {
     <div class="row" style="align-items:flex-start;margin-top:14px;gap:16px;flex-wrap:wrap">
       ${e.still ? `<figure><a href="${esc(e.still)}" data-view="First frame">${img(e.still, "first frame")}</a><figcaption>first frame</figcaption></figure>` : ""}
       ${e.clip ? `<figure><a href="${esc(e.clip)}" data-view="Effect clip"><button class="ghost">▶ play clip</button></a><figcaption>H3 clip</figcaption></figure>` : ""}
-      ${e.preview ? `<figure><img class="pix" src="${esc(e.preview)}" style="max-width:256px;background:#12121a;border-radius:6px"><figcaption>${m.frames} frames · ${m.cell.join("×")} px · ${m.loop ? "loop" : "one-shot"} · ${esc(m.blend)}</figcaption></figure>` : ""}
-      ${e.sheet ? `<figure><a href="${esc(e.sheet)}" data-view="Flipbook sheet"><img class="pix" src="${esc(e.sheet)}" style="max-width:256px;background:#12121a;border-radius:6px"></a><figcaption>flipbook sheet ${m.sheet.cols}×${m.sheet.rows}</figcaption></figure>` : ""}
+      ${e.preview ? `<figure><img class="pix" src="${esc(e.preview)}" style="max-width:256px;border-radius:6px"><figcaption>${m.frames} frames · ${m.cell.join("×")} px · ${m.loop ? "loop" : "one-shot"} · ${esc(m.blend)}</figcaption></figure>` : ""}
+      ${e.sheet ? `<figure><a href="${esc(e.sheet)}" data-view="Flipbook sheet"><img class="pix" src="${esc(e.sheet)}" style="max-width:256px;border-radius:6px"></a><figcaption>flipbook sheet ${m.sheet.cols}×${m.sheet.rows}</figcaption></figure>` : ""}
     </div>
     ${(j.exports || []).filter(f => f.group.startsWith("effect/")).length ? `<h3 style="margin:14px 0 4px">Files</h3>
       <table>${j.exports.filter(f => f.group.startsWith("effect/")).map(f => `<tr><td><a href="${esc(f.url)}">${esc(f.name)}</a></td><td class="muted" style="width:90px">${kb(f.size)}</td></tr>`).join("")}</table>
@@ -1251,7 +1357,7 @@ function startStackViewer(s) {
     const need = sq + H * sv.layer * z + 20;
     if (cv.height !== Math.max(360, need) || cv.width !== Math.max(360, side + 20)) { cv.height = Math.max(360, need); cv.width = Math.max(360, side + 20); }
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#151622"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.clearRect(0, 0, cv.width, cv.height);
     const cx = cv.width / 2, base = cv.height - 10 - sq / 2;
     for (let k = 0; k < count; k++) {
       ctx.save();
@@ -1298,14 +1404,17 @@ function startStackViewer(s) {
 
 function renderHome() {
   const kinds = ["character", "base_body", "item", "animal", "effect", "prop"].filter(t => status.asset_types.includes(t));
-  $("#main").innerHTML = `<div class="empty"><h2>Pixel-art sprites from AI images and video</h2>
-    <p>Pick a job on the left, or start a new one.</p>
+  const signature = JSON.stringify([kinds, status.comfy]);
+  if ($("#workspaceHome") && renderHome.signature === signature) return;
+  renderHome.signature = signature;
+  $("#main").innerHTML = `<div class="empty" id="workspaceHome"><h2>SpriteWaffle workspace</h2>
+    <p>Open a job from the job browser, or start a new asset.</p>
     <div class="row" style="justify-content:center;margin:14px 0">${kinds.map((t, i) =>
       `<button ${i === 0 ? 'class="primary"' : ""} data-new="${t}" title="${esc(TYPES[t]?.help || "")}">New ${esc(typeLabel(t))}</button>`).join("")}</div>
     <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
       Equipment: make an <b>item</b> (front + back) and a <b>base body</b>, then <b>Fit on…</b> from the item, or <b>Make a variant…</b> from the body.<br>
       Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
-    ${status.comfy.ok ? "" : `<p class="warn">ComfyUI isn't reachable (${esc(status.comfy.detail)}). Frame processing works, generation won't.</p>`}</div>`;
+    ${!status.comfy || status.comfy.ok ? "" : `<p class="warn">ComfyUI is unavailable. You can still process existing frames. ${esc(status.comfy.detail)}</p>`}</div>`;
   $$("[data-new]").forEach(b => b.onclick = () => showNew(b.dataset.new));
 }
 
@@ -1368,7 +1477,11 @@ function fromHash() {
 }
 
 // --- wiring ------------------------------------------------------------------------------
-$("#pQueue").onclick = () => $("#queue").classList.toggle("hidden");
+function showQueue(open) {
+  $("#queue").hidden = !open;
+  $("#pQueue").setAttribute("aria-expanded", String(open));
+}
+$("#pQueue").onclick = () => showQueue($("#queue").hidden);
 $("#btnLib").onclick = showLibrary;
 $("#search").oninput = loadJobs;
 $("#jfSort").value = jf.sort || "recent"; $("#jfNeeds").checked = !!jf.needs; $("#jfGroup").checked = !!jf.group;

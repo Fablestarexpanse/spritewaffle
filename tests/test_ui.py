@@ -29,6 +29,18 @@ def test_page_and_job_listing(client):
     assert c.get(j["anchor"]).status_code == 200
 
 
+def test_appearance_assets_are_served_by_the_app(client):
+    c, _ = client
+    page = c.get("/").text
+    assert 'id="appearanceSettings"' in page
+    assert 'src="/static/appearance.js"' in page
+    script = c.get("/static/appearance.js")
+    assert script.status_code == 200
+    assert "javascript" in script.headers["content-type"]
+    assert "sw.appearance.v1" in script.text
+    assert c.get("/static/..%2Fserver.py").status_code == 404
+
+
 def test_files_refuse_paths_outside_jobs(client):
     c, base = client
     (base.parent / "secret.txt").write_text("nope")

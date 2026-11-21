@@ -57,6 +57,11 @@ Open <http://127.0.0.1:8765>. The header shows ComfyUI, the worker and the queue
 the queue panel; it opens by itself when a task fails); the app runs its own queue worker, so
 nothing else needs to be running.
 
+Open **Settings** for Midnight, Slate, Forest, Light, OLED, or the system theme. You can
+change the accent color, interface scale, spacing, transitions, and the background behind
+transparent previews. These choices are stored in this browser for this local address.
+Use **Jobs** to collapse or show the job browser. Press **/** to open it and focus search.
+
 ## Workflows
 
 ### Character (or creature)

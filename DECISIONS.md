@@ -1,6 +1,12 @@
-NEXT: (2026-11-21, handoff to GPT/local agents) All work committed + pushed; tests 221 pass. Start with AGENTS.md and docs/wiki/Home.md. Open items: docs/wiki/Roadmap.md (directional >8 views + depth/normal generation, style sets, motion library, effects polish, UI P3).
+NEXT: (2026-11-21) Appearance settings and responsive workspace verified. Next implement character export freshness against the existing exporter.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Studio baseline: clean `main` at `f694ddf`, matching GitHub HEAD. GitHub returned no open issues. Doctor reached ComfyUI 0.45.0 and validated the installed workflow nodes and models. The H3 turntable template was missing and the queue lock referred to an exited worker. No new inference was run.
+- 2026-11-21 The official media kit was absent from the repository and the checked Tools, Downloads, Desktop, and Documents folders. Keep the text wordmark pending the official files. Use the supplied palette for Midnight and keep brand colors independent of user accents.
+- 2026-11-21 Baseline on the clean checkout passed 221 tests in 61.78 s with an existing Starlette deprecation warning. The initial sandboxed run stalled after eight tests. The loopback-enabled run completed.
+- 2026-11-21 Appearance uses semantic CSS tokens, a native dialog, and versioned browser storage on the existing HTML page. Settings are presentation-only and need no job schema update or backend dependency.
+- 2026-11-21 Chromium verified all five presets, live OS matching, custom accent contrast, reload persistence, reset, reduced motion, preview surfaces, sidebar search, job stages, and queue placement at 1440, 800, and 390 px. The isolated browser run used a synthetic anchor with generation disconnected.
 
 NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects section, animals (turnaround sheet), effects on characters + throws. Open (docs/BACKLOG.md): TRELLIS 2 real-3D stacks (pine showed the carve's limits), paper-doll: item jobs + fit built (red_cape/c1 on knight -> p2_002_red_cape2; no layer extraction, Ronan); base_body type + item export built (human/body2 + red cape, all 8 views clean); open: N trim detail on the knight, NW ornament, ground-flat auras, slash preset, QA-fail auto re-roll. Test jobs to review/archive: angletest/*, cat/tabby, knight/caped, knight/gold_armor, knight/gold_ref, pine/p1, lightning, magic_circle, shield_spin, slash, smoke_puff.
 

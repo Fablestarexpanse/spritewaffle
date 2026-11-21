@@ -13,6 +13,7 @@ from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
 from ..core import generate
@@ -128,6 +129,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return 8
 
     # --- static + files -------------------------------------------------------------------
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
     @app.get("/")
     def index():
         return FileResponse(STATIC / "index.html")

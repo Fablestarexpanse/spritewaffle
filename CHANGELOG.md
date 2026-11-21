@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added browser-local appearance settings with five themes, live system matching, custom
+  accents, interface scaling, spacing, reduced-motion support, and transparent preview backgrounds.
+- Added a collapsible job browser, a search shortcut, and keyboard focus for job-stage
+  navigation. The queue drawer now fits beneath the toolbar or opens along the bottom on narrow screens.
+
 ## 2026-11-21: directional sprite readiness
 
 Additive only: with nothing new set, generation, the UI flow and every output are unchanged.
