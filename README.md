@@ -60,7 +60,10 @@ its own queue worker, so nothing else needs to be running.
    E / NE / SE (no render, exact pixels) unless you untick mirroring; idle/walk/run loop.
    Click any result for QA details, re-render / re-process, or adding its clip to the motion library.
 5. **Export** — *Export character* writes one `.aseprite` with a tag per animation (Unity's 2D
-   Aseprite Importer makes one clip each, plus an Animator Controller) and an atlas PNG + JSON.
+   Aseprite Importer makes one clip each, plus an Animator Controller) and atlas pages for other
+   engines: trimmed frames packed into PNGs no bigger than the page limit (default 4096), each with
+   a TexturePacker JSON (Phaser, PixiJS, Godot importers) plus one SpriteWaffle JSON with fps, loop
+   and pivot per animation. *Engine flips W/NW/SW* leaves exact mirrors out of the atlas.
    Every file is downloadable from the same tab.
 
 ### Palette and pivot (pixel art)

@@ -132,7 +132,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def export_character(character: str, job_id: str, frame_set: str = "12f") -> dict:
         """Bundle every QA-passed animation of a job into ONE .aseprite (a tag per facing x action, so
-        Unity's Aseprite Importer makes one clip each) plus an atlas PNG + JSON. Returns file paths,
+        Unity's Aseprite Importer makes one clip each) plus atlas pages (trimmed, max 4096 px, TexturePacker JSON). Returns file paths,
         included animations and anything skipped (QA failures)."""
         from .core.profile import resolve
         from .export import character as char_export

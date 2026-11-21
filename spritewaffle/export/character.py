@@ -49,8 +49,9 @@ def merged_palette(anims: list[dict]) -> np.ndarray:
 
 
 def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: str = "12f",
-           require_pass: bool = True) -> dict:
-    """fps_for(action) -> fps. Returns paths + what was included/skipped."""
+           require_pass: bool = True, max_size: int = 4096, mirror: str = "pack") -> dict:
+    """fps_for(action) -> fps. Returns paths + what was included/skipped. max_size: atlas page
+    limit in px; mirror='flip' leaves exact W/NW/SW mirrors out of the atlas (flip at runtime)."""
     anims, skipped = collect(Path(job_root), frame_set, require_pass)
     if not anims:
         raise RuntimeError(f"nothing to export ({'; '.join(skipped) or 'no pixelized animations'})")
@@ -99,22 +100,28 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
         aseprite.write_rgba(ase_path, frames, durations, tags, slices=slices)
         mode = "rgba"
 
-    cols = max(a["frames"] for a in meta_anims)
-    atlas = np.zeros((h * len(anims), w * cols, 4), np.uint8)
-    for r, a in enumerate(anims):
-        for c, cell in enumerate(a["cells"]):
-            atlas[r * h:(r + 1) * h, c * w:(c + 1) * w] = cell
-    png = out_dir / f"{character}_atlas.png"
-    Image.fromarray(atlas, "RGBA").save(png)
+    from . import atlas as atlasmod
+    base = f"{character}_atlas"
+    old = out_dir / f"{base}.png"                              # the old single-sheet atlas
+    old.unlink(missing_ok=True)
+    pages, layout = atlasmod.pack(anims, max_size=max_size, mirror=mirror)
+    page_files = atlasmod.save_pages(out_dir, base, pages)
+    tp_files = atlasmod.write_texturepacker(out_dir, base, pages, layout, (w, h),
+                                            {m["name"]: m["pivot"] for m in meta_anims})
     for ma in meta_anims:
-        ma["rects"] = [[c * w, ma["row"] * h, w, h] for c in range(ma["frames"])]
+        ma.pop("row", None)
+        ma["frames_atlas"] = layout[ma["name"]]["frames"]
+        ma["flip_x_of"] = layout[ma["name"]]["flip_x_of"]
     one = {tuple(m["pivot"]) for m in meta_anims}
     pivot = list(one.pop()) if len(one) == 1 else None          # one pivot for the whole character
     meta = {"character": character, "cell": [w, h], "frame_set": frame_set, "aseprite_mode": mode,
             "pivot": pivot, "pivot_norm": [pivot[0] / w, 1 - pivot[1] / h] if pivot else None,
-            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()], "animations": meta_anims,
+            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()],
+            "pages": [{"image": p.name, "w": int(pg.shape[1]), "h": int(pg.shape[0])} for p, pg in zip(page_files, pages)],
+            "max_size": max_size, "mirror": mirror, "animations": meta_anims,
             "skipped": skipped}
     js = out_dir / f"{character}_atlas.json"
     js.write_text(json.dumps(meta, indent=2))
-    return {"aseprite": str(ase_path), "atlas": str(png), "json": str(js), "mode": mode,
+    return {"aseprite": str(ase_path), "atlas": str(page_files[0]), "pages": [str(p) for p in page_files],
+            "engine_json": [str(p) for p in tp_files], "json": str(js), "mode": mode,
             "animations": [a["name"] for a in meta_anims], "colours": len(pal), "skipped": skipped}

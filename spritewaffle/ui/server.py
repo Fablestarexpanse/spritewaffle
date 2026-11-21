@@ -411,11 +411,14 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         j = job_or_404(char, jid)
         try:
             prof = resolve(job_profile(j))
+            mirror = body.get("mirror", "pack")
             out = character.export(j.root, j.stage_dir("06_export") / "character", char, prof.fps,
-                                   body.get("set", "12f"), require_pass=not body.get("include_failed"))
+                                   body.get("set", "12f"), require_pass=not body.get("include_failed"),
+                                   max_size=int(body.get("max_size", 4096)), mirror=mirror)
         except (RuntimeError, ValueError, FileNotFoundError) as e:
             bad(e)
-        j.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
+        j.set_stage("export:character", "done", pages=len(out["pages"]), mirror=mirror,
+                    **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
 
     @app.post("/api/jobs/{char}/{jid}/showcase")

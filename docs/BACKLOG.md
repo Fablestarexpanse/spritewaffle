@@ -40,5 +40,5 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 
 | # | Note | Status | What's there / what's needed |
 |---|---|---|---|
-| 16 | Atlas PNG too big for game engines | **new** | Character atlas is one row per animation, untrimmed: the hare at a 384 px cell is 4608×15360 (Unity's limit is 8192, many GPUs 16384). The `.aseprite` is unaffected (Unity imports that). Needs: max texture size, multiple pages, trim, mirror dedupe (audit "missing" list). |
+| 16 | Atlas PNG too big for game engines | **done** 2026-11-20 | Character atlas is one row per animation, untrimmed: the hare at a 384 px cell is 4608×15360 (Unity's limit is 8192, many GPUs 16384). The `.aseprite` is unaffected (Unity imports that). Needs: max texture size, multiple pages, trim, mirror dedupe (audit "missing" list). |
 

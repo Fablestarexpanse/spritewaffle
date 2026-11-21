@@ -179,7 +179,7 @@ let status = {profiles: [], actions: [], asset_types: []};
 let jobsCache = [];
 let current = null, tab = null, job = null, lastSig = "", qFilter = "all";
 const form = {facings: new Set(["S", "E", "N", "W", "SE", "NE", "NW", "SW"]), actions: new Set(["idle", "walk"]),
-              seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24};
+              seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24, maxSize: 4096, flip: false};
 
 // --- plumbing ----------------------------------------------------------------------------
 // Enlarged images open here, not in a new tab (a bare image tab has no way back in an app window).
@@ -653,14 +653,19 @@ function paneExport(j) {
   const ch = j.stages["export:character"];
   $("#pane").innerHTML = `${j.asset_type !== "prop" ? `<section>
     <h2>Export character ${badge(ch?.status)}</h2>
-    <p class="muted" style="margin-top:0">One .aseprite with a tag per animation (Unity's Aseprite Importer turns each tag into a clip) plus an atlas PNG + JSON.
+    <p class="muted" style="margin-top:0">One .aseprite with a tag per animation (Unity's Aseprite Importer turns each tag into a clip), plus atlas pages:
+      trimmed frames packed into PNGs no bigger than the page limit, each with a TexturePacker JSON (Phaser, PixiJS, Godot importers…) and one SpriteWaffle JSON for the whole character.
       Animations that failed QA are left out unless you include them.</p>
     <div class="row">
       <label>Frames <select id="eSet"><option ${form.set === "12f" ? "selected" : ""}>12f</option><option ${form.set === "24f" ? "selected" : ""}>24f</option></select></label>
       <label><input type="checkbox" id="eFailed" ${form.includeFailed ? "checked" : ""}> include QA failures</label>
+      <label title="Largest atlas PNG. Unity's default import limit is 2048, its maximum 8192; many phones 4096">Page limit
+        <select id="eMax">${[2048, 4096, 8192].map(v => `<option ${v === form.maxSize ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label title="Leave W/NW/SW out of the atlas when they are exact mirrors of E/NE/SE; your engine flips them (halves the atlas)">
+        <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
       <button class="primary" id="eGo">Export character</button>
     </div>
-    ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})
+    ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})${ch.pages ? `, ${ch.pages} atlas page${ch.pages === 1 ? "" : "s"}${ch.mirror === "flip" ? ", mirrors flipped by the engine" : ""}` : ""}
       ${(ch.skipped || []).length ? `<br><span class="warn">skipped: ${esc(ch.skipped.join("; "))}</span>` : ""}</p>` : ""}
     </section>` : ""}
     <section><h2>Showcase GIF ${badge(j.stages["export:showcase"]?.status)}</h2>
@@ -684,8 +689,11 @@ function paneExport(j) {
   if ($("#eGo")) {
     $("#eSet").onchange = e => form.set = e.target.value;
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
+    $("#eMax").onchange = e => form.maxSize = +e.target.value;
+    $("#eFlip").onchange = e => form.flip = e.target.checked;
     $("#eGo").onclick = async () => {
-      const out = await api(jobPath() + "/export_character", {set: form.set, include_failed: form.includeFailed});
+      const out = await api(jobPath() + "/export_character", {set: form.set, include_failed: form.includeFailed,
+                                                               max_size: form.maxSize, mirror: form.flip ? "flip" : "pack"});
       toast(`Exported ${out.animations.length} animations`); lastSig = ""; refreshAll();
     };
   }

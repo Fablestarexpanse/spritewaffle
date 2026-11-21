@@ -36,10 +36,14 @@ def test_character_export_tags_palette_and_skips(tmp_path):
     assert len(doc.frames) == 24 and doc.durations[0] == 125 and doc.durations[12] == 83
     # palette exact (index 0 = transparent), pixels round-trip
     assert {tuple(c) for c in doc.palette[1:, :3].tolist()} == {(200, 0, 0), (0, 0, 200), (0, 200, 0)}
-    atlas = Image.open(out["atlas"])
-    assert atlas.size == (16 * 12, 16 * 2)
     meta = json.loads(open(out["json"]).read())
-    assert meta["animations"][1]["rects"][0] == [0, 16, 16, 16] and meta["animations"][0]["loop"] is True
+    assert len(meta["pages"]) == 1 and meta["animations"][0]["loop"] is True
+    page = np.array(Image.open(out["atlas"]).convert("RGBA"))
+    f = meta["animations"][1]["frames_atlas"][0]                       # rebuild walk_S frame 0 from the atlas
+    cell = np.zeros((16, 16, 4), np.uint8)
+    cell[f["oy"]:f["oy"] + f["h"], f["ox"]:f["ox"] + f["w"]] = page[f["y"]:f["y"] + f["h"], f["x"]:f["x"] + f["w"]]
+    src = {a["name"]: a["cells"] for a in character.collect(job.root)[0]}["walk_S"][0]
+    assert np.array_equal(cell, src)
 
 
 def test_character_export_refuses_mixed_cell_sizes_and_empty(tmp_path):
