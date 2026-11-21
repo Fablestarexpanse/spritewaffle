@@ -5,3 +5,6 @@ __pycache__/
 jobs/
 graft/
 samples/
+
+# your own game profiles (Sizes… dialog) stay local
+profiles/*.json

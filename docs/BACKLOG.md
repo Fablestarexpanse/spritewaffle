@@ -35,3 +35,10 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 | 9, 3 | "Edit model to make changes" / "test default character adding items, clothing etc." | **new** | Needs: edit an approved character with H3 Image edit ("add a red cape", "swap club for sword") → a new variant job that keeps the base's facings as references; test with a plain base character. |
 | 8 | "Items, accents, terrain etc, style match" | **part** | Props exist (sprite stacking, style reference from a hero). Needs: item/terrain/tile asset types that match a character's style and palette. |
 | 13 | "Style reference tool, way to add a set or view" | **part** | Anchor can take one style reference (a hero job). Needs: a style set (several reference images, or a view of an existing set) used for every new asset. |
+
+## E. Found while working
+
+| # | Note | Status | What's there / what's needed |
+|---|---|---|---|
+| 16 | Atlas PNG too big for game engines | **new** | Character atlas is one row per animation, untrimmed: the hare at a 384 px cell is 4608×15360 (Unity's limit is 8192, many GPUs 16384). The `.aseprite` is unaffected (Unity imports that). Needs: max texture size, multiple pages, trim, mirror dedupe (audit "missing" list). |
+
