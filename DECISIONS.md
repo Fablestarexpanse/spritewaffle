@@ -1,6 +1,6 @@
 # SpriteWaffle decisions log
 
-NEXT: Repo complete for a fresh install (setup doc, editor workflows, lock, agent install guide). Open: SAM 3 masks for non-green driving clips; Ronan to review the test-approved assets; hare other directions/actions if wanted.
+NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects section, animals (turnaround sheet), effects on characters + throws. Open (docs/BACKLOG.md): TRELLIS 2 real-3D stacks (pine showed the carve's limits), item-from-image variants, ground-flat auras, slash preset, QA-fail auto re-roll. Test jobs to review/archive: angletest/*, cat/tabby, knight/caped, pine/p1, lightning, magic_circle, shield_spin, slash, smoke_puff.
 
 - 2026-11-20 Repo lives at `F:\Tools\Sprite tool` (Ronan: "local"), private GitHub repo.
 - 2026-11-20 No H3 sample clip exists yet. Phase 1 e2e runs on a synthetic chroma-green clip
