@@ -116,6 +116,8 @@
   .pgroup .field { align-items: stretch; margin: 6px 0; }      /* labels left, inputs full width */
   .fxpane .field { align-items: stretch; }
   .fxpane figure img, .fxpane figure .ph { max-width: 220px; max-height: 220px; }
+  .fxattach { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .fxattach canvas { border-radius: 6px; cursor: crosshair; max-width: 100%; }
   .stackview { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .stackview canvas { border-radius: 8px; max-width: 100%; cursor: grab; touch-action: none; }
   figure { margin: 0; } figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -377,6 +379,47 @@ async function showProfiles(name, note = "") {
   if (!d.open) d.showModal();
 }
 
+// Effect attach editor: scrub to a frame, click the spawn point, save -> event + preview GIF.
+function attachEditor(a) {
+  const cv = $("#axCanvas"), ctx = cv.getContext("2d"), urls = a.sets["12f"].frames;
+  let point = a.attachment ? [...a.attachment.point] : null, frame = +$("#axFrame").value, cell = 64;
+  const img = new Image();
+  const draw = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "#1c1e2a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (img.complete && img.naturalWidth) { cell = img.naturalWidth; ctx.drawImage(img, 0, 0, cv.width, cv.height); }
+    if (point) {
+      const k = cv.width / cell, x = (point[0] + 0.5) * k, y = (point[1] + 0.5) * k;
+      ctx.strokeStyle = "#f2b33d"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
+    }
+    $("#axFrameN").textContent = `${frame + 1} / ${urls.length}`;
+  };
+  const load = () => { img.onload = draw; img.src = urls[frame]; };
+  $("#axFrame").oninput = e => { frame = +e.target.value; load(); };
+  cv.onclick = e => {
+    const r = cv.getBoundingClientRect(), k = cell / r.width;
+    point = [Math.floor((e.clientX - r.left) * k), Math.floor((e.clientY - r.top) * k)];
+    $("#axPoint").textContent = `point ${point.join(", ")}`; draw();
+  };
+  $("#axSave").onclick = async () => {
+    if (!point) return toast("Click the frame where the effect starts", true);
+    const r = await api(jobPath() + "/attach", {facing: a.facing, action: a.action, effect_job: $("#axJob").value, frame,
+      x: point[0], y: point[1], layer: $("#axLayer").value, kind: $("#axKind").value, speed: +$("#axSpeed").value});
+    toast("Effect attached: preview made, export JSON will carry the event");
+    lastSig = ""; await refreshAll();
+    const fresh = job.actions.find(x => x.facing === a.facing && x.action === a.action);
+    if (fresh) showAnim(fresh);
+  };
+  if ($("#axRemove")) $("#axRemove").onclick = async () => {
+    await api(jobPath() + "/attach", {facing: a.facing, action: a.action, remove: true});
+    toast("Effect removed"); lastSig = ""; await refreshAll();
+    const fresh = job.actions.find(x => x.facing === a.facing && x.action === a.action);
+    if (fresh) showAnim(fresh);
+  };
+  load();
+}
+
 function toast(msg, bad = false) {
   const t = document.createElement("div");
   t.className = "toast" + (bad ? " bad" : ""); t.textContent = msg;
@@ -633,7 +676,7 @@ function paneAnimations(j, st) {
     <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
       <div class="field"><span>Facings</span><div class="pick">${COMPASS.map(f => f ? `<label><input type="checkbox" data-f="${f}" ${form.facings.has(f) ? "checked" : ""}>${f}</label>` : `<span></span>`).join("")}</div>
         <div class="row" style="margin-top:6px"><button class="ghost" id="fAll">all</button><button class="ghost" id="fNone">none</button></div></div>
-      <div class="field"><span>Actions</span>${[...new Set([...status.actions, ...form.actions])].map(a => `<label><input type="checkbox" data-a="${esc(a)}" ${form.actions.has(a) ? "checked" : ""}> ${esc(a)}</label>`).join("")}
+      <div class="field"><span>Actions</span>${[...new Set([...(j.action_presets || status.actions), ...form.actions])].map(a => `<label><input type="checkbox" data-a="${esc(a)}" ${form.actions.has(a) ? "checked" : ""}> ${esc(a)}</label>`).join("")}
         ${j.inputs.prompt_writer === "ai" ? `<div class="row" style="margin-top:4px"><input id="customAct" placeholder="new action, e.g. cast spell" style="width:170px"><button class="ghost" id="addAct">add</button></div>` : ""}</div>
       <div class="field" style="gap:10px">
         <label>Source <select id="src"><option value="">H3 render</option>
@@ -708,6 +751,21 @@ function showAnim(a) {
     ${a.clip ? `<p><a href="${esc(a.clip)}" data-view="Clip ${esc(a.action)} ${esc(a.facing)}"><button class="ghost">▶ play clip</button></a></p>` : ""}
     ${a.takes?.length ? `<h3>Earlier clips</h3>${takesHtml(a.takes, `03_actions/${a.facing}/${a.action}/raw.mp4`, `Clip ${a.action} ${a.facing}`)}` : ""}
     ${a.contact ? `<h3>Source frames</h3><a href="${esc(a.contact)}" data-view="Source frames"><img class="pix" src="${esc(a.contact)}" style="max-width:100%"></a>` : ""}
+    ${(a.sets["12f"].frames || []).length ? `<h3>Effect <span class="muted">a spell, a burst, a thrown object: a separate sprite, an event in the export</span></h3>
+      ${(job.effect_jobs || []).length ? `<div class="fxattach">
+        <div><canvas id="axCanvas" width="256" height="256" title="click where the effect starts"></canvas>
+          <div class="row" style="margin:4px 0"><label>Frame <input type="range" id="axFrame" min="0" max="${a.sets["12f"].frames.length - 1}" value="${a.attachment?.frame ?? 0}"></label><span id="axFrameN" class="muted"></span></div></div>
+        <div class="field" style="gap:8px;min-width:220px">
+          <label class="field"><span>Effect job</span><select id="axJob">${job.effect_jobs.map(e => `<option ${e === a.attachment?.effect_job ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
+          <label>Layer <select id="axLayer"><option value="front">in front</option><option value="behind" ${a.attachment?.layer === "behind" ? "selected" : ""}>behind</option></select></label>
+          <label>Kind <select id="axKind"><option value="spawn">stays (burst, aura)</option><option value="projectile" ${a.attachment?.kind === "projectile" ? "selected" : ""}>flies (projectile, thrown)</option></select></label>
+          <label>Speed <input type="number" id="axSpeed" value="${a.attachment?.speed || 3}" min="0" max="40" step="0.5" style="width:70px"> px / frame, toward ${esc(a.facing)}</label>
+          <span class="muted" id="axPoint">${a.attachment ? `point ${a.attachment.point.join(", ")}` : "click the frame to set the point"}</span>
+          <div class="row" style="margin:0"><button class="primary" id="axSave">Attach + preview</button>${a.attachment ? `<button class="ghost" id="axRemove">Remove</button>` : ""}</div>
+          <span class="hint">The effect is drawn at its own size (change it on the effect's tab).</span>
+        </div>
+        ${a.fx_preview ? `<figure><img class="pix" src="${esc(a.fx_preview)}" style="max-width:260px;background:#1c1e2a;border-radius:6px"><figcaption>with effect</figcaption></figure>` : ""}
+      </div>` : `<p class="muted">No effects yet: make one with <b>New effect</b> on the home page, then attach it here.</p>`}` : ""}
     <div class="row">
       <button id="dRegen" ${job.stages.facings?.status === "approved" ? "" : "disabled"}>Re-render clip</button>
       <button id="dReproc" ${a.has_clip ? "" : "disabled"}>Re-process frames</button>
@@ -717,6 +775,7 @@ function showAnim(a) {
     </div>`;
   d.showModal();
   $("#dClose").onclick = () => d.close();
+  if ($("#axCanvas")) attachEditor(a);
   $("#dRegen").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action}, "Re-render queued"); };
   $("#dReproc").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action, generate: false}, "Re-processing queued"); };
   $("#dLib").onclick = async () => {

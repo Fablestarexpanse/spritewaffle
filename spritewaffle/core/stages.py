@@ -65,7 +65,10 @@ def select(job: Job, facing=None, action=None, counts=(12, 24), indices: str | N
     d = job.action_dir(facing, action)
     paths = video.list_frames(d / "extracted")
     frames = video.load(paths)
-    loop = action in CYCLIC if loop is None else loop
+    if loop is None:                                   # the action's own setting (edited, AI, animal preset)
+        rep = job.action_dir(facing, action) / "action_report.json"
+        spec = json.loads(rep.read_text()).get("spec", {}) if rep.exists() else {}
+        loop = bool(spec["cyclic"]) if "cyclic" in spec else action in CYCLIC
     clip = picker.analyse(frames)
     res = picker.select(clip, counts=counts, loop=loop, manual=indices)
     report = {"start": res["start"], "end": res["end"], "loop": loop, "loop_seam": res.get("loop_seam"),
@@ -130,7 +133,7 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
         cells, places = layout.preserve_canvas(list(art), (cell, cell))
         for w in (x.replace(" in this clip", "").replace(" (a ", f" in the {n}f frames (a ", 1)
                   for x in _fit_warnings(places[0], cell, profile.cell_size)):
-            if not any(w.split(":")[0] == x.split(":")[0] for x in info["warnings"]):
+            if not any(w.split("(")[0] == x.split("(")[0] for x in info["warnings"]):
                 info["warnings"].append(w)
         sd = out / f"{n}f"
         _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
@@ -144,6 +147,19 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
         info["sets"][str(n)] = {"frames": len(cells), "sources": list(sources)}
     (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
     return info
+
+
+def _events(job: Job, facing: str, action: str) -> list:
+    """Attached effects as export events (see core/attach.py)."""
+    from . import attach
+    att = attach.get(job, facing, action)
+    if not att:
+        return []
+    try:
+        _, meta, _ = attach.effect_files(job.root.parent.parent / att["effect_job"])
+    except FileNotFoundError:
+        return []
+    return [attach.event(att, meta["fps"])]
 
 
 def _fit_warnings(pl, cell: int, profile_cell: int) -> list[str]:
@@ -162,6 +178,10 @@ def _fit_warnings(pl, cell: int, profile_cell: int) -> list[str]:
     if off:
         out.append(f"pivot: the action is too wide for the {cell}px cell, so the feet sit {abs(off):.0f}px "
                    f"{'left' if off < 0 else 'right'} of centre in this clip (a {fit}px profile cell would fit it: Sizes…)")
+    if pl.paste[0] < 0 or pl.paste[0] + w > cell:
+        cut = max(0, -pl.paste[0]) + max(0, pl.paste[0] + w - cell)
+        out.append(f"cut off: {cut}px of the sides don't fit in the {cell}px cell (the sprite is {w}px wide; "
+                   f"a {fit}px profile cell would fit it: Sizes…)")
     if pl.paste[1] < 0:
         out.append(f"cut off: the top {-pl.paste[1]}px of the action don't fit in the {cell}px cell "
                    f"(a {fit}px profile cell would fit it: Sizes…)")
@@ -223,7 +243,7 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
         files = {}
         indexed = (sd / "indices.npy").exists()
         if fmt in ("png", "both"):
-            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot,
+            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot, events=_events(job, facing, action),
                                                                     preview_scale=4 if indexed else 1).items() if k != "frames"})
         if fmt in ("aseprite", "both"):
             tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward", 0 if loop else 1)]

@@ -18,7 +18,7 @@ EDITABLE_ACTION = ("motion", "transition", "sound")
 
 def _spec(job: Job, action: str) -> tuple[dict | None, str]:
     inputs = job.read_meta()["inputs"]
-    preset = builder.ACTIONS.get(action)
+    preset = builder.actions_for(inputs.get("asset_type")).get(action)
     over = {k: v for k, v in ((inputs.get("action_overrides") or {}).get(action) or {}).items() if v}
     ai = (inputs.get("action_specs") or {}).get(action)
     base = ai if inputs.get("prompt_writer") == "ai" and ai else preset
@@ -59,10 +59,11 @@ def view(job: Job) -> dict:
         if f == "S":
             continue
         first, refs = (builder.DIAGONAL_NEAREST[f], []) if f in builder.DIAGONALS else ("S", [])
-        fac[f] = {"note": notes.get(f, ""), "preview": builder.facing(f, refs, first, facing_note(job, f), raised=prof.projection != "side"),
+        fac[f] = {"note": notes.get(f, ""), "preview": builder.facing(f, refs, first, facing_note(job, f), raised=prof.projection != "side",
+                                                  animal=inputs.get("asset_type") == "animal"),
                   "used": _used(job, f"02_facings/{f}.png")}
 
-    names = set(builder.ACTIONS) | set(inputs.get("action_overrides") or {}) | set(inputs.get("action_specs") or {})
+    names = set(builder.actions_for(inputs.get("asset_type"))) | set(inputs.get("action_overrides") or {}) | set(inputs.get("action_specs") or {})
     names |= {d.name for d in (job.root / "03_actions").glob("*/*") if d.is_dir()}
     acts = {}
     for a in sorted(names):

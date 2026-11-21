@@ -84,6 +84,8 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
             _run(client, job, "facing_multiref",
                  {"prompt": builder.anchor_from_hero(description, profile, asset_type), "ref_images": [ref],
                   "seed": _seed(seed)}, dest)
+        elif asset_type == "animal":
+            return _animal_turnaround(job, profile, description, client, seed)
         else:
             text = description
             if job.read_meta()["inputs"].get("prompt_writer") == "ai":
@@ -134,7 +136,7 @@ def resolve_action_spec(job: Job, action_name: str, client=None) -> dict:
     preset. New action names need the AI writer."""
     from ..prompts import writer
     inputs = job.read_meta()["inputs"]
-    preset = builder.ACTIONS.get(action_name)
+    preset = builder.actions_for(inputs.get("asset_type")).get(action_name)
     override = {k: v for k, v in ((inputs.get("action_overrides") or {}).get(action_name) or {}).items() if v not in (None, "")}
     if override:                                  # the human's own text wins over preset and AI
         base = dict(preset or (inputs.get("action_specs") or {}).get(action_name) or {})
@@ -146,7 +148,7 @@ def resolve_action_spec(job: Job, action_name: str, client=None) -> dict:
         return spec
     if inputs.get("prompt_writer") != "ai":
         if preset is None:
-            raise ValueError(f"no preset for action '{action_name}'; known: {sorted(builder.ACTIONS)} "
+            raise ValueError(f"no preset for action '{action_name}'; known: {sorted(builder.actions_for(inputs.get('asset_type')))} "
                              "(turn on the AI prompt writer for new actions)")
         return preset
     cached = (inputs.get("action_specs") or {}).get(action_name)
@@ -224,6 +226,26 @@ def _drifted(d: dict, max_color: float, height_tol: float) -> bool:
     return d["color"] > max_color or abs(d["height_ratio"] - 1) > height_tol
 
 
+def _animal_turnaround(job: Job, profile: GameProfile, description: str, client: ComfyClient,
+                       seed: int | None) -> Path:
+    """Animals: one turnaround sheet (5 views) cut apart with SAM 3 -> anchor (front) + facings,
+    W/SW/NW mirrored. Both stages are left in review."""
+    from . import sheet_import
+    sheet_dir = job.stage_dir("01_anchor") / "sheet"
+    sheet_dir.mkdir(parents=True, exist_ok=True)
+    seed = _seed(seed)
+    text = builder.turnaround(description, profile, "animal")
+    prov = client.run_template("anchor_still", {"prompt": text, "seed": seed}, sheet_dir / ".tmp")
+    sheet = sheet_dir / "turnaround.png"
+    Image.open(prov["files"][0]).convert("RGB").save(sheet)
+    job.log_provenance("01_anchor/sheet/turnaround.png", template="anchor_still", values={"prompt": text, "seed": seed})
+    job.update_inputs(description=description, asset_type="animal")
+    res = sheet_import.import_sheet(job, sheet, list(builder.TURNAROUND_VIEWS), subject="animal", client=client)
+    job.set_stage("anchor", "review", source="turnaround sheet", seed=seed)
+    job.set_stage("facings", "review", source="turnaround sheet", mirrored=res["mirrored"], missing=res["missing"])
+    return job.root / "01_anchor" / "anchor.png"
+
+
 def facing_note(job: Job, f: str) -> str:
     """The human's extra detail for facing f: the note for all facings, then the one for f."""
     notes = job.read_meta()["inputs"].get("facing_notes") or {}
@@ -235,6 +257,9 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
+    if job.read_meta()["inputs"].get("asset_type") == "animal" and not only:
+        raise ValueError("animals get their facings from the turnaround sheet: re-roll the anchor to draw a new "
+                         "sheet (all views at once), or re-roll single facings with only=...")
     if job.read_meta()["inputs"].get("base_job"):          # a variant: every facing from the base's
         from . import variant
         return variant.facings(job, profile, client, only=only, seed=seed)
@@ -258,7 +283,8 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             raise RuntimeError(f"{f} needs cardinals {missing} first")
         imgs = [out / f"{first}.png"] + [out / f"{r}.png" for r in refs]
         _run(client, job, "facing_multiref",
-             {"prompt": builder.facing(f, refs, first, facing_note(job, f), raised=profile.projection != "side"), "ref_images": imgs, "seed": _seed(seed)},
+             {"prompt": builder.facing(f, refs, first, facing_note(job, f), raised=profile.projection != "side",
+                                       animal=job.read_meta()["inputs"].get("asset_type") == "animal"), "ref_images": imgs, "seed": _seed(seed)},
              out / f"{f}.png")
 
     a = _rgba(a_path)

@@ -46,6 +46,9 @@ ASSET_TYPES = {
     "creature": {"subject": "Full-body video game creature sprite",
                  "pose": "Standing in a neutral idle stance, {view}, all limbs visible.",
                  "actions": ["idle", "walk", "run", "attack"]},
+    "animal": {"subject": "Full-body video game animal sprite, a four-legged animal",
+               "pose": "Standing on all four legs in a relaxed stance, {view}, all four legs and the tail visible.",
+               "actions": ["idle", "walk", "run", "pounce", "sit", "sleep"]},
     "prop": {"subject": "Single video game prop sprite",
              "pose": "Resting upright on its base, {view}, the whole object visible.",
              "actions": ["idle"]},
@@ -111,12 +114,55 @@ VIEW_RAISED = {f: (f"{v}, still seen from the same high camera above, looking do
                    if f != "S" else v) for f, v in VIEW.items()}
 
 
-def facing(target: str, refs: list[str], first: str = "S", note: str = "", raised: bool = False) -> str:
+# Four-legged animals: say where the BODY points, nose to tail. Measured 2026-11-20 (cat): with the
+# character words every facing came out as a copy of the three-quarter anchor.
+VIEW_ANIMAL = {
+    "S": "front view: head and chest facing the viewer, the body going straight back behind them",
+    "N": "back view: seen from behind, the tail and hindquarters toward the viewer, the head facing away",
+    "E": "exact side view: the whole body in profile from nose to tail, the head pointing to screen right, "
+         "all four legs visible in a row",
+    "W": "exact side view: the whole body in profile from nose to tail, the head pointing to screen left, "
+         "all four legs visible in a row",
+    "SE": "three-quarter front view: the head and chest toward the viewer and to the right, the body angled back to the left",
+    "SW": "three-quarter front view: the head and chest toward the viewer and to the left, the body angled back to the right",
+    "NE": "three-quarter back view: the hindquarters toward the viewer, the head pointing away and to the right",
+    "NW": "three-quarter back view: the hindquarters toward the viewer, the head pointing away and to the left",
+}
+
+
+TURNAROUND_VIEWS = ("S", "E", "N", "SE", "NE")      # left to right on the sheet; W/SW/NW are mirrored
+
+
+def turnaround(description: str, profile: GameProfile, asset_type: str = "animal") -> str:
+    """Text-to-image prompt: one model sheet with five views of the same subject in a row.
+    Measured 2026-11-20: H3 Image edit would not turn a four-legged cat away from its anchor (every
+    facing a copy, whatever the wording); one sheet drawn in one go turns it and keeps the design."""
+    a = asset(asset_type)
+    stance = "standing on all four legs, " if asset_type == "animal" else ""
+    return (f"Turnaround model sheet for a video game: the same {description.strip().rstrip('.')}, shown five times "
+            f"side by side in one row, same size, {stance}evenly spaced with clear gaps between them. Left to right: "
+            "1) front view, head and chest facing the viewer; 2) exact side view, the whole body in profile, head "
+            "pointing to the right; 3) back view, seen from behind; 4) three-quarter front view turned toward the "
+            "right; 5) three-quarter back view turned toward the right. "
+            f"{style_text(profile)} Background is one perfectly flat solid pure green #00FF00: uniform, no floor, "
+            f"no shadow, no text, no labels, no numbers. ({a['subject']}.)")
+
+
+def view_words(raised: bool = False, animal: bool = False) -> dict:
+    """Facing wording for this camera and body plan."""
+    if animal:
+        return {f: (f"{v}, still seen from the same high camera above" if raised and f != "S" else v)
+                for f, v in VIEW_ANIMAL.items()}
+    return VIEW_RAISED if raised else VIEW
+
+
+def facing(target: str, refs: list[str], first: str = "S", note: str = "", raised: bool = False,
+           animal: bool = False) -> str:
     """Edit prompt for one facing. <Picture 1> shows facing `first` (the anchor when S);
     refs = facings shown in <Picture 2..n>. note: the human's extra detail for this view (e.g.
     "the quiver is visible on the back"); the framing rules always follow it. raised: top-down /
     isometric camera, so directions are said as screen directions."""
-    V = VIEW_RAISED if raised else VIEW
+    V = view_words(raised, animal)
     parts = [f"<Picture 1> shows the character, {V[first]}."]
     for i, f in enumerate(refs, start=2):
         parts.append(f"<Picture {i}> shows the same character, {V[f]}.")
@@ -172,6 +218,41 @@ ACTIONS = {
              "motion": "crouches, jumps straight up in place and lands back on the same spot",
              "sound": "A soft push-off and a light landing thud."},
 }
+
+# Four-legged animals. Without gait words a cat walks like a person (seen in generated assets).
+ANIMAL_ACTIONS = {
+    "idle": {"cyclic": True, "transition": None,
+             "motion": "stands on all four legs breathing gently, tail swaying slowly, ears twitching",
+             "sound": "Soft breathing."},
+    "walk": {"cyclic": True,
+             "transition": "just beginning to walk in place on all four legs: one front paw lifted slightly",
+             "motion": "walks in place on all four legs: the legs move in diagonal pairs, front left with back right, "
+                       "then front right with back left, body level, tail swaying",
+             "sound": "Soft padded paw steps."},
+    "run": {"cyclic": True,
+            "transition": "just beginning to gallop in place: front paws lifted slightly, body leaning forward",
+            "motion": "gallops in place on all four legs: front legs reach out together, back legs push together, "
+                      "the back flexing, ears back",
+            "sound": "Quick padded paw steps."},
+    "pounce": {"cyclic": False, "transition": "crouching slightly on all four legs, ready to spring",
+               "motion": "crouches low, springs forward a short way with front paws raised, and lands back in place",
+               "sound": "A quick rustle and a soft landing."},
+    "sit": {"cyclic": False, "transition": "just beginning to sit: hindquarters lowering slightly",
+            "motion": "lowers its hindquarters and sits down, front legs straight, tail curling around its paws",
+            "sound": "A soft rustle."},
+    "sleep": {"cyclic": True, "transition": "lying curled up on the ground with eyes closed",
+              "motion": "lies curled up asleep, breathing slowly, the body gently rising and falling",
+              "sound": "Slow, soft breathing."},
+    "jump": {"cyclic": False, "transition": "crouching slightly on all four legs, ready to leap",
+             "motion": "crouches and leaps straight up on all fours, then lands back on the same spot",
+             "sound": "A soft push-off and a light landing."},
+}
+
+
+def actions_for(asset_type: str | None) -> dict:
+    """The action presets that fit this asset type."""
+    return ANIMAL_ACTIONS if asset_type == "animal" else ACTIONS
+
 
 HOLD = {"S": "keeps facing the viewer", "N": "keeps its back to the viewer",
         "E": "keeps facing screen right in side view", "W": "keeps facing screen left in side view",

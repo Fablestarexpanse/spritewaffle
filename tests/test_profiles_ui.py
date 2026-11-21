@@ -76,3 +76,9 @@ def test_job_page_knows_four_direction_profiles(tmp_path, monkeypatch):
     with TestClient(create_app(tmp_path / "jobs", worker=False)) as c:
         assert c.get("/api/jobs/hero/j").json()["directions"] == 4
         assert c.get("/api/jobs/hero/k").json()["directions"] == 8        # missing profile: page still loads
+
+
+def test_sprite_wider_than_the_cell_is_reported():
+    wide = Placement(1.0, (0, 0, 77, 49), (-13, 14), (32.0, 63.0))      # side-on cat in a 64 px cell
+    w = stages._fit_warnings(wide, 64, 64)
+    assert any(x.startswith("cut off: 13px of the sides") and "a 96px profile cell" in x for x in w)

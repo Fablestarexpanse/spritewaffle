@@ -101,6 +101,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "sheet": url(d / f"{s['name'].replace(' ', '_')}_sheet.png") if meta else None,
                 "meta": meta}
 
+    def effect_jobs() -> list[str]:
+        """'<character>/<job_id>' of every effect job that has an export."""
+        out = set()
+        for q in base.glob("*/*/06_export/effect/*/*.json"):
+            jr = q.parents[3]                      # .../<character>/<job_id>/06_export/effect/<name>/<name>.json
+            if not jr.parent.name.startswith("_"):
+                out.add(f"{jr.parent.name}/{jr.name}")
+        return sorted(out)
+
     def profile_directions(j: Job) -> int:
         try:
             return resolve(job_profile(j)).directions
@@ -240,7 +249,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 qa = read_json(j.root / "05_qa" / facing / action / n / "report.json")
                 sets[n] = {"preview": url(j.root / "06_export" / facing / action / n / f"{action}_{facing}_{n}_preview.gif"),
                            "qa": qa and {k: qa[k] for k in ("status", "errors", "warnings", "reroll")}}
-            actions.append({"facing": facing, "action": action,
+            sets["12f"]["frames"] = [url(p) for p in sorted((j.root / "04_pixel" / facing / action / "12f" / "frames").glob("*.png"))]
+            att = (meta["inputs"].get("attachments") or {}).get(f"{action}_{facing}")
+            fxgif = j.root / "06_export" / facing / action / "12f" / f"{action}_{facing}_12f_with_fx.gif"
+            actions.append({"facing": facing, "action": action, "attachment": att, "fx_preview": url(fxgif) if att else None,
                             "status": meta["stages"].get(f"action:{facing}/{action}", {}).get("status"),
                             "transition": url(d / "transition.png"), "contact": url(d / "contact_sheet.png"),
                             "has_clip": (d / "raw.mp4").exists(), "clip": url(d / "raw.mp4"),
@@ -261,6 +273,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "anchor_takes": takes_of("01_anchor/anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
                 "directions": profile_directions(j),
+                "effect_jobs": effect_jobs() if meta["inputs"].get("asset_type") != "effect" else [],
+                "action_presets": sorted(builder.actions_for(meta["inputs"].get("asset_type"))),
                 "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
                 "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit")}
                             if meta["inputs"].get("base_job") else None),
@@ -480,6 +494,24 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         elif body.get("queue") == "process":
             tasks = [queue.submit(j.root, "effect_process", {}, job_profile(j))["id"]]
         return {"spec": effect.spec(j), "tasks": tasks}
+
+    @app.post("/api/jobs/{char}/{jid}/attach")
+    def attach_effect(char: str, jid: str, body: dict = Body(...)):
+        """Attach an effect job to one animation (or remove=true), then build the preview GIF."""
+        from ..core import attach
+        j = job_or_404(char, jid)
+        facing, action = str(body.get("facing", "")), str(body.get("action", ""))
+        try:
+            if body.get("remove"):
+                attach.remove(j, facing, action)
+                return {"removed": True}
+            att = attach.set_attachment(j, facing, action, str(body.get("effect_job", "")), int(body.get("frame", 0)),
+                                        int(body.get("x", 0)), int(body.get("y", 0)), body.get("layer", "front"),
+                                        body.get("kind", "spawn"), float(body.get("speed", 0)))
+            gif = attach.preview(j, facing, action, fps=resolve(job_profile(j)).fps(action))
+        except (ValueError, FileNotFoundError, TypeError) as e:
+            bad(e)
+        return {"attachment": att, "preview": url(gif)}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):

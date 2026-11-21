@@ -81,6 +81,25 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
         jpal = np.array([[int(c[i:i + 2], 16) for i in (1, 3, 5)] for c in json.loads(jp.read_text())["colours"]], np.uint8)
         if {tuple(c) for c in pal.tolist()} <= {tuple(c) for c in jpal.tolist()}:
             pal = jpal
+    # attached effects: events per animation, and the effect's files next to the character
+    job_meta = json.loads((Path(job_root) / "job.json").read_text())
+    atts = job_meta["inputs"].get("attachments") or {}
+    if atts:
+        import shutil
+        from ..core import attach
+        for ma in meta_anims:
+            att = atts.get(ma["name"])
+            if not att:
+                continue
+            try:
+                _, fxmeta, fxdir = attach.effect_files(Path(job_root).parent.parent / att["effect_job"])
+            except FileNotFoundError:
+                continue
+            ma["events"] = [attach.event(att, fxmeta["fps"])]
+            dest = out_dir / "effects" / fxdir.name
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(fxdir, dest)
     keys, last = [], None                                        # one "pivot" slice, a key where it changes
     for ma in meta_anims:
         pv = (int(ma["pivot"][0]), int(ma["pivot"][1]))
