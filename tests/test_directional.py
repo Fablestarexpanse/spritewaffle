@@ -153,6 +153,9 @@ def test_export_unchanged_without_maps_and_packs_maps_when_present(tmp_path):
         c = np.array(Image.open(fr / f"{i:03d}.png"))
         c[c[..., 3] > 0, :3] = (90, 90, 90)
         Image.fromarray(c).save(fr / f"{i:03d}_depth.png")
+    status = character.export_status(job.root, tmp_path / "a", lambda x: 12)
+    assert status["status"] == "stale"
+    assert len(status["changed_inputs"]) == 12 and all(p.endswith("_depth.png") for p in status["changed_inputs"])
     b = character.export(job.root, tmp_path / "b", "hero", lambda x: 12)
     assert b["animations"] == a["animations"] and len(json.loads(Path(b["json"]).read_text())["animations"][0]["frames_atlas"]) == 12
     same = {n: (tmp_path / "b" / n).read_bytes() for n in snap if n != "hero_atlas.json"}

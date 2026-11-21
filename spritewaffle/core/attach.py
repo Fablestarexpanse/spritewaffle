@@ -27,11 +27,17 @@ def get(job: Job, facing: str, action: str) -> dict | None:
     return (job.read_meta()["inputs"].get("attachments") or {}).get(_key(facing, action))
 
 
-def effect_files(effect_root: Path) -> tuple[list[np.ndarray], dict, Path]:
-    """Frames (RGBA), meta and folder of an effect job's export."""
+def effect_directory(effect_root: Path) -> Path:
+    """Find the effect job's export folder without decoding its frames."""
     d = next((p for p in sorted((Path(effect_root) / "06_export" / "effect").glob("*")) if p.is_dir()), None)
     if d is None:
         raise FileNotFoundError(f"{effect_root} has no exported effect yet (render it on its Effect tab)")
+    return d
+
+
+def effect_files(effect_root: Path) -> tuple[list[np.ndarray], dict, Path]:
+    """Frames (RGBA), meta and folder of an effect job's export."""
+    d = effect_directory(effect_root)
     meta = json.loads((d / f"{d.name}.json").read_text())
     frames = [np.array(Image.open(p).convert("RGBA")) for p in sorted((d / "frames").glob("*.png"))]
     return frames, meta, d

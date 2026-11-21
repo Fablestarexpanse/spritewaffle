@@ -1,4 +1,4 @@
-NEXT: (2026-11-21) Appearance settings and responsive workspace verified. Next implement character export freshness against the existing exporter.
+NEXT: (2026-11-21) Appearance and character export freshness verified. Next extend freshness to action exports and surface QA findings. Official badge and icons are pending the media kit. Start at docs/UPGRADE_ROADMAP.md.
 
 # SpriteWaffle decisions log
 
@@ -7,6 +7,9 @@ NEXT: (2026-11-21) Appearance settings and responsive workspace verified. Next i
 - 2026-11-21 Baseline on the clean checkout passed 221 tests in 61.78 s with an existing Starlette deprecation warning. The initial sandboxed run stalled after eight tests. The loopback-enabled run completed.
 - 2026-11-21 Appearance uses semantic CSS tokens, a native dialog, and versioned browser storage on the existing HTML page. Settings are presentation-only and need no job schema update or backend dependency.
 - 2026-11-21 Chromium verified all five presets, live OS matching, custom accent contrast, reload persistence, reset, reduced motion, preview surfaces, sidebar search, job stages, and queue placement at 1440, 800, and 390 px. The isolated browser run used a synthetic anchor with generation disconnected.
+- 2026-11-21 Appearance regression suite passed 222 tests in 59.90 s. The release still needs the supplied badge and icon files.
+- 2026-11-21 Character export freshness checks file contents and effective playback settings. Keep its receipt beside the bundle so the exported formats and filenames remain stable. Write an incomplete receipt before touching exported files and refuse concurrent writers for the same bundle. Hash on demand so ordinary job polling stays lightweight.
+- 2026-11-21 Export verification: 226 tests passed in 59.37 s with the existing Starlette warning. Chromium wrote a character bundle, reported it current, and named the frame after an edit made it stale. The existing hare/courier export still decoded as 40 tags and 480 frames on one atlas page. CLI checks reported both hare/courier and knight/caped as untracked without re-exporting them. A synthetic eight-facing bundle of 12 frames per facing at 96×96 took 247 ms to export, with a 30.1 ms median freshness check over seven runs. Unity and Blender installations were detected. No live model render or engine import was performed.
 
 NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects section, animals (turnaround sheet), effects on characters + throws. Open (docs/BACKLOG.md): TRELLIS 2 real-3D stacks (pine showed the carve's limits), paper-doll: item jobs + fit built (red_cape/c1 on knight -> p2_002_red_cape2; no layer extraction, Ronan); base_body type + item export built (human/body2 + red cape, all 8 views clean); open: N trim detail on the knight, NW ornament, ground-flat auras, slash preset, QA-fail auto re-roll. Test jobs to review/archive: angletest/*, cat/tabby, knight/caped, knight/gold_armor, knight/gold_ref, pine/p1, lightning, magic_circle, shield_spin, slash, smoke_puff.
 

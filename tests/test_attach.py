@@ -79,6 +79,12 @@ def test_character_export_carries_events_and_effect_files(tmp_path):
     ev = meta["animations"][0]["events"][0]
     assert ev["effect"] == "spark" and ev["frame"] == 3 and ev["point"] == [12, 6]
     assert (j.root / "06_export" / "character" / "effects" / "spark" / "spark.json").exists()
+    out_dir = j.root / "06_export" / "character"
+    assert character.export_status(j.root, out_dir, lambda a: 12)["status"] == "current"
+    attach.set_attachment(j, "E", "cast", ej, frame=4, x=12, y=6)
+    assert character.export_status(j.root, out_dir, lambda a: 12)["settings_changed"] == ["attachments"]
+    (out_dir / "effects" / "spark" / "spark.json").unlink()
+    assert character.export_status(j.root, out_dir, lambda a: 12)["changed_outputs"] == ["effects/spark/spark.json"]
 
 
 def test_attach_api_makes_a_preview(tmp_path):

@@ -584,11 +584,20 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             out = character.export(j.root, j.stage_dir("06_export") / "character", char, prof.fps,
                                    body.get("set", "12f"), require_pass=not body.get("include_failed"),
                                    max_size=int(body.get("max_size", 4096)), mirror=mirror)
-        except (RuntimeError, ValueError, FileNotFoundError) as e:
+        except (RuntimeError, ValueError, OSError) as e:
             bad(e)
         j.set_stage("export:character", "done", pages=len(out["pages"]), mirror=mirror,
                     **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
+
+    @app.get("/api/jobs/{char}/{jid}/export_character")
+    def character_export_status(char: str, jid: str):
+        from ..export import character
+        j = job_or_404(char, jid)
+        try:
+            return character.export_status(j.root, j.root / "06_export" / "character", resolve(job_profile(j)).fps)
+        except (ValueError, OSError) as e:
+            bad(e)
 
     # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------
     @app.get("/api/project/camera")

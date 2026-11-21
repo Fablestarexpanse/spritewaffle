@@ -143,6 +143,15 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return out
 
     @mcp.tool()
+    def character_export_status(character: str, job_id: str) -> dict:
+        """Check the latest character bundle for changed inputs and missing or modified files."""
+        from .core.profile import resolve
+        from .export import character as char_export
+        job = job_for(character, job_id)
+        profile = resolve(job.read_meta()["inputs"].get("profile"))
+        return char_export.export_status(job.root, job.root / "06_export" / "character", profile.fps)
+
+    @mcp.tool()
     def showcase(character: str, job_id: str, size: int = 512) -> dict:
         """GIF for showing the character to people: a turnaround through its facings, then each saved
         action with all its facings playing in a compass grid. Returns the file path."""

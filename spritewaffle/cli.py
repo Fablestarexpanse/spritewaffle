@@ -276,6 +276,12 @@ def cmd_export_character(a):
     _print(out)
 
 
+def cmd_character_export_status(a):
+    from .export import character
+    job = _job(a.job)
+    _print(character.export_status(job.root, job.root / "06_export" / "character", _profile(a, job).fps))
+
+
 def cmd_showcase(a):
     from .export import showcase
     job = _job(a.job)
@@ -548,6 +554,8 @@ def build() -> argparse.ArgumentParser:
     cmd("showcase", cmd_showcase, "GIF to show people: turnaround through the facings, then every action in all its facings",
         JOB, PROFILE, (("--size",), {"type": int, "default": 512, "help": "square size in px"}),
         (("--set",), {"default": "12f", "choices": ("12f", "24f")}))
+    cmd("export-character-status", cmd_character_export_status,
+        "check the last character bundle for changed inputs or files", JOB, PROFILE)
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),

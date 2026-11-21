@@ -62,6 +62,13 @@ change the accent color, interface scale, spacing, transitions, and the backgrou
 transparent previews. These choices are stored in this browser for this local address.
 Use **Jobs** to collapse or show the job browser. Press **/** to open it and focus search.
 
+Under **Export**, use **Check freshness** to compare the latest character bundle with its
+processed frames, palette, QA inputs, timing, maps, and attachments. It also checks that
+exported files still match the receipt. Re-export an older bundle once to start tracking it.
+This check is also available through `spritewaffle export-character-status --job hero/job`,
+HTTP `GET /api/jobs/{character}/{job}/export_character`, and MCP `character_export_status`.
+If you exported with a CLI profile override, use the same `--profile` when checking in the CLI.
+
 ## Workflows
 
 ### Character (or creature)

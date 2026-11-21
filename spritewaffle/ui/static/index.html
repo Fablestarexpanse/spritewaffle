@@ -123,6 +123,7 @@
   .animrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 900px; }
   .jobhead img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: var(--panel); border-radius: 6px; border: 1px solid var(--line); }
   .jobhead h2 { margin: 0; font-size: 1.36rem; }
+  #exportStatus { overflow-wrap: anywhere; }
   .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: var(--space); }
   .tab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: .65em 1em; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
   .tab.on { color: var(--text); border-bottom-color: var(--link); }
@@ -1203,7 +1204,9 @@ function paneExport(j) {
       <label title="Leave W/NW/SW out of the atlas when they are exact mirrors of E/NE/SE; your engine flips them (halves the atlas)">
         <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
       <button class="primary" id="eGo">Export character</button>
+      <button id="eCheck">Check freshness</button>
     </div>
+    <p id="exportStatus" class="muted" role="status" hidden></p>
     ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})${ch.pages ? `, ${ch.pages} atlas page${ch.pages === 1 ? "" : "s"}${ch.mirror === "flip" ? ", mirrors flipped by the engine" : ""}` : ""}
       ${(ch.skipped || []).length ? `<br><span class="warn">skipped: ${esc(ch.skipped.join("; "))}</span>` : ""}</p>` : ""}
     </section>` : ""}
@@ -1226,6 +1229,32 @@ function paneExport(j) {
     finally { lastSig = ""; refreshAll(); }
   };
   if ($("#eGo")) {
+    $("#eCheck").onclick = async event => {
+      const button = event.target, note = $("#exportStatus");
+      button.disabled = true;
+      note.hidden = false;
+      note.className = "muted";
+      note.textContent = "Checking export files…";
+      try {
+        const result = await api(jobPath() + "/export_character");
+        const reasons = {
+          current: "The character export matches its inputs and files.",
+          missing: "No character export exists yet.",
+          untracked: "This export has no usable receipt. Export again to track freshness.",
+          incomplete: "The character export is in progress or stopped before completion. Check again or re-export."
+        };
+        if (result.status === "stale") {
+          const changes = [...result.settings_changed, ...result.changed_inputs, ...result.changed_outputs];
+          const extra = changes.length > 4 ? ` and ${changes.length - 4} more` : "";
+          note.className = "warn";
+          note.textContent = `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. Export the character again.`;
+        } else note.textContent = reasons[result.status];
+      } catch {
+        note.textContent = "The export check failed. See the error message for details.";
+      } finally {
+        button.disabled = false;
+      }
+    };
     $("#eSet").onchange = e => form.set = e.target.value;
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
     $("#eMax").onchange = e => form.maxSize = +e.target.value;

@@ -6,6 +6,9 @@
   accents, interface scaling, spacing, reduced-motion support, and transparent preview backgrounds.
 - Added a collapsible job browser, a search shortcut, and keyboard focus for job-stage
   navigation. The queue drawer now fits beneath the toolbar or opens along the bottom on narrow screens.
+- Added character export freshness checks to the Export tab, HTTP API, CLI, and MCP. They report
+  changed inputs, changed or missing bundle files, and interrupted writes. Re-export an older bundle
+  once to start tracking it.
 
 ## 2026-11-21: directional sprite readiness
 

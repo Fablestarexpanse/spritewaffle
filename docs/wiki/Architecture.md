@@ -1,5 +1,11 @@
 # Architecture
 
+The character exporter keeps an internal receipt next to the character bundle under
+`06_export/`. It records the selected frame set, QA policy, resolved FPS, and SHA-256
+fingerprints for the relevant inputs and resulting files. The UI, CLI, and MCP use the
+same read-only check. Generation and preprocessing have their own inputs, so a change
+to a raw clip is outside this receipt until the processed frames or selection change.
+
 One Python package (`spritewaffle/`), local only. ComfyUI is the only external service; it is
 driven through exported API-format workflow templates. Everything after generation is
 SpriteWaffle's own code.

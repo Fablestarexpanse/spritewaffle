@@ -41,6 +41,34 @@ def test_appearance_assets_are_served_by_the_app(client):
     assert c.get("/static/..%2Fserver.py").status_code == 404
 
 
+def test_export_freshness_agrees_across_http_cli_and_mcp(tmp_path, monkeypatch, capsys):
+    from spritewaffle.cli import main
+    from spritewaffle.mcp_server import build
+    from test_character_export import _anim
+    from test_mcp import call, text
+
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    job = Job.create("hero", "j", base=tmp_path)
+    _anim(job, "S", "walk", [(100, 20, 30)])
+    route = "/api/jobs/hero/j/export_character"
+    with TestClient(create_app(tmp_path, worker=False)) as c:
+        assert c.get(route).json()["status"] == "missing"
+        assert c.post(route, json={"set": "../12f"}).status_code == 400
+        result = c.post(route, json={})
+        assert result.status_code == 200
+        assert c.get(route).json()["status"] == "current"
+        (job.root / "04_pixel/S/walk/12f/frames/000.png").unlink()
+        changed = c.get(route).json()
+        assert changed["status"] == "stale"
+        assert changed["changed_inputs"] == ["04_pixel/S/walk/12f/frames/000.png"]
+
+    assert main(["export-character-status", "--job", "hero/j"]) == 0
+    import json
+    assert json.loads(capsys.readouterr().out) == changed
+    mcp, _ = build(tmp_path)
+    assert text(call(mcp, "character_export_status", character="hero", job_id="j")) == changed
+
+
 def test_files_refuse_paths_outside_jobs(client):
     c, base = client
     (base.parent / "secret.txt").write_text("nope")
