@@ -11,13 +11,13 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 > Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
 
-## License — free for noncommercial use
+## License — free to use for games, including commercial games
 
-SpriteWaffle is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may use, modify, and redistribute SpriteWaffle for purposes permitted by that license, at no charge.
+SpriteWaffle is **free to use**, including to make and sell commercial games, sprite art, asset packs, and client work. You do **not** need to pay a license fee or share revenue for those uses.
 
-**Commercial use requires a separate written license** from the copyright holder. This includes using SpriteWaffle to produce assets for paid client work, commercial game development, or other commercial workflows. A public repository does not grant commercial-use permission.
+The software is **source-available under the [MIT License with Commons Clause v1.0](LICENSE.md)**. You may use, modify, and share SpriteWaffle under its terms, but **you may not resell SpriteWaffle itself, rebrand and sell substantially the same tool, or charge others for hosted access to substantially its functionality** without a separate written license from the copyright holder.
 
-The SpriteWaffle license applies only to the original project software—not to third-party dependencies, ComfyUI, model weights, imported artwork, or the assets you produce. Those may have separate rights or restrictions. Read [the licensing guide](docs/LICENSING.md) before commercial use.
+This restriction applies to monetizing **the tool**, not to games or original assets made using it. SpriteWaffle does not claim ownership of your creations; however, AI models, input images, and third-party tools may have separate terms. See [the licensing guide](docs/LICENSING.md). The combined Commons Clause license is source-available, **not OSI-approved open source**.
 
 ## Requirements
 
