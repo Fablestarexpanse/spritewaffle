@@ -11,13 +11,13 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 > Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
 
-## License — free to use for games, including commercial games
+## License — free for personal projects and game development
 
-SpriteWaffle is **free to use**, including to make and sell commercial games, sprite art, asset packs, and client work. You do **not** need to pay a license fee or share revenue for those uses.
+SpriteWaffle is **free to use for personal projects and for making games, including commercial games**. You can sell a game containing SpriteWaffle-created sprites, animations, terrain, and effects without owing SpriteWaffle royalties.
 
-The software is **source-available under the [MIT License with Commons Clause v1.0](LICENSE.md)**. You may use, modify, and share SpriteWaffle under its terms, but **you may not resell SpriteWaffle itself, rebrand and sell substantially the same tool, or charge others for hosted access to substantially its functionality** without a separate written license from the copyright holder.
+**You may not sell standalone artwork, sprite sheets, animation files, asset packs, or art-only commissions produced using SpriteWaffle.** You also may not resell, rebrand and sell, or operate a paid hosted version of SpriteWaffle without separate written permission.
 
-This restriction applies to monetizing **the tool**, not to games or original assets made using it. SpriteWaffle does not claim ownership of your creations; however, AI models, input images, and third-party tools may have separate terms. See [the licensing guide](docs/LICENSING.md). The combined Commons Clause license is source-available, **not OSI-approved open source**.
+SpriteWaffle uses the custom, source-available [SpriteWaffle Community Use License 1.0](LICENSE.md), not an OSI-approved open-source license. Read the [licensing guide](docs/LICENSING.md) for examples and exceptions. The license does not claim ownership of your outputs; its restrictions are conditions of using the software. Third-party AI models and reference materials may have separate terms.
 
 ## Requirements
 
