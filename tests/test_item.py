@@ -78,3 +78,28 @@ def test_fit_api(tmp_path):
         r = c.post("/api/jobs/knight/k1/variant", json={"item_job": "gold_cape/i1", "instruction": "wearing this"}).json()
         assert r["job_id"] == "k1_gold_cape"
         assert c.get("/api/jobs/gold_cape/i1").json()["fits"][0]["job_id"] == "k1_gold_cape"
+
+
+def test_base_body_is_plain_and_animates(tmp_path):
+    assert "grey sleeveless undershirt" in builder.BASE_BODY_WEAR and "empty hands" in builder.BASE_BODY_WEAR
+    assert "walk" in builder.asset("base_body")["actions"] and builder.actions_for("base_body") is builder.ACTIONS
+    j = Job.create("human", "b1", base=tmp_path, asset_type="base_body")
+    Image.fromarray(render(draw_sprite(0), canvas=(256, 256))).save(j.root / "01_anchor" / "anchor.png")
+    j.set_stage("anchor", "approved")
+    with pytest.raises(ValueError, match="base bodies get their facings"):   # from the turnaround sheet
+        generate.facings(j, GameProfile(name="p"), client=FakeComfy())
+
+
+def test_item_export_writes_front_and_back(tmp_path):
+    j = _item(tmp_path)
+    item.facings(j, GameProfile(name="p"), client=FakeComfy())
+    with pytest.raises(RuntimeError):
+        item.export(j, GameProfile(name="p"))                 # back not approved
+    j.set_stage("facings", "approved")
+    with TestClient(create_app(tmp_path, worker=False)) as c:
+        r = c.post("/api/jobs/gold_cape/i1/export_item").json()
+    out = j.root / "06_export" / "item"
+    assert (out / "gold_cape_front.png").exists() and (out / "gold_cape_back.png").exists() and (out / "gold_cape_item.json").exists()
+    h = r["views"]["front"]["size"][1]
+    assert 0.6 * GameProfile(name="p").sprite_height_px <= h <= 1.4 * GameProfile(name="p").sprite_height_px
+    assert j.read_meta()["stages"]["export:item"]["status"] == "done"

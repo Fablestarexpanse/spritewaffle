@@ -84,8 +84,8 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
             _run(client, job, "facing_multiref",
                  {"prompt": builder.anchor_from_hero(description, profile, asset_type), "ref_images": [ref],
                   "seed": _seed(seed)}, dest)
-        elif asset_type == "animal":
-            return _animal_turnaround(job, profile, description, client, seed)
+        elif asset_type in ("animal", "base_body"):
+            return _turnaround(job, profile, description, client, seed, asset_type)
         else:
             text = description
             if job.read_meta()["inputs"].get("prompt_writer") == "ai":
@@ -226,21 +226,26 @@ def _drifted(d: dict, max_color: float, height_tol: float) -> bool:
     return d["color"] > max_color or abs(d["height_ratio"] - 1) > height_tol
 
 
-def _animal_turnaround(job: Job, profile: GameProfile, description: str, client: ComfyClient,
-                       seed: int | None) -> Path:
-    """Animals: one turnaround sheet (5 views) cut apart with SAM 3 -> anchor (front) + facings,
-    W/SW/NW mirrored. Both stages are left in review."""
+def _turnaround(job: Job, profile: GameProfile, description: str, client: ComfyClient,
+                seed: int | None, asset_type: str = "animal") -> Path:
+    """Animals and base bodies: one turnaround sheet (5 views) cut apart with SAM 3 -> anchor (front)
+    + facings, W/SW/NW mirrored. Both stages are left in review. Measured 2026-11-21: a plain base
+    body drawn one facing at a time only turned its head (7 of 7 flagged as copies); on a sheet every
+    view turned."""
     from . import sheet_import
     sheet_dir = job.stage_dir("01_anchor") / "sheet"
     sheet_dir.mkdir(parents=True, exist_ok=True)
     seed = _seed(seed)
-    text = builder.turnaround(description, profile, "animal")
+    body = asset_type == "base_body"
+    text = builder.turnaround(f"{description.strip().rstrip('.')}, {builder.BASE_BODY_WEAR}" if body else description,
+                              profile, asset_type)
     prov = client.run_template("anchor_still", {"prompt": text, "seed": seed}, sheet_dir / ".tmp")
     sheet = sheet_dir / "turnaround.png"
     Image.open(prov["files"][0]).convert("RGB").save(sheet)
     job.log_provenance("01_anchor/sheet/turnaround.png", template="anchor_still", values={"prompt": text, "seed": seed})
-    job.update_inputs(description=description, asset_type="animal")
-    res = sheet_import.import_sheet(job, sheet, list(builder.TURNAROUND_VIEWS), subject="animal", client=client)
+    job.update_inputs(description=description, asset_type=asset_type)
+    res = sheet_import.import_sheet(job, sheet, list(builder.TURNAROUND_VIEWS), subject="character" if body else "animal",
+                                    client=client)
     job.set_stage("anchor", "review", source="turnaround sheet", seed=seed)
     job.set_stage("facings", "review", source="turnaround sheet", mirrored=res["mirrored"], missing=res["missing"])
     return job.root / "01_anchor" / "anchor.png"
@@ -257,8 +262,8 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
-    if job.read_meta()["inputs"].get("asset_type") == "animal" and not only:
-        raise ValueError("animals get their facings from the turnaround sheet: re-roll the anchor to draw a new "
+    if job.read_meta()["inputs"].get("asset_type") in ("animal", "base_body") and not only:
+        raise ValueError("animals and base bodies get their facings from the turnaround sheet: re-roll the anchor to draw a new "
                          "sheet (all views at once), or re-roll single facings with only=...")
     if job.read_meta()["inputs"].get("asset_type") == "item":   # equipment: front + back only
         from . import item

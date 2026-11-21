@@ -122,8 +122,9 @@ def describe(idea: str, asset_type: str = "character", image: Path | None = None
              client: ComfyClient | None = None, seed: int = 0) -> str:
     """Short idea (or an image of the asset) -> one concrete visual description."""
     client = client or ComfyClient()
-    task = (f"Describe this {asset_type}" + (f" ({idea})" if idea else "") + "." if image
-            else f"Describe this {asset_type}: {idea}.")
+    kind = asset_type.replace("_", " ")
+    task = (f"Describe this {kind}" + (f" ({idea})" if idea else "") + "." if image
+            else f"Describe this {kind}: {idea}.")
     keywords = [w for w in re.findall(r"[a-z]{4,}", (idea or "").lower()) if w not in {"with", "small", "large", "wearing"}]
 
     def one(s):

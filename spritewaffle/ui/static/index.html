@@ -191,7 +191,8 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
-               prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings"]};
+               prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings", "export"],
+               base_body: ["anchor", "facings", "animations", "export"]};
 const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
 
 let status = {profiles: [], actions: [], asset_types: []};
@@ -470,7 +471,7 @@ async function loadStatus() {
 
 // --- sidebar -----------------------------------------------------------------------------
 function fillNewForm() {
-  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t === "item" ? "item — armor, cape, weapon (front + back)" : t}</option>`).join("");
+  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t === "item" ? "item — armor, cape, weapon (front + back)" : t === "base_body" ? "base body — plain, to fit items on" : t}</option>`).join("");
   $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
   $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
 }
@@ -799,7 +800,18 @@ function showAnim(a) {
 function paneExport(j) {
   const groups = {};
   j.exports.forEach(e => (groups[e.group] ??= []).push(e));
-  const ch = j.stages["export:character"];
+  const ch = j.stages["export:character"], it = j.stages["export:item"];
+  if (j.asset_type === "item") {
+    $("#pane").innerHTML = `<section><h2>Export item ${badge(it?.status)}</h2>
+      <p class="muted" style="margin-top:0">The item on its own (inventory icon, ground drop, shop picture): front and back as sprites at this
+        profile's sprite height, one palette for both, plus a JSON listing the characters it was fitted on.</p>
+      <div class="row"><button class="primary" id="iGo" ${j.stages.facings?.status === "approved" ? "" : "disabled"}>Export item</button>
+        ${j.stages.facings?.status === "approved" ? "" : `<span class="warn">Approve the front and back (Facings) first.</span>`}</div>
+      ${it ? `<p class="muted">Last export: front ${(it.sizes?.front || []).join("×")}, back ${(it.sizes?.back || []).join("×")}${it.colours ? `, ${it.colours} colours` : ""}</p>` : ""}</section>
+      <section><h2>Files</h2>${(j.exports || []).map(f => `<p><a href="${esc(f.url)}">${esc(f.name)}</a> <span class="muted">${kb(f.size)}</span></p>`).join("") || `<p class="muted">Nothing exported yet.</p>`}</section>`;
+    $("#iGo").onclick = async () => { const r = await api(jobPath() + "/export_item", {}); toast(`Item exported: front ${r.views.front.size.join("×")}`); lastSig = ""; refreshAll(); };
+    return;
+  }
   $("#pane").innerHTML = `${j.asset_type !== "prop" ? `<section>
     <h2>Export character ${badge(ch?.status)}</h2>
     <p class="muted" style="margin-top:0">One .aseprite with a tag per animation (Unity's Aseprite Importer turns each tag into a clip), plus atlas pages:

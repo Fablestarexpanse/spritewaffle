@@ -53,12 +53,22 @@ ASSET_TYPES = {
              "pose": "Resting upright on its base, {view}, the whole object visible.",
              "actions": ["idle"]},
     "effect": {"subject": "Game visual effect sprite", "pose": "{view}", "actions": []},   # see prompts/effects.py
+    # a plain body that equipment items are fitted onto (core/item.py); animates like a character
+    "base_body": {"subject": "Full-body video game character sprite, a plain base body for an equipment system",
+                  "pose": "Standing in a relaxed idle pose, {view}, arms slightly away from the body, feet slightly apart.",
+                  "actions": ["idle", "walk", "run", "attack", "jump"]},
     # equipment for paper-doll games: drawn on its own, front (anchor) and back (core/item.py), then
     # fitted onto any base character (Ronan 2026-11-21)
     "item": {"subject": "Single video game equipment item sprite, shown on its own and not worn by anyone",
              "pose": "Upright, {view}, shaped as if worn by an invisible body, the whole item visible.",
              "actions": []},
 }
+
+
+# What a base body wears. Measured 2026-11-21: "only plain undergarments" on a turnaround sheet came
+# out as bare mannequin bodies (2 of 2); named garments with a colour were drawn (2 of 2).
+BASE_BODY_WEAR = ("dressed in a plain grey sleeveless undershirt, plain grey knee-length shorts and simple brown cloth "
+                  "shoes, bare head, no armor, no helmet, no cape, no belt, no weapon, no accessories, empty hands")
 
 
 def asset(asset_type: str) -> dict:

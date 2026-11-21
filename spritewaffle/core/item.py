@@ -68,3 +68,43 @@ def fit(item_job: Job, base: Job, how: str = "wearing this", job_id: str | None 
         fits = meta["inputs"].setdefault("fits", [])
         fits.append({"character": v.read_meta()["character"], "job_id": v.root.name, "base": base.root.name})
     return v
+
+
+def export(job: Job, profile: GameProfile) -> dict:
+    """The original item as game sprites: 06_export/item/<name>_front.png and _back.png, made like a
+    facing (pixel art at the profile's sprite height, one palette for both; smooth styles scaled)."""
+    import numpy as np
+
+    from ..pixel import chroma
+    from ..pixel.pipeline import PixelParams, pixelize
+    if not is_item(job):
+        raise ValueError(f"{job.root.name} is not an item job")
+    job.require_approved("facings")
+    f = job.root / "02_facings"
+    rgbs = [np.array(Image.open(f / f"{v}.png").convert("RGB")) for v in VIEWS]
+    st = styles.get(styles.of_job(job))
+    if st["post"] == "smooth":
+        from ..pixel import smooth
+        arts, _ = smooth.process(rgbs, profile.sprite_height_px * st["scale"], despill=profile.despill)
+        colours = None
+    else:
+        ys = np.where((chroma.key(rgbs[0])[..., 3] > 0).any(1))[0]
+        size = profile.pixel_size or max(1, round((ys[-1] - ys[0] + 1) / profile.sprite_height_px))
+        res = pixelize(rgbs, PixelParams(palette=profile.palette if isinstance(profile.palette, list) else profile.palette_size,
+                                         pixel_size=size, outline=profile.outline, despill=profile.despill))
+        arts, colours = [res.rgba(i) for i in range(len(VIEWS))], len(res.palette)
+    out = job.stage_dir("06_export") / "item"
+    out.mkdir(parents=True, exist_ok=True)
+    name = job.read_meta()["character"]
+    files = {}
+    for v, label, art in zip(VIEWS, ("front", "back"), arts):
+        ys, xs = np.where(art[..., 3] > 0)
+        crop = art[ys.min():ys.max() + 1, xs.min():xs.max() + 1] if len(ys) else art
+        p = out / f"{name}_{label}.png"
+        Image.fromarray(crop).save(p)
+        files[label] = {"file": p.name, "size": [int(crop.shape[1]), int(crop.shape[0])]}
+    info = {"item": name, "style": st["name"], "colours": colours, "views": files,
+            "fits": job.read_meta()["inputs"].get("fits") or []}
+    (out / f"{name}_item.json").write_text(json.dumps(info, indent=2))
+    job.set_stage("export:item", "done", colours=colours, sizes={k: v["size"] for k, v in files.items()})
+    return info

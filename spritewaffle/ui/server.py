@@ -583,6 +583,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                     **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
 
+    @app.post("/api/jobs/{char}/{jid}/export_item")
+    def export_item(char: str, jid: str):
+        from ..core import item
+        j = job_or_404(char, jid)
+        try:
+            return item.export(j, resolve(job_profile(j)))
+        except (RuntimeError, ValueError, FileNotFoundError) as e:
+            bad(e)
+
     @app.post("/api/jobs/{char}/{jid}/showcase")
     def showcase(char: str, jid: str, body: dict = Body(default={})):
         from ..export import showcase as sc

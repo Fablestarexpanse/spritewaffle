@@ -155,6 +155,10 @@ how it's used ("wearing this"). The worn variant gets all 8 facings; the item
 job keeps its original front/back and lists every character it was fitted on. Different races or
 bodies are just different base characters.
 
+For a clean body to fit items on: New → type `base body`. It's drawn as a turnaround sheet in plain
+grey undershirt and shorts (all 8 views at once, like animals) and animates like any character. An
+item's **Export** tab saves its front and back as game sprites (`06_export/item/`).
+
 ### Animals (four-legged)
 
 New → type `animal`. The anchor step draws one **turnaround sheet** (front, side, back and two
