@@ -17,6 +17,7 @@ from ..frames import layout
 from ..pixel import chroma
 from ..pixel.color import srgb_to_oklab
 from ..prompts import builder, styles
+from . import takes
 from .job import Job
 from .profile import GameProfile
 
@@ -32,6 +33,7 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> 
     prov = client.run_template(slot, values, tmp)
     src = Path(prov["files"][0])
     dest.parent.mkdir(parents=True, exist_ok=True)
+    takes.stash(job, dest)                         # a re-roll keeps the take it replaces
     flatten_background(Image.open(src).convert("RGB"), dest)
     shutil.rmtree(tmp, ignore_errors=True)
     prov["files"] = [str(dest.relative_to(job.root))]
@@ -64,6 +66,7 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
     builder.asset(asset_type)
     dest = job.stage_dir("01_anchor") / "anchor.png"
     if image:
+        takes.stash(job, dest)
         flatten_background(Image.open(image).convert("RGB"), dest)
         job.log_provenance(str(dest.relative_to(job.root)), source=str(image))
     else:
@@ -236,6 +239,7 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             pd = report["facings"].get(partner)
             if partner and pd and _drifted(d, max_color, height_tol) and not _drifted(pd, max_color, height_tol):
                 img = Image.open(out / f"{partner}.png")
+                takes.stash(job, out / f"{f}.png")         # the drifted render stays available
                 img.transpose(Image.FLIP_LEFT_RIGHT).save(out / f"{f}.png")
                 report["mirrored"][f] = {"from": partner, "drift_before": d}
                 report["facings"][f] = drift(a, _rgba(out / f"{f}.png"))
@@ -262,6 +266,7 @@ def _run_video(client: ComfyClient, job: Job, slot: str, values: dict, dest: Pat
     vids = [Path(f) for f in prov["files"] if Path(f).suffix.lower() in (".mp4", ".webm", ".mov")]
     if not vids:
         raise RuntimeError(f"{slot} produced no video: {prov['files']}")
+    takes.stash(job, dest)
     dest.unlink(missing_ok=True)
     shutil.move(str(vids[0]), dest)
     shutil.rmtree(tmp, ignore_errors=True)

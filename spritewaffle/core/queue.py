@@ -47,6 +47,11 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+GPU_RETRIES = 1          # a failed render is tried once more, with a new seed
+# Errors that a second try can't fix (bad input, missing file, wrong setting): fail at once.
+NO_RETRY = (ValueError, KeyError, FileNotFoundError, PermissionError, NotImplementedError)
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -350,8 +355,16 @@ class Worker:
             result = fn(job, resolve(t.get("profile")), t["args"])
             self.q.update(t["id"], status="done", finished=_now(), result=result)
         except Exception as e:                               # a failed task never kills the worker
-            self.q.update(t["id"], status="failed", finished=_now(),
-                          error=f"{type(e).__name__}: {e}", trace=traceback.format_exc()[-2000:])
+            err = f"{type(e).__name__}: {e}"
+            attempt = t.get("attempt", 1)
+            if t["resource"] == "gpu" and attempt <= GPU_RETRIES and not isinstance(e, NO_RETRY):
+                args = {k: v for k, v in t["args"].items() if k != "seed"}      # new seed on the retry
+                self.q.update(t["id"], status="queued", started=None, attempt=attempt + 1, args=args,
+                              error=f"attempt {attempt} failed, retrying with a new seed: {err}",
+                              trace=traceback.format_exc()[-2000:])
+                return
+            self.q.update(t["id"], status="failed", finished=_now(), error=err,
+                          trace=traceback.format_exc()[-2000:])
 
     def tick(self) -> int:
         """Start every runnable task the limits allow. Returns the number started."""

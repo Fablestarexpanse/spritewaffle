@@ -7,10 +7,10 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 
 | # | Note | Status | What's there / what's needed |
 |---|---|---|---|
-| 15 | "Can't get out of view when enlarging facing images" | **bug, confirmed** | Anchor/facing/contact images open with `target="_blank"`: a bare image tab, no way back in an app window. Needs an in-page viewer (close button, Esc, click outside). |
-| 14 | "Re-roll originals should still be there in case I decide I want it" | **new** | Re-roll overwrites `anchor.png` / `<facing>.png` / clips in place (audit #8). Needs: keep every take (`takes/` folder), show them, "use this one". |
-| 6 | "Show what's currently running in queue" | **part** | Queue panel now lists running tasks first; header says "Working (1)". Needs: the running task's job/stage/elapsed in the header, visible without opening the panel. |
-| 4 | "If animation fails does it re-run?" | **part** | A frozen clip is re-rendered automatically (FL2VA → I2V). Any other failure stops at *failed* and waits for **Retry**. Needs: optional auto-retry (once, new seed) for GPU stages, and QA-fail → re-roll option. |
+| 15 | "Can't get out of view when enlarging facing images" | **done** 2026-11-20 | Anchor/facing/contact images open with `target="_blank"`: a bare image tab, no way back in an app window. Needs an in-page viewer (close button, Esc, click outside). |
+| 14 | "Re-roll originals should still be there in case I decide I want it" | **done** 2026-11-20 | Re-roll overwrites `anchor.png` / `<facing>.png` / clips in place (audit #8). Needs: keep every take (`takes/` folder), show them, "use this one". |
+| 6 | "Show what's currently running in queue" | **done** 2026-11-20 | Queue panel now lists running tasks first; header says "Working (1)". Needs: the running task's job/stage/elapsed in the header, visible without opening the panel. |
+| 4 | "If animation fails does it re-run?" | **done** 2026-11-20 (QA-fail re-roll still open) | A frozen clip is re-rendered automatically (FL2VA → I2V). Any other failure stops at *failed* and waits for **Retry**. Needs: optional auto-retry (once, new seed) for GPU stages, and QA-fail → re-roll option. |
 
 ## B. Control (medium)
 

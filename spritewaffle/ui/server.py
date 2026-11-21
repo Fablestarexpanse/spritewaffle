@@ -115,8 +115,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         tasks = queue.list()
         counts = {s: sum(t["status"] == s for t in tasks) for s in ("queued", "running", "failed")}
         w = state.get("worker")
+        def short(t: dict) -> dict:
+            parts = Path(str(t["job"])).parts[-2:]
+            a = t.get("args") or {}
+            return {"id": t["id"], "job": "/".join(parts), "stage": t["stage"], "facing": a.get("facing"),
+                    "action": a.get("action"), "started": t.get("started"), "attempt": t.get("attempt", 1)}
+        running = [short(t) for t in tasks if t["status"] == "running"]
         return {"version": __version__, "comfy": {"ok": c["ok"], "detail": c["detail"]},
-                "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts,
+                "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts, "running": running,
+                "now": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "jobs": str(base), "profiles": list_profiles(), "actions": sorted(builder.ACTIONS),
                 "asset_types": sorted(builder.ASSET_TYPES),
                 "styles": [{"name": k, "label": v["label"]} for k, v in styles.STYLES.items()]}
@@ -188,7 +195,17 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         j = job_or_404(char, jid)
         meta = j.read_meta()
         fr = read_json(j.root / "02_facings" / "facings_report.json") or {}
+        def takes_of(rel: str, still: bool = True) -> list[dict]:
+            from ..core import takes
+            out = []
+            for t in takes.list_takes(j, rel):
+                p = (j.root / rel).parent / "takes" / t["take"]
+                out.append({"take": t["take"], "kept": t.get("kept"), "seed": (t.get("values") or {}).get("seed"),
+                            "url": url(p), "thumb": crop(p) if still else None})
+            return out
+
         facings = [{"facing": f, "image": crop(j.root / "02_facings" / f"{f}.png"),
+                    "takes": takes_of(f"02_facings/{f}.png"),
                     "full": url(j.root / "02_facings" / f"{f}.png"),
                     "drift": fr.get("facings", {}).get(f), "mirrored": f in fr.get("mirrored", {})} for f in ORDER]
         actions = []
@@ -204,7 +221,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             actions.append({"facing": facing, "action": action,
                             "status": meta["stages"].get(f"action:{facing}/{action}", {}).get("status"),
                             "transition": url(d / "transition.png"), "contact": url(d / "contact_sheet.png"),
-                            "has_clip": (d / "raw.mp4").exists(),
+                            "has_clip": (d / "raw.mp4").exists(), "clip": url(d / "raw.mp4"),
+                            "takes": takes_of(f"03_actions/{facing}/{action}/raw.mp4", still=False),
                             "report": read_json(d / "action_report.json"), "sets": sets})
         exp = j.root / "06_export"
         st = exp / "stack"
@@ -218,6 +236,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "style": meta["inputs"].get("style") or "pixel",
                 "stages": meta["stages"], "anchor": crop(j.root / "01_anchor" / "anchor.png"),
                 "anchor_full": url(j.root / "01_anchor" / "anchor.png"),
+                "anchor_takes": takes_of("01_anchor/anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals")},
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
@@ -275,6 +294,30 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, FileNotFoundError, OSError) as e:
             bad(e)
         return palette_info(j) or {}
+
+    @app.post("/api/jobs/{char}/{jid}/restore")
+    def restore_take(char: str, jid: str, body: dict = Body(...)):
+        """Put an earlier take back (the current one is kept as a take). A restored clip is
+        re-extracted and re-processed through the queue; stills go back to review."""
+        from ..core import takes
+        j = job_or_404(char, jid)
+        rel, take = str(body.get("file", "")), str(body.get("take", ""))
+        if ".." in rel or ".." in take:
+            raise HTTPException(404)
+        try:
+            what = takes.restore(j, rel, take)
+        except (FileNotFoundError, ValueError) as e:
+            bad(e)
+        tasks = []
+        if what["stage"] == "action":
+            base = {"facing": what["facing"], "action": what["action"]}
+            prev = []
+            for st, args in (("extract", {**base, "video": str(j.root / rel)}), ("select", base), ("pixelize", base),
+                             ("qa", base), ("export", base)):
+                t = queue.submit(j.root, st, dict(args), job_profile(j), after=prev)
+                prev = [t["id"]]
+                tasks.append(t["id"])
+        return what | {"tasks": tasks}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):

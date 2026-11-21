@@ -90,9 +90,12 @@ def import_sheet(job: Job, sheet: str | Path, views: list[str], subject: str = "
         for target, src in MIRROR.items():
             if target not in placed and src in placed and target in ("W", "SW", "NW"):
                 placed[target] = np.ascontiguousarray(placed[src][:, ::-1])
+    from . import takes
+    takes.stash(job, job.stage_dir("01_anchor") / "anchor.png")
     Image.fromarray(placed["S"]).save(job.stage_dir("01_anchor") / "anchor.png")
     fdir = job.stage_dir("02_facings")
     for f, im in placed.items():
+        takes.stash(job, fdir / f"{f}.png")
         Image.fromarray(im).save(fdir / f"{f}.png")
     mirrored = sorted(set(placed) - set(views))
     missing = [f for f in VIEW if f not in placed]
