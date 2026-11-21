@@ -64,8 +64,9 @@ def list_all(profiles_dir: Path | None = None) -> list[str]:
 
 def resolve(name_or_path: str | None, profiles_dir: Path | None = None) -> GameProfile:
     """Load a profile by file path or by name from profiles/; default profile when None."""
-    if not name_or_path:
-        return GameProfile(name="default")
+    if not name_or_path or name_or_path == "default" and not (
+            (Path(profiles_dir) if profiles_dir else paths.profiles()) / "default.json").exists():
+        return GameProfile(name="default")          # the built-in one `profile list` shows
     p = Path(name_or_path)
     if p.suffix == ".json" and p.exists():
         return GameProfile.load(p)

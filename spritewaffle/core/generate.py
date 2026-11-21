@@ -222,7 +222,9 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     a = _rgba(a_path)
     asym = layout.asymmetry(a)
     if asym["asymmetric"]:
-        report["warnings"].append(f"anchor is asymmetric ({asym}); mirrored facings will flip that detail")
+        report["warnings"].append((f"anchor is asymmetric (silhouette {asym['silhouette']:.2f}, colour {asym['color']:.2f}): "
+                                  "mirrored facings will flip that detail (a bag or weapon swaps sides); "
+                                  "untick mirroring on the Animations tab to render W/NW/SW instead"))
     for f in want:
         p = out / f"{f}.png"
         if p.exists():

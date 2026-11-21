@@ -499,9 +499,7 @@ function renderHome() {
 
 // --- queue + library ---------------------------------------------------------------------
 async function loadQueue() {
-  let ts = await api("/api/queue");
-  if (qFilter === "active") ts = ts.filter(t => ["queued", "running"].includes(t.status));
-  if (qFilter === "failed") ts = ts.filter(t => t.status === "failed");
+  const ts = await api("/api/queue?status=" + qFilter);
   $("#tasks").innerHTML = ts.map(t => {
     const [c, j] = t.job.split(/[\\/]/).slice(-2);
     const args = Object.entries(t.args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" ");
@@ -539,10 +537,13 @@ async function loadJob() {
   try { j = await api(jobPath()); } catch { current = null; location.hash = ""; return; }
   const sig = JSON.stringify(j) + tab;
   if (sig === lastSig) return;                 // nothing changed: keep typed text and scroll position
-  const keep = {desc: $("#desc")?.value, path: $("#importPath")?.value, scroll: $("main").scrollTop};
+  const same = job && job.character === j.character && job.job_id === j.job_id;   // typed text belongs to ONE job
+  const keep = same ? {desc: $("#desc")?.value, path: $("#importPath")?.value, sheet: $("#sheetPath")?.value,
+                       scroll: $("main").scrollTop} : {scroll: 0};
   job = j; lastSig = sig; renderJob();
   if (keep.desc !== undefined && $("#desc") && keep.desc !== (j.inputs.description || "")) $("#desc").value = keep.desc;
   if (keep.path && $("#importPath")) $("#importPath").value = keep.path;
+  if (keep.sheet && $("#sheetPath")) $("#sheetPath").value = keep.sheet;
   $("main").scrollTop = keep.scroll;
 }
 async function refreshAll() { await loadStatus(); await Promise.all([loadJobs(), loadJob(), loadQueue()]); }

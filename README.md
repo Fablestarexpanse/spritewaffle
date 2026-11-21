@@ -80,7 +80,7 @@ its own queue worker, so nothing else needs to be running.
 
 ### Art styles
 
-Each job has a style (header **Style**, or `spritewaffle style <job> <style>`): **Pixel art** (default),
+Each job has a style (header **Style**, or `spritewaffle style --job <job> <style>`): **Pixel art** (default),
 **Hand-painted**, **Anime cel**, **Comic ink**. The style changes the prompt wording and the
 processing: pixel art goes through the pixelizer (grid, shared palette); the others are keyed,
 despilled and scaled smoothly with soft edges at 4x the profile size (a 64 px profile cell becomes
@@ -90,7 +90,7 @@ entry in `spritewaffle/prompts/styles.py`.
 
 ### AI prompt writer (optional)
 
-Header **Prompts → AI** (or `spritewaffle writer <job> ai`): a small local model (Qwen3-VL 4B, run
+Header **Prompts → AI** (or `spritewaffle writer --job <job> ai`): a small local model (Qwen3-VL 4B, run
 by ComfyUI) looks at your character and writes its description and per-action motion text, so a
 goblin swings *its club* and new actions like `cast spell` work. Every reply is checked and falls
 back to the fixed template wording; the rules (green background, framing, in-place motion) are
@@ -137,7 +137,7 @@ spritewaffle export-character --job knight/k1
 `approve`, `export_character` and `stack`. For Claude Code:
 
 ```powershell
-claude mcp add spritewaffle -- "C:\path	o\spritewaffle\.venv\Scripts\spritewaffle.exe" mcp
+claude mcp add spritewaffle -- "C:\path\to\spritewaffle\.venv\Scripts\spritewaffle.exe" mcp
 ```
 
 The agent skill in [`skill/spritewaffle/SKILL.md`](skill/spritewaffle/SKILL.md) teaches the

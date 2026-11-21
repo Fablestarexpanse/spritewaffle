@@ -58,8 +58,10 @@ def _layer_chunk(name: str) -> bytes:
 
 def _tags_chunk(tags) -> bytes:
     data = struct.pack("<H8x", len(tags))
-    for name, start, end, direction in tags:
-        data += struct.pack("<HHBH6x3Bx", start, end, DIRECTIONS[direction], 0, 0, 0, 0) + _string(name)
+    for tag in tags:
+        name, start, end, direction = tag[:4]
+        repeat = tag[4] if len(tag) > 4 else 0            # 0 = loop forever, 1 = play once (one-shot)
+        data += struct.pack("<HHBH6x3Bx", start, end, DIRECTIONS[direction], repeat, 0, 0, 0) + _string(name)
     return _chunk(CHUNK_TAGS, data)
 
 
@@ -123,6 +125,7 @@ class AseDoc:
     palette: np.ndarray | None = None
     layers: list = field(default_factory=list)
     tags: list = field(default_factory=list)
+    repeats: list = field(default_factory=list)         # per tag: 0 = loop forever, N = play N times
 
 
 def _read_string(b: bytes, o: int) -> tuple[str, int]:
@@ -167,9 +170,10 @@ def read(path) -> AseDoc:
                 ntags = struct.unpack_from("<H", d, 0)[0]
                 p = 10
                 for _ in range(ntags):
-                    start, end, direction = struct.unpack_from("<HHB", d, p)
+                    start, end, direction, repeat = struct.unpack_from("<HHBH", d, p)
                     name, p = _read_string(d, p + 17)
                     doc.tags.append((name, start, end, _DIR_NAMES[direction]))
+                    doc.repeats.append(repeat)
             elif ctype == CHUNK_CEL:
                 _, x, y, _, ctype2 = struct.unpack_from("<HhhBH", d, 0)
                 if ctype2 != 2:

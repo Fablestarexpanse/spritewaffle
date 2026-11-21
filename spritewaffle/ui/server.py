@@ -311,10 +311,14 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
 
     # --- queue ----------------------------------------------------------------------------
     @app.get("/api/queue")
-    def queue_list(limit: int = 60):
-        ts = queue.list()
+    def queue_list(limit: int = 60, status: str = "all"):
+        """Running tasks first, then the rest newest first. Filtered here, BEFORE the limit, so a
+        running task or an old failure is never cut off by newer queued ones."""
+        want = {"active": ("queued", "running"), "failed": ("failed",)}.get(status)
+        ts = [t for t in queue.list() if want is None or t["status"] in want]
+        ts = [t for t in ts if t["status"] == "running"] + [t for t in ts[::-1] if t["status"] != "running"]
         return [{k: t.get(k) for k in ("id", "status", "resource", "stage", "job", "args", "started",
-                                       "finished", "error", "after")} for t in ts[-limit:]][::-1]
+                                       "finished", "error", "after")} for t in ts[:limit]]
 
     @app.post("/api/queue/{tid}/cancel")
     def cancel(tid: str):

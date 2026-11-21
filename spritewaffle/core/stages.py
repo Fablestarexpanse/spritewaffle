@@ -191,7 +191,7 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
             files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop,
                                                                     preview_scale=4 if indexed else 1).items() if k != "frames"})
         if fmt in ("aseprite", "both"):
-            tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward")]
+            tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward", 0 if loop else 1)]
             if indexed:
                 ind = np.load(sd / "indices.npy")
                 p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags)

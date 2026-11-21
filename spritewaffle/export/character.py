@@ -64,7 +64,7 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
         fps = fps_for(a["action"]) * (n // 12 if n > 12 else 1)       # 24f plays twice as fast
         frames += list(a["cells"])
         durations += [round(1000 / fps)] * n
-        tags.append((a["name"], start, start + n - 1, "forward"))
+        tags.append((a["name"], start, start + n - 1, "forward", 0 if a["loop"] else 1))
         meta_anims.append({"name": a["name"], "facing": a["facing"], "action": a["action"], "frames": n,
                            "fps": fps, "loop": a["loop"], "pivot": feet_pivot(a["cells"]),
                            "row": len(meta_anims), "first": start})

@@ -33,15 +33,22 @@ Typical start:  spritewaffle doctor   then   spritewaffle ui
 
 # --- helpers ----------------------------------------------------------------------------------
 
-def _job(path: str) -> Job:
-    """A job folder; `<character>/<job_id>` is resolved under the jobs folder, created if new."""
+def _job(path: str, create: bool = False) -> Job:
+    """A job folder; `<character>/<job_id>` is resolved under the jobs folder. Only commands that
+    start a job pass create=True; everywhere else a typo is an error, not a new empty job."""
     p = Path(path)
     if not p.is_absolute() and not (p / "job.json").exists() and not p.parts[0] == paths.jobs().name:
         p = paths.jobs() / p
     if (p / "job.json").exists():
         return Job.open(p)
-    if len(p.parts) >= 2:
+    if len(p.parts) >= 2 and create:
         return Job.create(p.parent.name, p.name, base=p.parent.parent)
+    if len(p.parts) >= 2:
+        import difflib
+        known = [f"{d.parent.name}/{d.name}" for d in paths.jobs().glob("*/*") if (d / "job.json").exists()]
+        near = difflib.get_close_matches(f"{p.parent.name}/{p.name}", known, n=3, cutoff=0.6)
+        hint = f"; did you mean {', '.join(near)}?" if near else " (start one with `spritewaffle anchor --job ...`)"
+        raise FileNotFoundError(f"no such job: {path}{hint}")
     raise SystemExit(f"error: --job must be <character>/<job_id> (got {path})")
 
 
@@ -122,7 +129,7 @@ def cmd_comfy_check(a):
 
 def cmd_anchor(a):
     from .core import generate
-    job = _job(a.job)
+    job = _job(a.job, create=True)
     if a.profile:
         job.update_inputs(profile=a.profile)
     print(generate.anchor(job, _profile(a, job), description=a.describe, image=a.image, seed=a.seed,
@@ -131,7 +138,7 @@ def cmd_anchor(a):
 
 def cmd_sheet_import(a):
     from .core import sheet_import
-    job = _job(a.job)
+    job = _job(a.job, create=True)
     if a.style:
         from .prompts import styles
         job.update_inputs(style=styles.get(a.style)["name"])
@@ -277,7 +284,7 @@ def cmd_run(a):
 
 
 def cmd_extract(a):
-    _print(stages.extract(_job(a.job), a.video, a.facing, a.action))
+    _print(stages.extract(_job(a.job, create=True), a.video, a.facing, a.action))
 
 
 def cmd_sheet(a):
