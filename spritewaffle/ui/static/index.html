@@ -17,14 +17,17 @@
   [hidden] { display: none !important; }
   html, body { height: 100%; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text);
-         display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 260px 1fr auto; grid-template-areas: "top top top" "side main queue"; }
+         display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 260px 1fr; grid-template-areas: "top top" "side main"; }
   header { grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
   header h1 { font-size: 17px; margin: 0 12px 0 0; letter-spacing: .2px; } header h1 b { color: var(--accent); }
   header .ver { color: var(--muted); font-size: 12px; margin-right: auto; }
   aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); }
   main { grid-area: main; overflow: auto; padding: 18px 22px 40px; }
-  #queue { grid-area: queue; width: 340px; border-left: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); }
+  /* the queue is a drawer over the right edge (audit 2026-11-21: a fixed 340 px column pushed the job header off-screen) */
+  #queue { position: fixed; top: 52px; right: 0; bottom: 0; width: min(380px, 100vw); border-left: 1px solid var(--line); overflow: auto;
+           padding: 12px; background: var(--panel); box-shadow: var(--shadow); z-index: 20; }
   #queue.hidden { display: none; }
+  button.pill { cursor: pointer; font: inherit; font-size: 12px; color: var(--text); }
   h2 { font-size: 15px; margin: 0 0 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   h3 { font-size: 12px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
   section, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
@@ -67,7 +70,17 @@
   .job .needs { color: var(--warn, #c80); font-size: 11px; }
   .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: 11px; }
   /* job header + tabs */
-  .jobhead { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .jobhead { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .jobsettings { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 10px;
+                 background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .job.sub { margin-left: 18px; grid-template-columns: 32px 1fr; } .job.sub img, .job.sub .noimg { width: 32px; height: 32px; }
+  .types { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .types label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px; border: 1px solid var(--line);
+                 border-radius: var(--radius); background: var(--panel2); color: var(--text); font-size: 13px; cursor: pointer; }
+  .types label:has(input:checked) { border-color: var(--accent); } .types input { display: none; }
+  .types small { color: var(--muted); font-size: 11px; }
+  .frontback { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px; }
+  .animrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 900px; }
   .jobhead img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: var(--panel); border-radius: 6px; border: 1px solid var(--line); }
   .jobhead h2 { margin: 0; font-size: 19px; }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
@@ -129,9 +142,9 @@
   .empty h2 { justify-content: center; font-size: 20px; color: var(--text); }
   main, aside, #queue { min-width: 0; }
   @media (max-width: 1100px) {
-    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; grid-template-areas: "top" "side" "main" "queue"; height: auto; }
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "side" "main"; height: auto; }
     header { flex-wrap: wrap; padding: 8px 16px; row-gap: 6px; } header .ver { margin-right: 0; } header h1 { margin-right: auto; }
-    aside { max-height: 260px; } #queue { width: auto; } .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    aside { max-height: 260px; } .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     main { padding: 14px 16px 30px; }
     .jobhead { flex-wrap: wrap; } .tabs { overflow-x: auto; } .tab { white-space: nowrap; }
     #pane section > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
@@ -143,9 +156,8 @@
   <h1><b>Sprite</b>Waffle</h1><span class="ver" id="ver"></span>
   <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
   <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
-  <span class="pill" id="pQueue">Queue</span>
+  <button class="pill" id="pQueue" title="Show or hide the queue">Queue</button>
   <button id="btnLib">Motion library</button>
-  <button id="btnQueue">Queue</button>
 </header>
 
 <aside>
@@ -153,27 +165,20 @@
     <input id="search" placeholder="Search jobs" style="flex:1">
     <button class="primary" id="btnNew">New</button>
   </div>
-  <div class="newjob" id="newForm" hidden>
-    <input id="nName" placeholder="name, e.g. knight">
-    <select id="nType"></select>
-    <select id="nStyle"></select>
-    <select id="nProfile"></select>
-    <div class="row" style="margin:0"><button class="primary" id="nCreate">Create job</button><button class="ghost" id="nCancel">Cancel</button></div>
-  </div>
   <div class="jfilters">
     <select id="jfSort" title="Sort"><option value="recent">Recent</option><option value="name">Name</option>
       <option value="todo">Least done</option><option value="done">Most done</option></select>
     <select id="jfType" title="Type"><option value="">All types</option></select>
     <select id="jfStyle" title="Style"><option value="">All styles</option></select>
     <label title="Only jobs waiting for you: something to review, or a clip that failed QA"><input type="checkbox" id="jfNeeds"> Needs me</label>
-    <label title="Group jobs under their character"><input type="checkbox" id="jfGroup"> Group</label>
+    <label title="Group jobs by kind: characters, base bodies, items, animals, effects, props"><input type="checkbox" id="jfGroup"> Group</label>
   </div>
   <div id="jobs"></div>
 </aside>
 
 <main id="main"></main>
 
-<div id="queue">
+<div id="queue" class="hidden">
   <h2>Queue <span class="spacer"></span>
     <span class="seg" id="qFilter"><button data-f="all" class="on">All</button><button data-f="active">Active</button><button data-f="failed">Failed</button></span></h2>
   <div class="row" style="margin:0 0 6px"><button class="ghost" id="qClear">Clear finished</button></div>
@@ -191,8 +196,21 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
+               animal: ["anchor", "facings", "animations", "export"],
                prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings", "export"],
                base_body: ["anchor", "facings", "animations", "export"]};
+// What each kind of job is, in the words the UI shows (never the raw id: audit #11).
+const TYPES = {
+  character: {label: "character", group: "Characters", help: "anchor → 8 facings → animations → .aseprite"},
+  base_body: {label: "base body", group: "Base bodies", help: "plain body to fit items on; animates like a character"},
+  item: {label: "item", group: "Items", help: "armor, cape, weapon: front + back, then fit it on a character"},
+  animal: {label: "animal", group: "Animals", help: "four legs: all views from one turnaround sheet"},
+  creature: {label: "creature", group: "Characters", help: "monster or creature, built like a character"},
+  effect: {label: "effect", group: "Effects", help: "spell, fire, explosion: one looping flipbook"},
+  prop: {label: "prop", group: "Props", help: "sprite stack: slices you can spin"},
+};
+const typeLabel = t => (TYPES[t] || {}).label || String(t || "").replace(/_/g, " ");
+const SHEET_TYPES = ["animal", "base_body"];        // facings come from one turnaround sheet
 const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
 
 let status = {profiles: [], actions: [], asset_types: []};
@@ -466,14 +484,35 @@ async function loadStatus() {
     : "Worker idle";
   $("#pWorker").title = (status.running || []).map(x => `${x.job} · ${x.stage} ${x.action || ""} ${x.facing || ""}${x.attempt > 1 ? ` (attempt ${x.attempt})` : ""}`).join("\n");
   const q = status.queue;
-  $("#pQueue").innerHTML = `Queue ${q.queued} waiting${q.failed ? ` · <span style="color:var(--bad)">${q.failed} failed</span>` : ""}`;
+  $("#pQueue").innerHTML = `Queue: ${q.running ? `${q.running} running · ` : ""}${q.queued} waiting${q.failed ? ` · <span style="color:var(--bad)">${q.failed} failed</span>` : ""}`;
+  if (q.failed > (loadStatus.failed ?? q.failed)) $("#queue").classList.remove("hidden");   // a task just failed: show it
+  loadStatus.failed = q.failed;
 }
 
 // --- sidebar -----------------------------------------------------------------------------
-function fillNewForm() {
-  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t === "item" ? "item — armor, cape, weapon (front + back)" : t === "base_body" ? "base body — plain, to fit items on" : t}</option>`).join("");
-  $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
-  $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
+function showNew(type = "character") {
+  const d = $("#dlg");
+  const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop"].filter(t => status.asset_types.includes(t));
+  d.innerHTML = `<h2>New job <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
+    <div class="types">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
+      <b>${esc(typeLabel(t))}</b><small>${esc(TYPES[t]?.help || "")}</small></label>`).join("")}</div>
+    <div class="row" style="margin-top:14px">
+      <label class="field" style="flex:1;min-width:200px"><span>Name</span><input id="nName" placeholder="e.g. knight, red_cape, human"></label>
+      <label class="field"><span>Style</span><select id="nStyle">${status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("")}</select></label>
+      <label class="field"><span>Profile (sizes)</span><select id="nProfile"><option value="">default</option>${status.profiles.map(p => `<option>${esc(p)}</option>`).join("")}</select></label>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="primary" id="nCreate">Create job</button></div>`;
+  $("#nClose").onclick = () => d.close();
+  const create = async () => {
+    const name = $("#nName").value.trim(), t = $('input[name="nType"]:checked').value;
+    if (!name) return toast("Give the job a name", true);
+    const r = await api("/api/jobs", {character: name, asset_type: t, style: $("#nStyle").value, profile: $("#nProfile").value || null});
+    d.close();
+    location.hash = `${r.character}/${r.job_id}/${(STEPS[t] || STEPS.character)[0]}`;
+  };
+  $("#nCreate").onclick = create;
+  $("#nName").onkeydown = e => { if (e.key === "Enter") create(); };
+  d.showModal(); $("#nName").focus();
 }
 // Job list: search, sort, filter, group. Choices are remembered in this browser. The list is
 // only redrawn when what it shows changes, so a poll never moves a job out from under a click.
@@ -489,10 +528,10 @@ function jobInfo(j) {
 async function loadJobs() {
   jobsCache = await api("/api/jobs");
   const q = $("#search").value.trim().toLowerCase();
-  const fill = (sel, vals, all) => { const cur = sel.value || "";
-    sel.innerHTML = `<option value="">${all}</option>` + vals.map(v => `<option ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join(""); };
+  const fill = (sel, vals, all, lab = v => v) => { const cur = sel.value || "";
+    sel.innerHTML = `<option value="">${all}</option>` + vals.map(v => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(lab(v))}</option>`).join(""); };
   const types = [...new Set(jobsCache.map(j => j.asset_type))].sort(), stylesUsed = [...new Set(jobsCache.map(j => j.style))].sort();
-  if ($("#jfType").options.length - 1 !== types.length) fill($("#jfType"), types, "All types");
+  if ($("#jfType").options.length - 1 !== types.length) fill($("#jfType"), types, "All types", typeLabel);
   if ($("#jfStyle").options.length - 1 !== stylesUsed.length) fill($("#jfStyle"), stylesUsed, "All styles");
   $("#jfType").value = types.includes(jf.type) ? jf.type : ""; $("#jfStyle").value = stylesUsed.includes(jf.style) ? jf.style : "";
   let list = jobsCache.map(j => ({...j, info: jobInfo(j)})).filter(j =>
@@ -503,23 +542,32 @@ async function loadJobs() {
               todo: (a, b) => a.info.frac - b.info.frac || b.updated - a.updated,
               done: (a, b) => b.info.frac - a.info.frac || b.updated - a.updated}[jf.sort || "recent"];
   list.sort(by);
-  const sig = JSON.stringify([list.map(j => [j.character, j.job_id, j.thumb, j.info, j.style]), current, jf, q]);
+  const sig = JSON.stringify([list.map(j => [j.character, j.job_id, j.thumb, j.info, j.style, j.base, j.item]), current, jf, q]);
   if (sig === jobsSig) return;                         // nothing visible changed: don't touch the DOM
   jobsSig = sig;
-  const row = j => {
+  const row = (j, sub = false) => {
     const on = current && current.character === j.character && current.job_id === j.job_id, i = j.info;
     const needs = [i.review.length ? `review: ${i.review.join(", ")}` : "", i.failed ? `${i.failed} QA fail` : ""].filter(Boolean).join(" · ");
-    return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""}">
+    const kind = j.base ? (j.item ? `wearing ${j.item.split("/")[0]}` : "variant") : typeLabel(j.asset_type);
+    return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""} ${sub ? "sub" : ""}">
       ${j.thumb ? `<img src="${esc(j.thumb)}" alt="${esc(j.character)}">` : `<div class="noimg"></div>`}
-      <div><div class="name">${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span>${j.style !== "pixel" ? ` <span class="chip">${esc(j.style)}</span>` : ""}</div>
-      <small>${esc(j.job_id)} · step ${i.done}/${i.total}</small>${needs ? `<small class="needs">${esc(needs)}</small>` : ""}</div></a>`;
+      <div><div class="name">${esc(sub ? j.job_id : j.character)} <span class="chip">${esc(kind)}</span>${j.style !== "pixel" ? ` <span class="chip">${esc(j.style)}</span>` : ""}</div>
+      <small>${sub ? "" : esc(j.job_id) + " · "}step ${i.done}/${i.total}</small>${needs ? `<small class="needs">${esc(needs)}</small>` : ""}</div></a>`;
   };
+  // variants sit under their base job when the base is in the list (fitted items, one-change variants)
+  const key = j => `${j.character}/${j.job_id}`, shown = new Set(list.map(key));
+  const under = j => j.base && shown.has(`${j.character}/${j.base}`);
+  const kids = {};
+  list.forEach(j => { if (under(j)) (kids[`${j.character}/${j.base}`] ??= []).push(j); });
+  const tops = list.filter(j => !under(j));
+  const tree = js => js.map(j => row(j) + (kids[key(j)] || []).map(k => row(k, true)).join("")).join("");
   let html;
   if (jf.group) {
     const groups = {};
-    list.forEach(j => (groups[j.character] ??= []).push(j));
-    html = Object.entries(groups).map(([c, js]) => `<details class="jgroup" open><summary>${esc(c)} <span class="muted">(${js.length})</span></summary>${js.map(row).join("")}</details>`).join("");
-  } else html = list.map(row).join("");
+    tops.forEach(j => (groups[(TYPES[j.asset_type] || {}).group || "Other"] ??= []).push(j));
+    const order = ["Characters", "Base bodies", "Items", "Animals", "Effects", "Props", "Other"];
+    html = order.filter(g => groups[g]).map(g => `<details class="jgroup" open><summary>${g} <span class="muted">(${groups[g].length})</span></summary>${tree(groups[g])}</details>`).join("");
+  } else html = tree(tops);
   const filtered = q || jf.type || jf.style || jf.needs;
   $("#jobs").innerHTML = html || `<p class="muted" style="padding:8px">${filtered ? "No match." : "No jobs yet. Click New."}</p>`;
 }
@@ -541,22 +589,27 @@ function renderJob() {
   if (!steps.includes(tab)) tab = steps.find(s => !stepDone(s, j.stages)) || steps[0];
   const thumb = j.thumb;
   $("#main").classList.toggle("smooth", j.style !== "pixel");
+  const canVary = st("facings") === "approved" && !["item", "effect", "prop"].includes(j.asset_type);
+  const itemReady = j.asset_type === "item" && st("facings") === "approved";
   $("#main").innerHTML = `
     <div class="jobhead">
       ${thumb ? `<img src="${esc(thumb)}" alt="">` : ""}
-      <div><h2>${esc(j.character)} <span class="chip">${esc(j.asset_type)}</span></h2>
-        <div class="muted">${esc(j.job_id)}</div></div>
+      <div><h2>${esc(j.character)} <span class="chip">${esc(j.variant ? (j.variant.item_job ? "wearing " + j.variant.item_job.split("/")[0] : "variant") : typeLabel(j.asset_type))}</span></h2>
+        <div class="muted">${esc(j.job_id)}${j.variant ? ` · from <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.variant.base)}</a>` : ""}</div></div>
       <span class="spacer"></span>
+      ${canVary ? `<button id="jVariant" title="This character with one change: fit one of your items, add clothing, swap a weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
+      ${j.asset_type === "item" ? `<button ${itemReady ? 'class="primary"' : "disabled"} id="jFit" title="${itemReady ? "Put this item on a character or base body" : "Approve the front and back first (Facings)"}">Fit on…</button>` : ""}
+      <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
+    </div>
+    <div class="jobsettings">
       <label>Profile <select id="jProfile"><option value="">default</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
         <button class="ghost" id="jSizes" title="Cell size, sprite height, palette size, fps…">Sizes…</button></label>
       <label title="Art style for new generations; generate a new anchor after switching">Style
         <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
-      <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
+      <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompt writer
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
-      <button id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
-      ${st("facings") === "approved" && j.asset_type !== "item" ? `<button id="jVariant" title="This character with one change: add an item, clothing, a different weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
-      <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
+      <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
       <span class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
@@ -567,34 +620,73 @@ function renderJob() {
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
-  if ($("#jVariant")) $("#jVariant").onclick = () => {
-    const d = $("#dlg");
-    d.innerHTML = `<h2>Make a variant of ${esc(j.character)} <span class="spacer"></span><button class="ghost" id="vClose2">Close</button></h2>
-      <p class="hint" style="margin-top:0">A new job: this character with one change. Its anchor is this anchor edited; each facing is redrawn from this job's facing (same pose and angle) with the change added.</p>
-      <label class="field"><span>The change</span><input id="vEdit" placeholder="e.g. add a long green cape and a round wooden shield on the left arm"></label>
-      ${j.items.length ? `<label class="field"><span>…or one of your items (front and back approved): the change then says how it's used, e.g. "wearing this", "holding this in the right hand"</span>
-        <select id="vItemJob"><option value="">none</option>${j.items.map(i => `<option value="${esc(i.character)}/${esc(i.job_id)}">${esc(i.character)} / ${esc(i.job_id)}</option>`).join("")}</select></label>` : ""}
-      <label class="field"><span>…or an item picture (full path, optional): the change then says how it's used, e.g. "wearing this", "holding this in the right hand"</span>
-        <input id="vItem" placeholder="C:\\path\\to\\armor.png"></label>
-      <label class="field"><span>Job name (optional)</span><input id="vName" placeholder="${esc(j.job_id)}_…"></label>
-      <div class="row" style="margin-top:10px"><button class="primary" id="vGo">Create variant</button></div>`;
-    $("#vClose2").onclick = () => d.close();
-    $("#vGo").onclick = async () => {
-      const instruction = $("#vEdit").value.trim(), item = $("#vItem").value.trim(), item_job = $("#vItemJob")?.value || "";
-      if (!instruction && !item && !item_job) return toast("Describe the change, pick an item or give an item picture", true);
-      $("#vGo").disabled = true; $("#vGo").textContent = item || item_job ? "Reading the item…" : "Creating…";
-      let r;
-      try { r = await api(jobPath() + "/variant", {instruction: instruction || "wearing this", item, item_job, job_id: $("#vName").value.trim()}); }
-      finally { $("#vGo").disabled = false; $("#vGo").textContent = "Create variant"; }
-      d.close(); toast("Variant created: rendering its anchor");
-      location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
-    };
-    d.showModal();
-  };
+  if ($("#jVariant")) $("#jVariant").onclick = () => showVariant(j);
+  if ($("#jFit") && itemReady) $("#jFit").onclick = () => showFitOn(j);
   $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
     await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };
+}
+
+// Make a variant: one of three ways (audit #9), so only the fields that matter are shown.
+function showVariant(j) {
+  const d = $("#dlg"), modes = [...(j.items.length ? [["item", "Fit one of your items"]] : []), ["change", "Describe a change"], ["picture", "From a picture"]];
+  let mode = modes[0][0];
+  const draw = () => {
+    d.innerHTML = `<h2>Make a variant of ${esc(j.character)} <span class="spacer"></span><button class="ghost" id="vClose2">Close</button></h2>
+      <p class="hint" style="margin-top:0">A new job: this character with one change, every facing redrawn from this job's facings (same pose and angle).</p>
+      <div class="seg" style="margin:6px 0 12px">${modes.map(([k, l]) => `<button data-vm="${k}" class="${k === mode ? "on" : ""}">${l}</button>`).join("")}</div>
+      ${mode === "item" ? `<label class="field"><span>Item (front and back approved)</span>
+          <select id="vItemJob">${j.items.map(i => `<option value="${esc(i.character)}/${esc(i.job_id)}">${esc(i.character)} / ${esc(i.job_id)}</option>`).join("")}</select></label>
+        <label class="field" style="margin-top:8px"><span>How it's used</span><input id="vHow" value="wearing this" placeholder="wearing this · holding this in the right hand"></label>` : ""}
+      ${mode === "change" ? `<label class="field"><span>The change</span><input id="vEdit" placeholder="e.g. add a long green cape and a round wooden shield on the left arm"></label>` : ""}
+      ${mode === "picture" ? `<label class="field"><span>Item picture (full path)</span><input id="vItem" placeholder="C:\\path\\to\\armor.png"></label>
+        <label class="field" style="margin-top:8px"><span>How it's used</span><input id="vHow" value="wearing this"></label>
+        <p class="hint">Tip: make it an item job instead (New → item) to get its back too and keep it as its own sprite.</p>` : ""}
+      <label class="field" style="margin-top:8px"><span>Job name (optional)</span><input id="vName" placeholder="${esc(j.job_id)}_…"></label>
+      <div class="row" style="margin-top:10px"><button class="primary" id="vGo">Create variant</button></div>`;
+    $("#vClose2").onclick = () => d.close();
+    $$("[data-vm]").forEach(b => b.onclick = () => { mode = b.dataset.vm; draw(); });
+    $("#vGo").onclick = async () => {
+      const body = {job_id: $("#vName").value.trim()};
+      if (mode === "item") Object.assign(body, {item_job: $("#vItemJob").value, instruction: $("#vHow").value.trim() || "wearing this"});
+      if (mode === "change") { body.instruction = $("#vEdit").value.trim(); if (!body.instruction) return toast("Describe the change", true); }
+      if (mode === "picture") { body.item = $("#vItem").value.trim(); body.instruction = $("#vHow").value.trim() || "wearing this";
+                                if (!body.item) return toast("Give the path to the item picture", true); }
+      $("#vGo").disabled = true; $("#vGo").textContent = mode === "change" ? "Creating…" : "Reading the item…";
+      let r;
+      try { r = await api(jobPath() + "/variant", body); }
+      finally { $("#vGo").disabled = false; $("#vGo").textContent = "Create variant"; }
+      d.close(); toast("Variant created: rendering its anchor");
+      location.hash = `${r.character}/${r.job_id}/anchor`;
+    };
+  };
+  draw(); d.showModal();
+}
+
+// Fit on…: the same fit, started from the item (audit #4). Any job with approved facings can wear it.
+function showFitOn(item) {
+  const d = $("#dlg");
+  const bases = jobsCache.filter(x => x.stages.facings === "approved" && !["item", "effect", "prop"].includes(x.asset_type));
+  d.innerHTML = `<h2>Fit ${esc(item.character)} on… <span class="spacer"></span><button class="ghost" id="fClose">Close</button></h2>
+    ${bases.length ? `<p class="hint" style="margin-top:0">Pick who wears it. A new job is made next to that character: every facing redrawn wearing this item.</p>
+      <label class="field"><span>Character or base body</span><select id="fBase">${bases.map(b =>
+        `<option value="${esc(b.character)}/${esc(b.job_id)}">${esc(b.character)} / ${esc(b.job_id)} · ${esc(b.base ? "variant" : typeLabel(b.asset_type))}</option>`).join("")}</select></label>
+      <label class="field" style="margin-top:8px"><span>How it's used</span><input id="fHow" value="wearing this" placeholder="wearing this · holding this in the right hand"></label>
+      <div class="row" style="margin-top:10px"><button class="primary" id="fGo">Fit it</button></div>`
+    : `<p class="warn">No character or base body with approved facings yet. Make one (New → base body), approve its facings, then come back.</p>`}`;
+  $("#fClose").onclick = () => d.close();
+  if ($("#fGo")) $("#fGo").onclick = async () => {
+    const [c, b] = $("#fBase").value.split("/");
+    $("#fGo").disabled = true; $("#fGo").textContent = "Fitting…";
+    let r;
+    try { r = await api(`/api/jobs/${encodeURIComponent(c)}/${encodeURIComponent(b)}/variant`,
+                        {item_job: `${item.character}/${item.job_id}`, instruction: $("#fHow").value.trim() || "wearing this"}); }
+    finally { if ($("#fGo")) { $("#fGo").disabled = false; $("#fGo").textContent = "Fit it"; } }
+    d.close(); toast(`Fitting on ${c}: rendering its anchor`);
+    location.hash = `${r.character}/${r.job_id}/anchor`;
+  };
+  d.showModal();
 }
 
 function paneAnchor(j, st) {
@@ -618,8 +710,11 @@ function paneAnchor(j, st) {
           <label>Seed <input id="seed" type="number" placeholder="random" style="width:110px"></label>
         </div>
         <div class="row">
-          <button class="primary" id="genAnchor">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
-          <button class="primary" id="apAnchor" ${j.anchor && st("anchor") !== "approved" ? "" : "disabled"}>Approve anchor</button>
+          <button ${st("anchor") === "approved" ? "" : 'class="primary"'} id="genAnchor"
+            title="${st("anchor") === "approved" ? "Draws a new anchor; this resets the approval" : ""}">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
+          ${st("anchor") === "approved"
+            ? `<button class="primary" id="nextStep">Next: ${esc(TITLES[(STEPS[j.asset_type] || STEPS.character)[1]] || "")} →</button>`
+            : `<button class="primary" id="apAnchor" ${j.anchor ? "" : "disabled"}>Approve anchor</button>`}
         </div>
         <div class="row"><input id="importPath" placeholder="…or import an existing image (full path)" style="flex:1"><button id="importAnchor">Import</button></div>
         <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Import a character sheet (your own views side by side, any background)</summary>
@@ -643,7 +738,12 @@ function paneAnchor(j, st) {
     if ($("#seed").value) args.seed = +$("#seed").value;
     run("anchor", args, "Anchor queued");
   };
-  $("#apAnchor").onclick = () => approve("anchor");
+  if ($("#apAnchor")) $("#apAnchor").onclick = () => approve("anchor");
+  if ($("#nextStep")) $("#nextStep").onclick = () => { tab = (STEPS[j.asset_type] || STEPS.character)[1]; setHash(); renderJob(); };
+  $("#genAnchor").onclick = ((go) => () => {
+    if (st("anchor") === "approved" && !confirm("Draw a new anchor? The current one is kept as a take, and the approval is reset.")) return;
+    go();
+  })($("#genAnchor").onclick);
   $("#sheetGo").onclick = () => {
     const image = $("#sheetPath").value.trim(), views = $("#sheetViews").value.split(",").map(v => v.trim().toUpperCase()).filter(Boolean);
     if (!image) return toast("Give the path to the sheet image", true);
@@ -654,13 +754,20 @@ function paneAnchor(j, st) {
 
 function paneFacings(j, st) {
   const want = j.asset_type === "item" ? ["S", "N"] : j.directions === 4 ? ["S", "E", "N", "W"] : COMPASS.filter(Boolean);
+  const sheet = SHEET_TYPES.includes(j.asset_type), isItem = j.asset_type === "item";
   const done = j.facings.filter(f => f.image && want.includes(f.facing)).length, fr = j.facings_report || {};
   $("#pane").innerHTML = `<section>
-    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${j.asset_type === "item" ? " · item: front and back" : want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
+    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${isItem ? " · front and back" : sheet ? " · from one turnaround sheet" : want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
       <span class="spacer"></span>
-      <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? "Re-generate all" : "Generate facings"}</button>
+      ${sheet ? `<button id="genFacings" title="Draws a new turnaround sheet: anchor and every facing at once">Re-draw sheet</button>`
+              : `<button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? (isItem ? "Re-draw back" : "Re-generate all") : (isItem ? "Draw the back" : "Generate facings")}</button>`}
       <button class="primary" id="apFacings" ${done === want.length && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
-    ${st("anchor") !== "approved" ? `<p class="warn">Approve the anchor first.</p>` : ""}
+    ${st("anchor") !== "approved" && !sheet ? `<p class="warn">Approve the anchor first.</p>` : ""}
+    ${isItem ? `<div class="frontback">${[["S", "Front"], ["N", "Back"]].map(([f, label]) => {
+      const x = j.facings.find(y => y.facing === f) || {};
+      return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="${label}" title="enlarge">${img(x.image, label)}</a>` : img(null)}
+        <b>${label}</b>${f === "N" && x.image && st("anchor") === "approved" ? `<button data-reroll="N">Re-roll</button>` : ""}
+        ${takesHtml(x.takes, `02_facings/${f}.png`, label)}</div>`; }).join("")}</div>` : `
     <div class="compass">${COMPASS.map(f => {
       if (!f) return `<div class="center">compass<br>view</div>`;
       const x = j.facings.find(y => y.facing === f);
@@ -670,10 +777,17 @@ function paneFacings(j, st) {
           <span class="muted ${driftCls(x.drift)}">${x.drift ? `drift ${x.drift.color}` : ""}${x.mirrored ? " · mirrored" : ""}</span></div>
         ${f !== "S" && st("anchor") === "approved" ? `<button data-reroll="${f}">Re-roll</button>` : ""}
         ${takesHtml(x.takes, `02_facings/${f}.png`, "Facing " + f)}</div>`;
-    }).join("")}</div>
+    }).join("")}</div>`}
     ${(fr.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
-    <p class="hint">S is the anchor. Drift compares colours and height with it: green is fine, amber borderline, red re-roll.</p></section>`;
-  $("#genFacings").onclick = () => run("facings", {}, "Facings queued");
+    <p class="hint">${isItem ? "The front is the anchor; the back is drawn from it." : sheet
+      ? "All views come from one turnaround sheet (W/NW/SW mirrored). Re-roll a single view, or re-draw the whole sheet."
+      : "S is the anchor. Drift compares colours and height with it: green is fine, amber borderline, red re-roll."}</p></section>`;
+  $("#genFacings").onclick = () => {
+    if (!sheet) return run("facings", {}, "Facings queued");
+    if (!j.inputs.description) return toast("No description saved: describe it on the Anchor tab and generate from there", true);
+    if (!confirm("Draw a new turnaround sheet? The anchor and every facing are replaced (the current ones are kept as takes) and both approvals reset.")) return;
+    run("anchor", {describe: j.inputs.description, asset_type: j.asset_type}, "New sheet queued");
+  };
   $("#apFacings").onclick = () => approve("facings");
   $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
 }
@@ -702,11 +816,9 @@ function paneAnimations(j, st) {
       </div>
     </div></section>
     ${Object.keys(byAction).sort().map(action => `<section>
-      <h2>${esc(action)}</h2>
-      <div class="compass small">${COMPASS.map(f => {
-        if (!f) return `<div class="center">${esc(action)}</div>`;
+      <h2>${esc(action)} <span class="muted">${COMPASS.filter(f => f && !byAction[action][f]).length ? "not rendered: " + COMPASS.filter(f => f && !byAction[action][f]).join(", ") : "all 8 facings"}</span></h2>
+      <div class="animrow">${COMPASS.filter(f => f && byAction[action][f]).map(f => {
         const a = byAction[action][f];
-        if (!a) return `<div class="ph">${f}</div>`;
         const qa = a.sets["12f"].qa, mode = a.report?.mode_used || "";
         return `<div class="card anim" data-detail="${esc(f)}|${esc(action)}">
           ${a.sets["12f"].preview ? img(a.sets["12f"].preview, f + " " + action) : `<div class="ph">${a.has_clip ? "processing" : "rendering"}</div>`}
@@ -1025,17 +1137,16 @@ function startStackViewer(s) {
 }
 
 function renderHome() {
+  const kinds = ["character", "base_body", "item", "animal", "effect", "prop"].filter(t => status.asset_types.includes(t));
   $("#main").innerHTML = `<div class="empty"><h2>Pixel-art sprites from AI images and video</h2>
-    <p>Pick a job on the left, or click <b>New</b>.</p>
-    <div class="row" style="justify-content:center;margin:14px 0"><button class="primary" id="homeChar">New character</button>
-      <button id="homeStack">New sprite stack</button><button id="homeFx">New effect</button></div>
+    <p>Pick a job on the left, or start a new one.</p>
+    <div class="row" style="justify-content:center;margin:14px 0">${kinds.map((t, i) =>
+      `<button ${i === 0 ? 'class="primary"' : ""} data-new="${t}" title="${esc(TYPES[t]?.help || "")}">New ${esc(typeLabel(t))}</button>`).join("")}</div>
     <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
+      Equipment: make an <b>item</b> (front + back) and a <b>base body</b>, then <b>Fit on…</b> from the item, or <b>Make a variant…</b> from the body.<br>
       Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
     ${status.comfy.ok ? "" : `<p class="warn">ComfyUI isn't reachable (${esc(status.comfy.detail)}). Frame processing works, generation won't.</p>`}</div>`;
-  const openNew = type => { $("#newForm").hidden = false; fillNewForm(); $("#nType").value = type; $("#nName").focus(); };
-  $("#homeChar").onclick = () => openNew("character");
-  $("#homeStack").onclick = () => openNew("prop");
-  $("#homeFx").onclick = () => openNew("effect");
+  $$("[data-new]").forEach(b => b.onclick = () => showNew(b.dataset.new));
 }
 
 // --- queue + library ---------------------------------------------------------------------
@@ -1097,8 +1208,7 @@ function fromHash() {
 }
 
 // --- wiring ------------------------------------------------------------------------------
-$("#btnQueue").onclick = () => $("#queue").classList.toggle("hidden");
-if (window.innerWidth < 1100) $("#queue").classList.add("hidden");   // phones/tablets: queue on demand
+$("#pQueue").onclick = () => $("#queue").classList.toggle("hidden");
 $("#btnLib").onclick = showLibrary;
 $("#search").oninput = loadJobs;
 $("#jfSort").value = jf.sort || "recent"; $("#jfNeeds").checked = !!jf.needs; $("#jfGroup").checked = !!jf.group;
@@ -1107,15 +1217,7 @@ $("#jfType").onchange = e => { jf.type = e.target.value; saveJf(); };
 $("#jfStyle").onchange = e => { jf.style = e.target.value; saveJf(); };
 $("#jfNeeds").onchange = e => { jf.needs = e.target.checked; saveJf(); };
 $("#jfGroup").onchange = e => { jf.group = e.target.checked; saveJf(); };
-$("#btnNew").onclick = () => { fillNewForm(); $("#newForm").hidden = false; $("#nName").focus(); };
-$("#nCancel").onclick = () => $("#newForm").hidden = true;
-$("#nCreate").onclick = async () => {
-  const name = $("#nName").value.trim();
-  if (!name) return toast("Give the job a name", true);
-  const r = await api("/api/jobs", {character: name, asset_type: $("#nType").value, style: $("#nStyle").value, profile: $("#nProfile").value || null});
-  $("#newForm").hidden = true; $("#nName").value = "";
-  location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
-};
+$("#btnNew").onclick = () => showNew();
 $$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
 $("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };
 window.addEventListener("hashchange", () => { fromHash(); poll([refreshAll]); });

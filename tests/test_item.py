@@ -78,6 +78,9 @@ def test_fit_api(tmp_path):
         r = c.post("/api/jobs/knight/k1/variant", json={"item_job": "gold_cape/i1", "instruction": "wearing this"}).json()
         assert r["job_id"] == "k1_gold_cape"
         assert c.get("/api/jobs/gold_cape/i1").json()["fits"][0]["job_id"] == "k1_gold_cape"
+        row = next(x for x in c.get("/api/jobs").json() if x["job_id"] == "k1_gold_cape")
+        assert row["base"] == "k1" and row["item"] == "gold_cape/i1"           # the list nests it under k1
+        assert c.get("/api/jobs/knight/k1_gold_cape").json()["variant"]["item_job"] == "gold_cape/i1"
 
 
 def test_base_body_is_plain_and_animates(tmp_path):

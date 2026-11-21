@@ -181,6 +181,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                         "profile": m["inputs"].get("profile"), "style": m["inputs"].get("style") or "pixel",
                         "stages": {k: v["status"] for k, v in m["stages"].items()},
                         "thumb": thumb(root),
+                        "base": Path(m["inputs"]["base_job"]).name if m["inputs"].get("base_job") else None,
+                        "item": "/".join(Path(m["inputs"]["item_job"]).parts[-2:]) if m["inputs"].get("item_job") else None,
                         "updated": meta.stat().st_mtime})
         return sorted(out, key=lambda j: -j["updated"])
 
@@ -290,7 +292,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "action_presets": sorted(builder.actions_for(meta["inputs"].get("asset_type"))),
                 "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
                 "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit"),
-                             "item": url(j.root / "01_anchor" / "item.png")}
+                             "item": url(j.root / "01_anchor" / "item.png"),
+                             "item_job": "/".join(Path(meta["inputs"]["item_job"]).parts[-2:]) if meta["inputs"].get("item_job") else None}
                             if meta["inputs"].get("base_job") else None),
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],

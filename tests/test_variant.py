@@ -82,7 +82,7 @@ def test_variant_api(tmp_path):
         r = c.post("/api/jobs/knight/k1/variant", json={"instruction": "add a cape", "job_id": "caped"}).json()
         assert r["job_id"] == "caped" and len(r["tasks"]) == 1
         j = c.get("/api/jobs/knight/caped").json()
-        assert j["variant"] == {"base": "k1", "edit": "add a cape", "item": None}
+        assert j["variant"] == {"base": "k1", "edit": "add a cape", "item": None, "item_job": None}
         assert c.get("/api/queue").json()[0]["stage"] == "anchor"
 
 

@@ -43,8 +43,9 @@ ComfyUI), the queue worker and the motion library. Fix anything marked `[FAIL]` 
 .venv\Scripts\spritewaffle ui
 ```
 
-Open <http://127.0.0.1:8765>. The header shows ComfyUI, the worker and the queue; the app runs
-its own queue worker, so nothing else needs to be running.
+Open <http://127.0.0.1:8765>. The header shows ComfyUI, the worker and the queue (click it to open
+the queue panel; it opens by itself when a task fails); the app runs its own queue worker, so
+nothing else needs to be running.
 
 ## Workflows
 
@@ -253,11 +254,12 @@ comfyui/workflows/  the same workflows in editor format
 | Header says *ComfyUI offline* | start ComfyUI; frame processing still works |
 | `doctor`: *model missing: …* | that model isn't in ComfyUI's model folders, or the template map points at a different file name |
 | A task failed | Queue panel → the error is on the task → **Retry** |
+| New job types or buttons missing after an update | restart `spritewaffle ui`: the server doesn't reload itself |
 | `another worker holds …` | only one worker per jobs folder; close the other UI/worker (a dead one's lock is taken over automatically) |
 | Clip came out frozen | handled: re-rendered without the last frame automatically (the action shows a note) |
 | TARA fails with *USE_FLASH_ATTENTION* | use the `comfy kitchen` attention backend (already set in the template) |
 
-Design decisions and measurements: [`DECISIONS.md`](DECISIONS.md). Audit: [`docs/AUDIT.md`](docs/AUDIT.md).
+Design decisions and measurements: [`DECISIONS.md`](DECISIONS.md). Audits: [`docs/AUDIT.md`](docs/AUDIT.md), [`docs/AUDIT_UI_2026-11-21.md`](docs/AUDIT_UI_2026-11-21.md).
 
 ## Tests
 
