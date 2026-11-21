@@ -307,3 +307,10 @@ NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects
 - 2026-11-21 Plain base body + item export (Ronan: "Both then push").
   * Asset type base_body: a character (same actions) drawn plain to fit items on. Measured: one facing at a time from a plain-body anchor only turned the head (7 of 7 flagged as copies, human/body1) -> base bodies use the animals' turnaround sheet (generate._turnaround, SAM 3 cut, W/SW/NW mirrored). "Wearing only plain undergarments" on the sheet -> bare mannequin bodies (2 of 2); named garments (builder.BASE_BODY_WEAR: grey sleeveless undershirt, grey knee shorts, brown cloth shoes) -> drawn (2 of 2). Real run human/body2 (seed 8): all 8 views turned, 27 s. Red cape fitted -> human/body2_red_cape: cape in all 8 views incl. a full back at N, 0 warnings (NW has a small ornament on the back).
   * Item export (Export tab on item jobs): 06_export/item/<name>_front.png, _back.png (pixel art at the profile sprite height, one palette for both; smooth styles scaled) + <name>_item.json (sizes, colours, fits). red_cape: 34x48 each.
+- 2026-11-21 Can the local VLM (Qwen3-VL 4B, prompt_writer) check fitted-item mistakes? (Ronan; questions must be generic: only the item name, from item_core of the item description, changes.) Labelled real outputs from today, 41 questions, ~3 s each:
+  * "anything (belt, strap, band, buckle) drawn on top of {item}?" 9/13: caught 3 of 6 belts-over-cape, 1 false alarm in 7.
+  * "is the character wearing {item}?" 6/10: often ignores "answer yes or no" and writes a markdown report.
+  * "front-only detail (clasp, gem...) visible on the back of {item}?" 4/6: said "no" every time, caught 0 of 2.
+  * "which way does the body face?" 8/11: called failed turns (only the head turned) "left"/"right"; mixed up left/right on the knight's E. The pixel copy check (turned_from) caught 7 of 7 of those.
+  * A strict "one word only" system prompt returned empty text; a plain "Answer yes or no." works.
+  Verdict: not reliable enough to gate or auto re-roll. Not built.
