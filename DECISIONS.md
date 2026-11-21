@@ -253,3 +253,24 @@ NEXT: Repo complete for a fresh install (setup doc, editor workflows, lock, agen
 - 2026-11-20 Install docs assume a stranger's computer (Ronan: "dont use my setup for install assume user isnt my computer"): README clones from GitHub instead of `cd F:\...`, MCP path is a placeholder, hardware stated as tested-on not required, Stability Matrix is one example of where models may live, AGENT_INSTALL tells the agent to assume nothing and notes the repo is private. Test refuses drive paths in the install docs. Clean clone + lock install + 131 tests verified on this machine; a machine with no models was not available to test.
 - 2026-11-20 Quick fixes from the fresh-eyes audit (Ronan: "Quick bugs first"). UI: typed anchor description / import path / sheet path are kept across polls only within the same job (was: carried into the next job opened, so "Generate anchor" could render the previous character). CLI: only anchor, sheet-import and extract create a job; any other command with an unknown --job fails with "no such job" plus close matches (was: silently created an empty job). Export: tags carry Aseprite's repeat count, 1 for non-cyclic actions (attack, jump, ...), 0 = loop for idle/walk/run/march; reader exposes `repeats` (Unity behaviour with repeat=1 not yet checked in an editor). Queue API: filter on the server before the limit, running tasks first (was: newest 60 then filtered in the browser, hiding the running task and older failures). `profile show default` works; asymmetric-anchor warning is a sentence, not a dict; README MCP path tab and style/writer syntax fixed.
   Real run: chest->goblin->knight switch in the UI with unsaved text: text stays on chest across polls, other jobs show their own; `export-character --job knight/p2_02` -> "no such job ... did you mean knight/p2_002"; export of a copy of hare/courier: 30 tags, attack_* play once, rest loop.
+- 2026-11-20 One palette + one pivot per character (Ronan: "Palette + pivot"; audit findings 3, 4).
+  Palette: core/job_palette.py. Order: profile hex list > 04_pixel/palette.json (file or built) >
+  built from anchor + all facing stills at the profile's sprite height > locked from the first clip
+  (job with no stills). pixelize and flow use it; QA's colour cap is the job palette size; the
+  character .aseprite keeps the job palette's order. `spritewaffle palette` (show / --file .gpl .hex
+  .png / --rebuild / --unlock / --apply) and Animations -> Palette (swatches, stale clips, Apply);
+  Queue.submit_reprocess re-runs pixelize/flow -> qa -> export, mirrors after their source.
+  Real run (copy of knight/p2_002): built from 9 stills in 6.7 s; walk E / walk N / idle S shared
+  0 colours before, 15-16 after; union 48 -> 16; visual check: same blue/plume red in all facings,
+  detail kept. PICO-8 .gpl loaded + applied (12 tasks done): mechanically right, but skin maps to
+  orange (nearest Oklab: ffccaa 0.069 vs ffa300 0.087 on the stills; video skin is warmer) — a
+  loaded palette must suit the character; documented.
+  Pivot: layout.preserve_canvas puts the feet (median over frames of the bottom-12% band's
+  midpoint, airborne frames skipped) on the cell centre line instead of centring the union bbox;
+  Placement.pivot recorded in placements.json; exports read it; .aseprite gets a "pivot" slice
+  (chunk 0x2022, keys only where it changes); atlas JSON has a character-level pivot/pivot_norm when
+  all agree. Too-wide actions are shifted only enough to fit, the pivot records the feet, and QA
+  warns. Real run: knight copy -> all 4 animations [32, 63], one slice key; orc copy (painted, 40
+  clips) -> 36 at [128, 255], attack S 117 (axe swing fills the cell), SE 127, SW 129.
+  Seen, not fixed: in the orc's S attack clip the orc is drawn much larger than in idle and the axe
+  is cut off at the top — a clip scale issue, present before this change.

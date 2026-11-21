@@ -21,6 +21,7 @@ CHUNK_LAYER = 0x2004
 CHUNK_CEL = 0x2005
 CHUNK_COLOR_PROFILE = 0x2007
 CHUNK_TAGS = 0x2018
+CHUNK_SLICE = 0x2022
 CHUNK_PALETTE = 0x2019
 
 
@@ -65,6 +66,15 @@ def _tags_chunk(tags) -> bytes:
     return _chunk(CHUNK_TAGS, data)
 
 
+def _slice_chunk(name: str, keys) -> bytes:
+    """keys: [(frame, x, y, w, h, pivot_x, pivot_y)], pivot relative to the slice origin. A key
+    holds from its frame until the next key."""
+    data = struct.pack("<III", len(keys), 2, 0) + _string(name)          # flags 2 = has pivot
+    for frame, x, y, w, h, px, py in keys:
+        data += struct.pack("<IiiIIii", frame, x, y, w, h, int(px), int(py))
+    return _chunk(CHUNK_SLICE, data)
+
+
 def _cel_chunk(pixels: np.ndarray) -> bytes:
     h, w = pixels.shape[:2]
     head = struct.pack("<HhhBHh5xHH", 0, 0, 0, 255, 2, 0, w, h)
@@ -72,7 +82,7 @@ def _cel_chunk(pixels: np.ndarray) -> bytes:
 
 
 def _write(path: Path, cels: list[np.ndarray], depth: int, pal_rgba: np.ndarray | None,
-           durations_ms, tags, layer: str) -> Path:
+           durations_ms, tags, layer: str, slices=()) -> Path:
     h, w = cels[0].shape[:2]
     frames = []
     for i, cel in enumerate(cels):
@@ -84,6 +94,8 @@ def _write(path: Path, cels: list[np.ndarray], depth: int, pal_rgba: np.ndarray 
             chunks.append(_layer_chunk(layer))
             if tags:
                 chunks.append(_tags_chunk(tags))
+            for name, keys in slices:
+                chunks.append(_slice_chunk(name, keys))
         chunks.append(_cel_chunk(cel))
         frames.append(_frame(chunks, int(durations_ms[i])))
     body = b"".join(frames)
@@ -95,7 +107,8 @@ def _write(path: Path, cels: list[np.ndarray], depth: int, pal_rgba: np.ndarray 
     return path
 
 
-def write(path, indices: np.ndarray, palette: np.ndarray, durations_ms, tags=(), layer: str = "sprite") -> Path:
+def write(path, indices: np.ndarray, palette: np.ndarray, durations_ms, tags=(), layer: str = "sprite",
+          slices=()) -> Path:
     """Indexed .aseprite. indices (F,h,w) with -1 = transparent; palette (k<=255, 3) uint8."""
     palette = np.asarray(palette, np.uint8)
     if len(palette) > 255:
@@ -104,12 +117,12 @@ def write(path, indices: np.ndarray, palette: np.ndarray, durations_ms, tags=(),
     pal[1:, :3] = palette
     pal[1:, 3] = 255
     cels = [np.where(f >= 0, f + 1, 0).astype(np.uint8) for f in indices]
-    return _write(path, cels, 8, pal, durations_ms, list(tags), layer)
+    return _write(path, cels, 8, pal, durations_ms, list(tags), layer, slices)
 
 
-def write_rgba(path, frames: np.ndarray, durations_ms, tags=(), layer: str = "sprite") -> Path:
+def write_rgba(path, frames: np.ndarray, durations_ms, tags=(), layer: str = "sprite", slices=()) -> Path:
     """RGBA .aseprite. frames (F,h,w,4) uint8."""
-    return _write(path, [np.asarray(f, np.uint8) for f in frames], 32, None, durations_ms, list(tags), layer)
+    return _write(path, [np.asarray(f, np.uint8) for f in frames], 32, None, durations_ms, list(tags), layer, slices)
 
 
 # --- reader (round-trip tests, and later re-import) ----------------------------------------
@@ -125,7 +138,8 @@ class AseDoc:
     palette: np.ndarray | None = None
     layers: list = field(default_factory=list)
     tags: list = field(default_factory=list)
-    repeats: list = field(default_factory=list)         # per tag: 0 = loop forever, N = play N times
+    repeats: list = field(default_factory=list)
+    slices: dict = field(default_factory=dict)          # name -> [(frame, x, y, w, h, pivot_x, pivot_y)]         # per tag: 0 = loop forever, N = play N times
 
 
 def _read_string(b: bytes, o: int) -> tuple[str, int]:
@@ -174,6 +188,21 @@ def read(path) -> AseDoc:
                     name, p = _read_string(d, p + 17)
                     doc.tags.append((name, start, end, _DIR_NAMES[direction]))
                     doc.repeats.append(repeat)
+            elif ctype == CHUNK_SLICE:
+                nkeys, flags, _ = struct.unpack_from("<III", d, 0)
+                name, p = _read_string(d, 12)
+                keys = []
+                for _ in range(nkeys):
+                    frame, x, y, w, h = struct.unpack_from("<IiiII", d, p)
+                    p += 20
+                    if flags & 1:
+                        p += 16
+                    px = py = None
+                    if flags & 2:
+                        px, py = struct.unpack_from("<ii", d, p)
+                        p += 8
+                    keys.append((frame, x, y, w, h, px, py))
+                doc.slices[name] = keys
             elif ctype == CHUNK_CEL:
                 _, x, y, _, ctype2 = struct.unpack_from("<HhhBH", d, 0)
                 if ctype2 != 2:

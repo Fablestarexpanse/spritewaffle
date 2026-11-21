@@ -226,6 +226,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                           "rotations": next((url(p) for p in st.glob("*_rotations.png")), None) if st.is_dir() else None,
                           "info": read_json(next(st.glob("*_slices.json"), Path("_none"))) if st.is_dir() else None},
                 "exports": exports,
+                "palette": palette_info(j),
                 "showcase": next((url(p) for p in (exp / "showcase").glob("*_showcase.gif")), None)
                             if (exp / "showcase").is_dir() else None}
 
@@ -237,6 +238,43 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (KeyError, ValueError) as e:
             bad(e)
         return {"ok": True}
+
+    def palette_info(j: Job) -> dict | None:
+        from ..core import job_palette
+        cur = job_palette.get(j)
+        if not cur:
+            return None
+        have = set(cur["colours"])
+        stale = []
+        for c in job_palette.clips(j):
+            rep = j.root / "04_pixel" / c["facing"] / c["action"] / "pixel_report.json"
+            used = set((read_json(rep) or {}).get("palette") or [])
+            if not used <= have:
+                stale.append(f"{c['action']} {c['facing']}")
+        return cur | {"stale": stale}
+
+    @app.post("/api/jobs/{char}/{jid}/palette")
+    def palette(char: str, jid: str, body: dict = Body(...)):
+        """op: rebuild (from anchor + facings), file (load .gpl/.hex/.png from body.file), unlock."""
+        from ..core import job_palette
+        j = job_or_404(char, jid)
+        try:
+            op = body.get("op")
+            if op == "file":
+                f = str(body.get("file", "")).strip().strip('"')
+                job_palette.save(j, job_palette.load_file(f), f"file {Path(f).name}")
+            elif op == "rebuild":
+                cols = job_palette.from_stills(j, resolve(job_profile(j)))
+                if not cols:
+                    raise FileNotFoundError("no anchor or facing stills to build from")
+                job_palette.save(j, cols, f"anchor + facings ({len(job_palette.stills(j))} stills)")
+            elif op == "unlock":
+                job_palette.clear(j)
+            else:
+                raise ValueError("op must be rebuild, file or unlock")
+        except (ValueError, FileNotFoundError, OSError) as e:
+            bad(e)
+        return palette_info(j) or {}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):
@@ -253,6 +291,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 gen = args.pop("generate", True)
                 tasks = queue.submit_action_pipeline(j.root, args.pop("facing"), args.pop("action"),
                                                      profile, generate=gen, **args)
+            elif stage == "reprocess":
+                tasks = queue.submit_reprocess(j.root, profile)
             elif stage == "animate":
                 facings, actions = args.pop("facings", []), args.pop("actions", [])
                 if not facings or not actions:

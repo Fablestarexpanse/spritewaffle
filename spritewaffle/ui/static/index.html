@@ -75,7 +75,9 @@
   .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .card { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
   .card img, .card .ph { aspect-ratio: 1; object-fit: contain; width: 100%; }
-  .compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 3px; }
+.swatches span { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line, #0003); }
+.compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
   .compass .center { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
   .compass.small { max-width: 420px; gap: 8px; } .compass.small .card { padding: 6px; gap: 4px; }
   .compass.small .ph { font-size: 11px; border-color: color-mix(in srgb, var(--line) 60%, transparent); }
@@ -372,7 +374,17 @@ function paneAnimations(j, st) {
           ${a.sets["12f"].preview ? img(a.sets["12f"].preview, f + " " + action) : `<div class="ph">${a.has_clip ? "processing" : "rendering"}</div>`}
           <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
             <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${badge(qa?.status)}</span></div></div>`;
-      }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}`;
+      }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}
+    ${j.style === "pixel" ? `<section><h2>Palette <span class="muted">one for every facing and action</span></h2>
+      ${j.palette ? `<div class="swatches">${j.palette.colours.map(c => `<span title="${c}" style="background:${c}"></span>`).join("")}</div>
+        <p class="muted" style="margin:6px 0">${j.palette.colours.length} colours · from ${esc(j.palette.source)}</p>
+        ${j.palette.stale.length ? `<p class="warn">${j.palette.stale.length} clip${j.palette.stale.length === 1 ? " uses" : "s use"} other colours: ${esc(j.palette.stale.slice(0, 6).join(", "))}${j.palette.stale.length > 6 ? "…" : ""}</p>` : ""}`
+      : `<p class="muted">Not set yet: the first pixelize builds it from the anchor + every facing, so colours only seen from the back are in it.</p>`}
+      <div class="row"><button id="palRebuild">Rebuild from facings</button>
+        <input id="palFile" placeholder="…or load a palette: full path to .gpl / .hex / .png" style="flex:1;min-width:200px"><button id="palLoad">Load</button>
+        ${j.palette?.stale.length ? `<button class="primary" id="palApply">Apply to ${j.palette.stale.length} clip${j.palette.stale.length === 1 ? "" : "s"}</button>` : ""}</div>
+      <p class="hint">Applying re-pixelizes clips from their frames: no rendering. A loaded palette is matched by nearest colour, so pick one that suits the character.</p>
+    </section>` : ""}`;
   $$("[data-f]").forEach(c => c.onchange = () => { c.checked ? form.facings.add(c.dataset.f) : form.facings.delete(c.dataset.f); renderJob(); });
   $$("[data-a]").forEach(c => c.onchange = () => { c.checked ? form.actions.add(c.dataset.a) : form.actions.delete(c.dataset.a); renderJob(); });
   if ($("#addAct")) $("#addAct").onclick = () => { const v = $("#customAct").value.trim().toLowerCase(); if (v) { form.actions.add(v); renderJob(); } };
@@ -388,6 +400,10 @@ function paneAnimations(j, st) {
     run("animate", args, "Animations queued");
   };
   $$("[data-detail]").forEach(c => c.onclick = () => { const [f, a] = c.dataset.detail.split("|"); showAnim(byAction[a][f]); });
+  const pal = async body => { try { await api(jobPath() + "/palette", body); toast("Palette updated"); } finally { lastSig = ""; refreshAll(); } };
+  if ($("#palRebuild")) $("#palRebuild").onclick = () => pal({op: "rebuild"});
+  if ($("#palLoad")) $("#palLoad").onclick = () => { const f = $("#palFile").value.trim(); if (!f) return toast("Give the path to a .gpl, .hex or .png", true); pal({op: "file", file: f}); };
+  if ($("#palApply")) $("#palApply").onclick = () => run("reprocess", {}, "Clips queued for the new palette");
 }
 
 function showAnim(a) {

@@ -188,6 +188,41 @@ def cmd_style(a):
     print(f"style: {a.style} ({styles.STYLES[a.style]['label']}); generate a new anchor to see it")
 
 
+def cmd_palette(a):
+    from .core import job_palette
+    job = _job(a.job)
+    prof = _profile(a, job)
+    if a.file:
+        job_palette.save(job, job_palette.load_file(a.file), f"file {Path(a.file).name}")
+    elif a.rebuild:
+        job_palette.clear(job)
+        cols = job_palette.from_stills(job, prof)
+        if not cols:
+            raise FileNotFoundError("no anchor or facing stills to build from")
+        job_palette.save(job, cols, f"anchor + facings ({len(job_palette.stills(job))} stills)")
+    elif a.unlock:
+        job_palette.clear(job)
+        print("unlocked: the next pixelize builds it again from the anchor + facings")
+    from .prompts import styles
+    if styles.get(styles.of_job(job))["post"] != "pixel":
+        print(f"style '{styles.of_job(job)}' is full colour: no palette is used (--apply still re-lays out every clip)")
+    cur = job_palette.get(job)
+    if isinstance(prof.palette, list):
+        print(f"profile '{prof.name}' locks its own {len(prof.palette)}-colour palette (it wins over the job's)")
+    if cur:
+        print(f"job palette: {len(cur['colours'])} colours from {cur['source']}")
+        print(" ".join(cur["colours"]))
+    elif not a.unlock:
+        print("no job palette yet: the next pixelize builds it from the anchor + facings")
+    stale = [c for c in job_palette.clips(job) if cur and c["colours"] and c["colours"] != len(cur["colours"])]
+    if a.apply:
+        from .core.queue import Queue
+        ts = Queue(paths.jobs()).submit_reprocess(job.root, a.profile)
+        print(f"queued {len(ts)} tasks: every clip re-pixelized with this palette, then QA + export")
+    elif stale or (cur and (a.file or a.rebuild)):
+        print("clips made before this palette keep their old colours: add --apply to re-process them (no rendering)")
+
+
 def cmd_writer(a):
     job = _job(a.job)
     job.update_inputs(prompt_writer=a.mode)
@@ -473,6 +508,12 @@ def build() -> argparse.ArgumentParser:
     from .prompts.styles import STYLES
     cmd("style", cmd_style, "art style of this job: " + ", ".join(f"{k} ({v['label']})" for k, v in STYLES.items()),
         JOB, (("style",), {"choices": tuple(STYLES)}))
+    cmd("palette", cmd_palette, "the job's one palette (all facings and actions share it): show, rebuild, load a file",
+        JOB, PROFILE,
+        (("--file",), {"help": "load colours from .gpl (Aseprite/GIMP/Lospec), .hex/.txt or an image"}),
+        (("--rebuild",), {"action": "store_true", "help": "build it again from the anchor + facing stills"}),
+        (("--unlock",), {"action": "store_true", "help": "forget it; the next pixelize builds a new one"}),
+        (("--apply",), {"action": "store_true", "help": "queue every existing clip to be re-pixelized with it (no rendering)"}))
     cmd("writer", cmd_writer, "who writes the creative prompt text for this job: template (default) or ai (Qwen3-VL 4B)",
         JOB, (("mode",), {"choices": ("template", "ai")}))
     cmd("prompts", cmd_prompts, "show template vs AI motion text for one action (renders nothing)",

@@ -11,18 +11,18 @@ ship from (per-clip palettes, per-clip pivot, unbounded atlas, stale exports not
 
 | # | Sev | Where | Finding | Status |
 |---|---|---|---|---|
-| 1 | major | `ui/static/index.html` `loadJob` | Anchor description and import path carry over to the next job opened; "Generate anchor" then renders the wrong character | verified: `keep` never checks the job changed |
-| 2 | major | `cli.py` `_job` | Mistyped `--job` creates a junk job (any command), shows up in the UI list | verified |
-| 3 | major | `core/stages.py` `pixel` | Each facing/action quantized to its own palette; knight E/N/S share 0 colours; character export merges to 48 > profile 16 | verified (one batch per facing+action) |
-| 4 | major | `export/sheet.py` `feet_pivot` | Pivot per animation from union bbox (idle 31 vs walk 32 px); only in JSON, not in the .aseprite | plausible, not re-measured |
-| 5 | major | `ui/server.py` queue list | Newest 60 tasks only: running task and older failures can be hidden; filter is client-side | verified (`limit=60`) |
+| 1 | major | `ui/static/index.html` `loadJob` | Anchor description and import path carry over to the next job opened; "Generate anchor" then renders the wrong character | **fixed** 2026-11-20 |
+| 2 | major | `cli.py` `_job` | Mistyped `--job` creates a junk job (any command), shows up in the UI list | **fixed** 2026-11-20 |
+| 3 | major | `core/stages.py` `pixel` | Each facing/action quantized to its own palette; knight E/N/S share 0 colours; character export merges to 48 > profile 16 | **fixed** 2026-11-20: one job palette (from all stills, or a file) |
+| 4 | major | `export/sheet.py` `feet_pivot` | Pivot per animation from union bbox (idle 31 vs walk 32 px); only in JSON, not in the .aseprite | **fixed** 2026-11-20: feet on the centre line, pivot slice in the .aseprite |
+| 5 | major | `ui/server.py` queue list | Newest 60 tasks only: running task and older failures can be hidden; filter is client-side | **fixed** 2026-11-20 |
 | 6 | major | Export tab | "done" / step 4/4 while newer clips exist; no stale/incomplete state | plausible |
-| 7 | major | `export/aseprite.py` `_tags_chunk` | Tag repeat always 0 (infinite): attack/jump loop in Unity | verified |
+| 7 | major | `export/aseprite.py` `_tags_chunk` | Tag repeat always 0 (infinite): attack/jump loop in Unity | **fixed** 2026-11-20 (Unity not yet checked) |
 | 8 | minor | Anchor/Facings/clip re-roll | Overwrites approved (even user-imported) art without confirm or history | plausible |
-| 9 | minor | `core/generate.py` | Raw dict in the asymmetric-anchor warning; mirror stays on for asymmetric characters | plausible |
-| 10 | minor | `profile list/show`, `doctor` | "default" listed but `profile show default` fails | plausible |
-| 11 | minor | README MCP command | literal tab in `C:\path\to` (`\t` escape) | verified |
-| 12 | minor | README | `style` / `writer` examples omit `--job` | plausible |
+| 9 | minor | `core/generate.py` | Raw dict in the asymmetric-anchor warning; mirror stays on for asymmetric characters | warning text **fixed** 2026-11-20 (now says to untick mirroring); mirror default unchanged |
+| 10 | minor | `profile list/show`, `doctor` | "default" listed but `profile show default` fails | **fixed** 2026-11-20 |
+| 11 | minor | README MCP command | literal tab in `C:\path\to` (`\t` escape) | **fixed** 2026-11-20 |
+| 12 | minor | README | `style` / `writer` examples omit `--job` | **fixed** 2026-11-20 |
 | 13 | minor | phone width | Queue panel opens below the page, invisible; tab bar clips Export | observed by auditor |
 | 14 | polish | various | Job page flashes old job ~1 s; list re-render steals clicks; mixed path separators; prop Export/Anchor show character copy; .aseprite buried under ~90 per-clip files; no alt text; drift thresholds unexplained | observed by auditor |
 

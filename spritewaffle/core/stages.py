@@ -100,10 +100,13 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
                                  None, {"style": st["name"], "scale": round(k, 4)}, cell=profile.cell_size * st["scale"])
         job.set_stage(f"pixelize:{facing}/{action}", "done", style=st["name"], scale=round(k, 4))
         return info
-    params = PixelParams(palette=profile.palette if isinstance(profile.palette, list) else (palette or profile.palette_size),
-                         pixel_size=profile.pixel_size, target_height=profile.sprite_height_px,
+    from . import job_palette
+    pal = palette or job_palette.resolve(job, profile)[0]    # explicit size = a one-off per-clip fit
+    params = PixelParams(palette=pal, pixel_size=profile.pixel_size, target_height=profile.sprite_height_px,
                          loop=rep["loop"], outline=profile.outline, despill=profile.despill)
     res = pixelize(frames, params)
+    if not palette and not isinstance(pal, list):
+        job_palette.lock_from_clip(job, res.palette, f"{facing}/{action}")
     pos = {s: k for k, s in enumerate(union)}
     grid = {"size": res.grid.size, "ox": res.grid.ox, "oy": res.grid.oy, "source": res.grid.source,
             "score": round(res.grid.score, 3), "resample": res.resample}
@@ -122,9 +125,13 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     out = job.stage_dir("04_pixel") / facing / action
     cell = cell or profile.cell_size
     pal_list = [] if palette is None else [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in np.asarray(palette).tolist()]
-    info = {**info, "palette": pal_list, "cell": cell, "sets": {}}
+    info = {**info, "palette": pal_list, "cell": cell, "sets": {}, "warnings": list(info.get("warnings", []))}
     for n, (art, sources) in sets.items():
         cells, places = layout.preserve_canvas(list(art), (cell, cell))
+        off = places[0].pivot[0] - cell / 2 if places and places[0].pivot else 0
+        if off and not any("pivot" in w for w in info["warnings"]):
+            info["warnings"].append(f"pivot: the action is too wide for the {cell}px cell, so the feet sit {abs(off):.0f}px "
+                                    f"{'left' if off < 0 else 'right'} of centre in this clip (a bigger profile cell fixes it)")
         sd = out / f"{n}f"
         _save_pngs(cells, sd / "frames", [f"{k:03d}" for k in range(len(cells))])
         (sd / "indices.npy").unlink(missing_ok=True)
@@ -158,12 +165,17 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     facing, action = _ctx(job, facing, action)
     pdir = job.root / "04_pixel" / facing / action
     loop = json.loads((job.action_dir(facing, action) / "selection_report.json").read_text())["loop"]
-    pal_n = len(json.loads((pdir / "pixel_report.json").read_text())["palette"])
+    prep = json.loads((pdir / "pixel_report.json").read_text())
+    pal_n = len(prep["palette"])
+    from . import job_palette
+    jp = job_palette.get(job)
+    cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
         cells, places = _load_set(sd)
-        limit = min(pal_n, profile.palette_size) if pal_n else 1 << 30      # full-colour styles: no palette limit
+        limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
+        r.setdefault("warnings", []).extend(prep.get("warnings", []))
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
     status = "fail" if "fail" in results.values() else "pass"
@@ -182,21 +194,26 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
         n = int(sd.name.rstrip("f"))
         fps = base_fps if n <= 12 else base_fps * n // 12            # same duration for 12f and 24f
-        cells, _ = _load_set(sd)
+        cells, places = _load_set(sd)
+        pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
         name = f"{action}_{facing}_{sd.name}"
         out = job.stage_dir("06_export") / facing / action / sd.name
         files = {}
         indexed = (sd / "indices.npy").exists()
         if fmt in ("png", "both"):
-            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop,
+            files.update({k: str(v) for k, v in sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot,
                                                                     preview_scale=4 if indexed else 1).items() if k != "frames"})
         if fmt in ("aseprite", "both"):
             tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward", 0 if loop else 1)]
+            pv = pivot or sheetmod.feet_pivot(cells)
+            slices = [("pivot", [(0, 0, 0, cells.shape[2], cells.shape[1], int(pv[0]), int(pv[1]))])]
             if indexed:
                 ind = np.load(sd / "indices.npy")
-                p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags)
+                p = aseprite.write(out / f"{name}.aseprite", ind, pal, [round(1000 / fps)] * len(ind), tags=tags,
+                                   slices=slices)
             else:
-                p = aseprite.write_rgba(out / f"{name}.aseprite", cells, [round(1000 / fps)] * len(cells), tags=tags)
+                p = aseprite.write_rgba(out / f"{name}.aseprite", cells, [round(1000 / fps)] * len(cells), tags=tags,
+                                         slices=slices)
             files["aseprite"] = str(p)
         written[sd.name] = files
     job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
@@ -230,9 +247,12 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     from ..pixel import chroma as _chroma
     ys = np.where((_chroma.key(rgb)[..., 3] > 0).any(1))[0]
     size = profile.pixel_size or max(1, round((ys[-1] - ys[0] + 1) / profile.sprite_height_px))
-    params = PixelParams(palette=profile.palette if isinstance(profile.palette, list) else profile.palette_size,
-                         pixel_size=size, outline=profile.outline, despill=profile.despill)
+    from . import job_palette
+    pal = job_palette.resolve(job, profile)[0]
+    params = PixelParams(palette=pal, pixel_size=size, outline=profile.outline, despill=profile.despill)
     res = pixelize([rgb], params)
+    if not isinstance(pal, list):
+        job_palette.lock_from_clip(job, res.palette, f"{facing}/{action} (flow)")
     target = res.rgba(0)
 
     # 2. driving clip -> warped art frames

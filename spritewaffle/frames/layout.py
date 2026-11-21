@@ -12,9 +12,11 @@ class Placement:
     scale: float
     crop: tuple[int, int, int, int]     # x, y, w, h in source frame
     paste: tuple[int, int]              # x, y in cell
+    pivot: tuple[float, float] | None = None   # feet point in cell px (x may be .5: a pixel boundary)
 
     def as_dict(self) -> dict:
-        return {"scale": self.scale, "crop": list(self.crop), "paste": list(self.paste)}
+        d = {"scale": self.scale, "crop": list(self.crop), "paste": list(self.paste)}
+        return d | ({"pivot": list(self.pivot)} if self.pivot is not None else {})
 
 
 def _bbox(mask: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -40,20 +42,43 @@ def _place(img: np.ndarray, p: Placement, cell: tuple[int, int]) -> np.ndarray:
     return out
 
 
+def feet_x(frames: list[np.ndarray], bb: tuple[int, int, int, int], band: float = 0.12) -> float:
+    """Where the character stands: median over frames of the mean x of opaque pixels in the
+    lowest `band` of the clip's union bbox (frames in the air have none there and are skipped).
+    A weapon swing or a cape doesn't move it, unlike the bbox centre."""
+    x, y, w, h = bb
+    y0 = y + h - max(2, round(h * band))
+    xs = []
+    for f in frames:
+        cols = np.where((f[y0:y + h, x:x + w, 3] > 0).any(0))[0]
+        if len(cols):
+            xs.append(x + (cols.min() + cols.max() + 1) / 2)
+    return float(np.median(xs)) if xs else x + w / 2
+
+
 def preserve_canvas(frames: list[np.ndarray], cell: tuple[int, int], scale: float = 1.0,
                     foot_margin: int = 1) -> tuple[np.ndarray, list[Placement]]:
     """Video frames: ONE crop/scale/paste for every frame (no per-frame recentring = no fake motion).
 
-    The crop is the union bbox of all frames; it is centred horizontally and its bottom sits
-    `foot_margin` px above the cell bottom. Returns (F,ch,cw,4) cells and the per-frame placements
-    (all identical, recorded so QA can prove it)."""
+    The crop is the union bbox of all frames. Its bottom sits `foot_margin` px above the cell
+    bottom, and the character's feet (`feet_x`), not the bbox, sit on the cell's centre line, so
+    every animation of a character shares one pivot: (cell_w / 2, cell_h - foot_margin). Only when
+    that would push a wide action (a long swing) out of the cell is it shifted just enough to fit;
+    the pivot then records where the feet ended up. Returns (F,ch,cw,4) cells and the per-frame
+    placements (all identical, recorded so QA can prove it)."""
     union = np.zeros(frames[0].shape[:2], bool)
     for f in frames:
         union |= f[..., 3] > 0
     bb = _bbox(union) or (0, 0, frames[0].shape[1], frames[0].shape[0])
     cw, ch = cell
     w, h = round(bb[2] * scale), round(bb[3] * scale)
-    p = Placement(scale, bb, ((cw - w) // 2, ch - foot_margin - h))
+    feet = (feet_x(frames, bb) - bb[0]) * scale             # feet, from the crop's left edge
+    px = round(cw / 2 - feet)                                # feet within half a pixel of the centre line
+    pivot_x = cw / 2
+    if w <= cw and not 0 <= px <= cw - w:
+        px = min(max(px, 0), cw - w)                         # never cut a swing off for the pivot's sake
+        pivot_x = float(round(px + feet))                    # ...and say where the feet are instead
+    p = Placement(scale, bb, (px, ch - foot_margin - h), (pivot_x, float(ch - foot_margin)))
     return np.stack([_place(f, p, cell) for f in frames]), [p] * len(frames)
 
 

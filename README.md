@@ -63,6 +63,28 @@ its own queue worker, so nothing else needs to be running.
    Aseprite Importer makes one clip each, plus an Animator Controller) and an atlas PNG + JSON.
    Every file is downloadable from the same tab.
 
+### Palette and pivot (pixel art)
+
+- **One palette per character.** The first pixelize builds it from the anchor + every facing (so
+  colours seen only from the back are included) and every clip uses it. Animations → **Palette**
+  shows it; *Rebuild from facings*, or load your own `.gpl` (Aseprite / GIMP / Lospec), `.hex` or
+  `.png`. Clips made with an older palette are listed; *Apply* re-pixelizes them from their frames
+  (no rendering). CLI: `spritewaffle palette --job <job> [--file pal.gpl | --rebuild] [--apply]`.
+  A loaded palette is matched by nearest colour, so it has to suit the character.
+- **One pivot per character.** Each clip is placed so the feet sit on the cell's centre line, one
+  pixel above the bottom, whatever the weapon or cape does. Every animation then shares the pivot
+  `(cell/2, cell-1)`, written as a `pivot` slice in the `.aseprite` and as `pivot` / `pivot_norm`
+  in the JSON. An action too wide for the cell is shifted just enough to fit; its QA report says
+  so and its pivot records where the feet are (a bigger profile cell avoids it).
+
+### Unity import
+
+With the 2D Aseprite Importer package, select the `.aseprite` and set:
+Filter Mode **Point**, Compression **None**, Max Size **at least the atlas size**, Pixels Per Unit =
+your profile's cell size, Pivot **Custom** at the JSON's `pivot_norm` (for a 64 px cell,
+`(0.5, 0.0156)`), Pivot Space **Canvas**. Each tag becomes a clip; one-shot actions (attack,
+jump, …) are tagged to play once. (Unity behaviour of the play-once tags is not yet checked in an editor.)
+
 ### Your own character (image or character sheet)
 
 - **One image:** Anchor tab → *import an existing image* (or `spritewaffle anchor --job <job> --image <path>`).

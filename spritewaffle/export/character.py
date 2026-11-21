@@ -32,7 +32,11 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
         cells = np.stack([np.array(Image.open(p).convert("RGBA")) for p in sorted((sd / "frames").glob("*.png"))])
         sel = job_root / "03_actions" / facing / action / "selection_report.json"
         loop = json.loads(sel.read_text())["loop"] if sel.exists() else True
-        anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells, "loop": loop})
+        pl = sd / "placements.json"
+        places = json.loads(pl.read_text()) if pl.exists() else []
+        pivot = places[0].get("pivot") if places else None
+        anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells, "loop": loop,
+                      "pivot": pivot or feet_pivot(cells)})
     return anims, skipped
 
 
@@ -66,21 +70,33 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
         durations += [round(1000 / fps)] * n
         tags.append((a["name"], start, start + n - 1, "forward", 0 if a["loop"] else 1))
         meta_anims.append({"name": a["name"], "facing": a["facing"], "action": a["action"], "frames": n,
-                           "fps": fps, "loop": a["loop"], "pivot": feet_pivot(a["cells"]),
+                           "fps": fps, "loop": a["loop"], "pivot": a["pivot"],
                            "row": len(meta_anims), "first": start})
     frames = np.stack(frames)
 
     pal = merged_palette(anims)
+    jp = Path(job_root) / "04_pixel" / "palette.json"           # job palette: keep its order (the artist's ramp)
+    if jp.exists():
+        jpal = np.array([[int(c[i:i + 2], 16) for i in (1, 3, 5)] for c in json.loads(jp.read_text())["colours"]], np.uint8)
+        if {tuple(c) for c in pal.tolist()} <= {tuple(c) for c in jpal.tolist()}:
+            pal = jpal
+    keys, last = [], None                                        # one "pivot" slice, a key where it changes
+    for ma in meta_anims:
+        pv = (int(ma["pivot"][0]), int(ma["pivot"][1]))
+        if pv != last:
+            keys.append((ma["first"], 0, 0, w, h, *pv))
+            last = pv
+    slices = [("pivot", keys)]
     ase_path = out_dir / f"{character}.aseprite"
     if len(pal) <= 255:
         lut = {tuple(c): i for i, c in enumerate(pal.tolist())}
         idx = np.full(frames.shape[:3], -1, int)
         m = frames[..., 3] > 0
         idx[m] = [lut[tuple(c)] for c in frames[m][:, :3].tolist()]
-        aseprite.write(ase_path, idx, pal, durations, tags)
+        aseprite.write(ase_path, idx, pal, durations, tags, slices=slices)
         mode = "indexed"
     else:
-        aseprite.write_rgba(ase_path, frames, durations, tags)
+        aseprite.write_rgba(ase_path, frames, durations, tags, slices=slices)
         mode = "rgba"
 
     cols = max(a["frames"] for a in meta_anims)
@@ -92,7 +108,10 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
     Image.fromarray(atlas, "RGBA").save(png)
     for ma in meta_anims:
         ma["rects"] = [[c * w, ma["row"] * h, w, h] for c in range(ma["frames"])]
+    one = {tuple(m["pivot"]) for m in meta_anims}
+    pivot = list(one.pop()) if len(one) == 1 else None          # one pivot for the whole character
     meta = {"character": character, "cell": [w, h], "frame_set": frame_set, "aseprite_mode": mode,
+            "pivot": pivot, "pivot_norm": [pivot[0] / w, 1 - pivot[1] / h] if pivot else None,
             "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()], "animations": meta_anims,
             "skipped": skipped}
     js = out_dir / f"{character}_atlas.json"

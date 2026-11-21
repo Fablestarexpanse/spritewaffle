@@ -227,6 +227,29 @@ class Queue:
                 tasks += [m, q, e]
         return tasks
 
+    def submit_reprocess(self, job, profile: str | None = None) -> list[dict]:
+        """Re-run every pixelized clip of a job from its frames (no rendering), e.g. after the job
+        palette changed: renders -> pixelize, flow -> flow, then qa + export; mirrored facings are
+        flipped again after their source's pixelize."""
+        from . import job_palette
+        from .job import Job
+        clips = job_palette.clips(Job.open(Path(job)))
+        tasks, pix = [], {}
+        for c in [c for c in clips if c["method"] != "mirror"]:
+            base = {"facing": c["facing"], "action": c["action"]}
+            first = (self.submit(job, "flow", {**base, "motion": c["motion"]}, profile) if c["method"] == "flow"
+                     else self.submit(job, "pixelize", dict(base), profile))
+            pix[(c["facing"], c["action"])] = first["id"]
+            q = self.submit(job, "qa", dict(base), profile, after=[first["id"]])
+            tasks += [first, q, self.submit(job, "export", dict(base), profile, after=[q["id"]])]
+        for c in [c for c in clips if c["method"] == "mirror"]:
+            base = {"facing": c["facing"], "action": c["action"]}
+            after = [pix[(c["source"], c["action"])]] if (c["source"], c["action"]) in pix else []
+            m = self.submit(job, "mirror", {**base, "source": c["source"]}, profile, after=after)
+            q = self.submit(job, "qa", dict(base), profile, after=[m["id"]])
+            tasks += [m, q, self.submit(job, "export", dict(base), profile, after=[q["id"]])]
+        return tasks
+
     def submit_stack_pipeline(self, job, profile: str | None = None, views: bool = True, height: int = 24,
                               seed: int | None = None) -> list[dict]:
         """Sprite stacking: ortho views (gpu) -> stack build (cpu). views=False rebuilds from existing views."""
