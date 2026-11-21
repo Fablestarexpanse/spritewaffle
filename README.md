@@ -142,9 +142,10 @@ square flipbook sheet, `.aseprite` (one-shots play once), preview GIF, JSON (fps
 
 On a character with approved facings: **Make a variant…** → describe the change ("add a long green
 cape") *or* give an item picture (armor, weapon, hat) and say how it's used ("wearing this",
-"holding this in the right hand"). The local prompt writer turns the picture into words; the
-variant's anchor and every facing are the base's own images with that change, so poses line up.
-Back views get the item without its front details (no chest gem on the back).
+"holding this in the right hand"). The picture goes to H3 Image edit as a second reference (shrunk
+onto a grey card, `01_anchor/item_ref.png`), so the item keeps its real design; the variant's anchor
+and every facing are the base's own images with the item fitted on, so poses line up. Back views show
+only the back of the item (no chest gem on the back).
 
 ### Animals (four-legged)
 

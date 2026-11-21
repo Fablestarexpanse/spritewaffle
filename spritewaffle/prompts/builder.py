@@ -198,6 +198,44 @@ def edit_facing(target: str, instruction: str, raised: bool = False) -> str:
             "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
 
 
+BACK = ("N", "NE", "NW")
+
+
+def item_reference(target: str, character: str, item: str, how: str, back_item: str = "",
+                   raised: bool = False) -> str:
+    """H3 Image edit caption for base facing (<Picture 1>) + item picture (<Picture 2>), written in the
+    enhancer's own Subject format (facing_multiref node 39). <Subject 3> pins the canvas to Picture 1:
+    without it the item picture was read as the canvas (huge armor, tiny knight). how: "wearing this",
+    "holding this in the right hand" ('this' becomes <Subject 2>). back_item: the item without its
+    front details, for back views."""
+    V = VIEW_RAISED if raised else VIEW
+    def bare(t):                                   # "The" is added here; drop the writer's own article
+        t = t.strip().rstrip(".")
+        for art in ("a ", "an ", "the "):
+            if t.lower().startswith(art):
+                return t[len(art):]
+        return t
+    c, i = bare(character), bare(item)
+    use = how.strip().rstrip(".") or "wearing this"
+    use = use.replace("this", "<Subject 2>", 1) if "this" in use else f"{use} <Subject 2>"
+    back = target in BACK
+    seen = (f"Seen from behind, only the back of it shows: {(bare(back_item) or 'its plain back')}; "
+            "the gem, emblem and other front details are hidden. " if back else
+            "It is shown as it looks from this side. ")
+    noun = styles.get()["noun"]
+    return (f"The {c} in <Picture 1> is <Subject 1>. The {i} in <Picture 2> is <Subject 2>. "
+            "The flat pure green background, framing and camera of <Picture 1> are <Subject 3>. "
+            f"The target image shows <Subject 1> {use}, {V[target]}, in exactly the same pose, within <Subject 3>. "
+            "<Subject 1> is partially preserved; the head, face, body, limbs, pose, view, size, position in the frame "
+            f"and {noun} style with its outline remain, while the part of the outfit where <Subject 2> sits is now "
+            "covered by it. "
+            f"<Subject 2> supplies only its design, transferred onto <Subject 1> at the character's scale: its shape, "
+            "colours, materials and details are matched; its backdrop and its size in <Picture 2> are not used. "
+            "<Subject 3> is fully preserved. "
+            + seen + "The face stays fully visible; <Subject 2> is shaded with the same light as the character, in the "
+            f"same {noun} style and outline. " + FRAMING)
+
+
 # --- actions (rules 5, 6) ---------------------------------------------------------------------
 # motion: short and literal; transition: a small step away from idle, never the extreme pose.
 ACTIONS = {

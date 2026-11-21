@@ -46,15 +46,36 @@ def item_core(description: str) -> str:
     return re.split(r"\s+(?:featuring|with|detailed|decorated|adorned|that|which)\b|,", description, maxsplit=1)[0].strip()
 
 
+def item_reference(item: Path, dest: Path, size: int = 1024, frac: float = 0.35) -> Path:
+    """The item shrunk to about a third of a light grey card: the second reference picture. Measured
+    2026-11-21: the item picture at full size was read as the canvas (huge armor, tiny knight)."""
+    import numpy as np
+    from ..pixel import chroma
+    im = Image.open(item)
+    if im.mode == "RGBA" and np.array(im)[..., 3].min() < 255:
+        a = np.array(im)
+        ys, xs = np.where(a[..., 3] > 0)
+        cut = Image.fromarray(a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]) if len(ys) else im
+    else:
+        cut = Image.fromarray(chroma.crop_sprite(np.array(im.convert("RGB"))))
+    cut = cut.convert("RGBA")
+    cut.thumbnail((int(size * frac), int(size * frac)), Image.NEAREST if max(cut.size) < size * frac else Image.LANCZOS)
+    card = Image.new("RGBA", (size, size), (205, 205, 210, 255))
+    card.alpha_composite(cut, ((size - cut.width) // 2, (size - cut.height) // 2))
+    card.convert("RGB").save(dest)
+    return dest
+
+
 def create(base: Job, instruction: str, job_id: str | None = None, item: str | Path | None = None,
            client: ComfyClient | None = None) -> Job:
     """New job next to the base (same character name), linked to it. The base must have approved
     facings: the variant copies their poses.
 
-    item: a picture of an item (armor, weapon, hat). The local prompt writer (Qwen3-VL 4B) turns it
-    into words and `instruction` says how it is used ("wearing this", "holding this in the right
-    hand"); the picture is kept with the job for reference. Measured 2026-11-21: given to the image
-    model as a second picture, the item replaced the character; in words it was added correctly."""
+    item: a picture of an item (armor, weapon, hat); `instruction` says how it is used ("wearing
+    this", "holding this in the right hand"). It goes to H3 Image edit as <Picture 2> (a small copy on
+    a grey card, 01_anchor/item_ref.png) with a Subject caption (builder.item_reference). The local
+    prompt writer (Qwen3-VL 4B) names the item and, when the base has no description, the character:
+    the caption needs both in words."""
     instruction = (instruction or "").strip().rstrip(".")
     item_desc = None
     if item:
@@ -63,6 +84,8 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
             raise FileNotFoundError(f"item picture {item} not found")
         from ..prompts import writer
         item_desc = writer.describe_item(item, client=client)
+        character = (base.read_meta()["inputs"].get("description")
+                     or writer.describe("", image=base.root / "01_anchor" / "anchor.png", client=client))
         item_how = instruction or "wearing this"
         instruction = item_edit(item_how, item_desc)
     if not instruction:
@@ -77,10 +100,12 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
     desc = bm["inputs"].get("description") or ""
     job = Job.create(bm["character"], job_id, base=base.root.parent.parent, **keep,
                      description=f"{desc}; {instruction}" if desc else instruction,
-                     base_job=str(base.root), edit=instruction, **({"item_description": item_desc, "item_how": item_how} if item_desc else {}))
+                     base_job=str(base.root), edit=instruction, **({"item_description": item_desc, "item_how": item_how, "character_description": character}
+                        if item_desc else {}))
     if item:
         import shutil
         shutil.copyfile(item, job.stage_dir("01_anchor") / "item.png")
+        item_reference(item, job.stage_dir("01_anchor") / "item_ref.png")
     job.log_provenance("variant", base=f"{bm['character']}/{bm['job_id']}", edit=instruction,
                        **({"item": str(item), "item_description": item_desc} if item else {}))
     return job
@@ -91,6 +116,23 @@ def base_of(job: Job) -> Job | None:
     return Job.open(b) if b and (Path(b) / "job.json").exists() else None
 
 
+def _edit_values(job: Job, inputs: dict, f: str, src: Path, raised: bool) -> dict:
+    """Prompt + reference pictures for one variant view. With an item picture: base view + item card
+    and the Subject caption; otherwise base view + the change in words."""
+    ref = job.root / "01_anchor" / "item_ref.png"
+    if ref.exists() and inputs.get("item_description"):
+        return {"prompt": builder.item_reference(f, inputs.get("character_description") or "character",
+                                                 inputs["item_description"], inputs.get("item_how") or "wearing this",
+                                                 back_item=item_core(inputs["item_description"]), raised=raised),
+                "ref_images": [src, ref]}
+    edit = inputs["edit"]
+    if f == "S":
+        return {"prompt": builder.edit_anchor(edit), "ref_images": [src]}
+    back_edit = (item_edit(inputs["item_how"], item_core(inputs["item_description"]))
+                 if inputs.get("item_description") and inputs.get("item_how") else edit)
+    return {"prompt": builder.edit_facing(f, back_edit if f in builder.BACK else edit, raised), "ref_images": [src]}
+
+
 def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, seed: int | None = None) -> Path:
     """The base anchor with the change applied. Left in review."""
     from . import generate
@@ -99,11 +141,11 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, se
         raise FileNotFoundError("this job is not a variant, or its base job is gone")
     styles.use(styles.of_job(job))
     client = client or ComfyClient()
-    edit = job.read_meta()["inputs"]["edit"]
+    inputs = job.read_meta()["inputs"]
     dest = job.stage_dir("01_anchor") / "anchor.png"
-    generate._run(client, job, "facing_multiref",
-                  {"prompt": builder.edit_anchor(edit), "ref_images": [base.root / "01_anchor" / "anchor.png"],
-                   "seed": generate._seed(seed)}, dest)
+    src = base.root / "01_anchor" / "anchor.png"
+    generate._run(client, job, "facing_multiref", {**_edit_values(job, inputs, "S", src, False),
+                                                   "seed": generate._seed(seed)}, dest)
     job.set_stage("anchor", "review", variant_of=base.root.name)
     return dest
 
@@ -121,8 +163,6 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     client = client or ComfyClient()
     inputs = job.read_meta()["inputs"]
     edit = inputs["edit"]
-    back_edit = (item_edit(inputs["item_how"], item_core(inputs["item_description"]))
-                 if inputs.get("item_description") and inputs.get("item_how") else edit)
     out = job.stage_dir("02_facings")
     a_path = job.root / "01_anchor" / "anchor.png"
     generate.flatten_background(Image.open(a_path).convert("RGB"), out / "S.png")
@@ -132,10 +172,8 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
         src = base.root / "02_facings" / f"{f}.png"
         if not src.exists():
             continue
-        generate._run(client, job, "facing_multiref",
-                      {"prompt": builder.edit_facing(f, back_edit if f in ("N", "NE", "NW") else edit, raised),
-                       "ref_images": [src],
-                       "seed": generate._seed(seed)}, out / f"{f}.png")
+        generate._run(client, job, "facing_multiref", {**_edit_values(job, inputs, f, src, raised),
+                                                       "seed": generate._seed(seed)}, out / f"{f}.png")
         done.append(f)
     a = generate._rgba(a_path)
     report = {"variant_of": str(base.root), "edit": edit, "facings": {}, "mirrored": {}, "warnings": [],

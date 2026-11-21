@@ -112,3 +112,33 @@ def test_back_views_get_the_item_without_its_front_details():
     assert variant.item_core("A golden breastplate featuring a central red gemstone, detailed with gold") == "A golden breastplate"
     assert variant.item_core("a short sword with a ruby pommel") == "a short sword"
     assert variant.item_core("a plain iron helmet") == "a plain iron helmet"
+
+
+def test_item_variant_sends_the_item_as_picture_2(tmp_path, monkeypatch):
+    from spritewaffle.prompts import writer
+    b = _base(tmp_path)
+    b.set_stage("facings", "approved")
+    item = tmp_path / "armor.png"
+    Image.fromarray(render(draw_sprite(1), canvas=(256, 256))).save(item)
+    monkeypatch.setattr(writer, "describe_item", lambda image, client=None, seed=0: "A golden breastplate with a red gem.")
+    v = variant.create(b, "wearing this", job_id="gold", item=item)
+    ref = v.root / "01_anchor" / "item_ref.png"
+    card = Image.open(ref)
+    assert card.size == (1024, 1024) and card.getpixel((5, 5)) == (205, 205, 210)   # small item on a grey card
+    assert v.read_meta()["inputs"]["character_description"] == "small knight"
+    c = FakeComfy()
+    prof = GameProfile(name="p")
+    variant.anchor(v, prof, client=c)
+    assert c.calls[0][1]["ref_images"] == [b.root / "01_anchor" / "anchor.png", ref]
+    assert "<Subject 3>" in c.calls[0][1]["prompt"] and "wearing <Subject 2>" in c.calls[0][1]["prompt"]
+    v.set_stage("anchor", "approved")
+    variant.facings(v, prof, client=c)
+    n = next(vals for _, vals in c.calls if vals["ref_images"][0] == b.root / "02_facings" / "N.png")
+    assert n["ref_images"][1] == ref and "only the back of it shows: golden breastplate; the gem" in n["prompt"]
+
+
+def test_item_reference_caption_uses_the_subject_format():
+    p = builder.item_reference("E", "small knight", "a short sword with a ruby pommel", "holding this in the right hand")
+    assert p.startswith("The small knight in <Picture 1> is <Subject 1>. The short sword")
+    assert "holding <Subject 2> in the right hand" in p and builder.VIEW["E"] in p and builder.FRAMING in p
+    assert "Seen from behind" not in p
