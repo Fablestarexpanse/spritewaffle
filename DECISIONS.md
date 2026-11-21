@@ -315,3 +315,4 @@ NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects
   * A strict "one word only" system prompt returned empty text; a plain "Answer yes or no." works.
   Verdict: not reliable enough to gate or auto re-roll. Not built.
 - 2026-11-21 Ronan: no automatic mistake checker for fitted items (colour check / bigger VLM declined): "let human look over it, they can always re-run". Review + Re-roll is the check.
+- 2026-11-21 UI/layout/workflow audit (Ronan asked): docs/AUDIT_UI_2026-11-21.md. P1: job header overflows (Make a variant…/Archive off-screen at 1440 px), 'Re-generate all' on animal/base-body facings always fails, New form overflows the sidebar, equipment flow not discoverable. Nothing fixed yet.
