@@ -11,13 +11,13 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 > Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
 
-## License — free for personal projects and game development
+## License — free to create and sell games, art, and assets
 
-SpriteWaffle is **free to use for personal projects and for making games, including commercial games**. You can sell a game containing SpriteWaffle-created sprites, animations, terrain, and effects without owing SpriteWaffle royalties.
+**SpriteWaffle is free to use for personal and commercial creative work.** You may create and sell games, standalone sprite sheets, asset packs, artwork, animations, art commissions, and other original creative outputs made with SpriteWaffle. **No SpriteWaffle royalty or revenue share is required.**
 
-**You may not sell standalone artwork, sprite sheets, animation files, asset packs, or art-only commissions produced using SpriteWaffle.** You also may not resell, rebrand and sell, or operate a paid hosted version of SpriteWaffle without separate written permission.
+The SpriteWaffle software is distributed under the [MIT License with Commons Clause v1.0](LICENSE.md): you may use, inspect, modify, and redistribute the software under its terms, but you may **not resell or repackage SpriteWaffle as a paid tool, or sell substantially the same software functionality as a paid hosted service**, without separate written permission.
 
-SpriteWaffle uses the custom, source-available [SpriteWaffle Community Use License 1.0](LICENSE.md), not an OSI-approved open-source license. Read the [licensing guide](docs/LICENSING.md) for examples and exceptions. The license does not claim ownership of your outputs; its restrictions are conditions of using the software. Third-party AI models and reference materials may have separate terms.
+**The software restrictions do not prohibit selling creative outputs made with the tool.** SpriteWaffle does not claim ownership of your generated artwork. However, third-party models, reference images, imported assets, and other dependencies may impose separate terms. See the [licensing guide](docs/LICENSING.md). The combined MIT + Commons Clause terms are **source-available, not OSI-approved open source**.
 
 ## Requirements
 

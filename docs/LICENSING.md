@@ -1,56 +1,59 @@
 # SpriteWaffle licensing guide
 
-**Free for personal projects and games, even commercial games. Not for selling standalone artwork, sprite sheets, asset packs, or the software itself.**
+## Free to create and sell — including commercial outputs
 
-The project now uses the custom [SpriteWaffle Community Use License 1.0](../LICENSE.md). It is source-available, **not OSI-approved open source**. The license text is authoritative; the examples here explain its intended boundaries.
+**You may use SpriteWaffle to make and sell commercial games, artwork, sprite sheets, animation files, asset packs, and creative commissions.** There is no SpriteWaffle license fee, royalty, or revenue share required merely because you sell things created with the tool.
+
+The software is available under the [MIT License with Commons Clause License Condition v1.0](../LICENSE.md). The Commons Clause limits **selling the software or a product or service whose value comes substantially from SpriteWaffle's functionality**. It does not impose a general noncommercial-use restriction and does not prohibit commercial creative output.
+
+This is a **source-available** license, not an OSI-approved open-source license. The full [LICENSE.md](../LICENSE.md) controls over this explanatory guide.
 
 ## Examples
 
-| Activity | Under this license |
+| Use | Allowed under SpriteWaffle's software license? |
 | --- | --- |
-| Make a free or personal game | Allowed |
-| Develop and sell a commercial game using generated sprites | Allowed |
-| Put generated art inside a commercial game, including its UI or cutscenes | Allowed |
-| Use game screenshots, trailers, and promotional images | Allowed |
-| Work for pay developing and delivering a completed game | Allowed |
-| Use generated sprites as part of a game you sell | Allowed |
-| Share generated artwork free of charge | Allowed, subject to third-party rights |
-| Sell generated sprite sheets or asset packs separately | **Not allowed** |
-| Sell standalone illustrations, art prints, or other artwork generated with SpriteWaffle | **Not allowed** |
-| Take paid commissions to deliver sprite sheets or illustrations as standalone files | **Not allowed** |
-| Resell or white-label SpriteWaffle | **Not allowed** |
-| Charge for hosted SpriteWaffle functionality or API access | **Not allowed** |
+| Personal experimentation, learning, and hobby projects | Yes |
+| Make and sell a commercial game | Yes |
+| Sell standalone sprite sheets or character packs created with SpriteWaffle | Yes |
+| Sell original artwork, illustrations, animation files, or digital downloads created with SpriteWaffle | Yes |
+| Make and sell original asset packs for game engines or marketplaces | Yes |
+| Take paid illustration, sprite, or animation commissions | Yes |
+| Use SpriteWaffle in client projects and professional studios | Yes |
+| Publish free or paid tutorials about using SpriteWaffle | Yes, subject to other applicable rights |
+| Modify the tool for your own production workflows | Yes |
+| Give away copies of SpriteWaffle with required license notices | Yes |
+| Resell or repackage SpriteWaffle itself as a paid application | No, absent separate written permission |
+| Offer paid hosted access to substantially the same SpriteWaffle functionality | No, absent separate written permission |
+| Rebrand SpriteWaffle as a competing paid generator | No, absent separate written permission |
 
-A **commercial game** is a playable product intended primarily for gameplay. Bundling a nominal app with an asset pack solely to evade the restriction does not turn the asset pack into a permitted game.
+These examples describe the intended distinction. For gray areas, consult the precise definition of **"Sell"** in [LICENSE.md](../LICENSE.md), especially where a product or service derives its value substantially from SpriteWaffle's software functionality.
 
-Internal sharing among a game-development team is allowed. Delivering a complete game to a customer is allowed. Separately selling reusable asset files is not.
+## User-created assets and ownership
 
-## Ownership of creative work
+SpriteWaffle **does not claim copyright ownership of artwork or other creative assets merely because someone made them using the program**. The Commons Clause applies to the software, not as a standalone restriction on sprite files, pictures, animations, or games made with it.
 
-SpriteWaffle **does not claim ownership** of users' original output artwork merely because it was made with the software. The no-standalone-sales restriction is written as a **condition on use of the software**, not as an assertion that SpriteWaffle owns all generated images or that all such images are copyright-protected.
+However, the SpriteWaffle license cannot grant rights to third-party models, model weights, downloaded or reference images, fonts, imported designs, other software, or content that the SpriteWaffle licensor does not own. Users should check the applicable model and third-party terms before commercial distribution.
 
-Imported preexisting works do not become SpriteWaffle's property. Separate legal rights and the terms of AI models, input images, fonts, or other components may affect what users can do with their outputs.
+## Source code, redistribution, and third-party components
 
-The scope and enforceability of custom terms governing use of a software tool to generate assets should be reviewed by a lawyer before commercial-scale distribution.
+Users may examine, modify, and distribute SpriteWaffle under the MIT terms as modified by the Commons Clause. They must preserve the applicable copyright/license notices and the Commons Clause condition. Redistributing the Software for free is different from selling the Software or a service derived substantially from its functionality.
 
-## Software modification and sharing
+Source-available under Commons Clause is **not equivalent to OSI-approved open source**.
 
-Users may inspect and modify SpriteWaffle and share free copies or modified versions subject to preserving the license and notices. They may not sell the software, offer a paid hosted instance, or remove its restrictions from redistributed versions.
+New SpriteWaffle code should be original by default. If using third-party code, models, or libraries, verify licenses, copyright notices, and whether the specific distribution plan is compatible before incorporating them.
 
-Third-party code and model dependencies retain their own license requirements. Project contributors and coding agents must prefer original implementations, incorporating outside code only when appropriately licensed.
+## License history and prior versions
 
-## Different terms for earlier versions
+The repository has published earlier licenses, including PolyForm Noncommercial 1.0.0, MIT with Commons Clause v1.0, and a custom Community Use License 1.0 that restricted standalone asset sales. The **current repository contents** again use **MIT with Commons Clause v1.0**, allowing commercial asset and artwork sales while reserving rights to sell the tool's functionality.
 
-- November 21, 2026: The repository briefly published PolyForm Noncommercial 1.0.0, restricting commercial activity.
-- Later November 21, 2026: This was replaced by MIT with Commons Clause v1.0, permitting commercial output sales while restricting software resale.
-- **Current:** SpriteWaffle Community Use License 1.0, allowing commercial games but restricting standalone artwork/asset sales as well as tool resale/paid hosting.
+Changes to the license on a new repository version **do not retroactively revoke rights granted under licenses that applied to earlier copies**. Third-party contributors can only license rights they own; any future relicensing or code redistribution must respect applicable contributor rights.
 
-The current terms apply to the updated licensed repository contents. **Changing the repository's license does not retroactively cancel rights granted to recipients under an earlier license for those earlier versions.** Consult a lawyer about any version- or contributor-specific issues.
+## Further permissions
 
-## Commercial permissions outside this license
+For selling SpriteWaffle itself or its substantially equivalent hosted functionality, obtain a separate written commercial license from the relevant rights holder.
 
-If someone wants to sell SpriteWaffle functionality or standalone assets produced with it, they need a separately negotiated written license from the relevant rights holder.
+Licensing inquiries: https://github.com/Fablestarexpanse
 
-Contact: https://github.com/Fablestarexpanse
+Official Commons Clause information: https://commonsclause.com/
 
-This guide is informational and not legal advice.
+This guide is informational, not legal advice. Legal review is recommended before relying on software resale or hosted-service restrictions for a business.

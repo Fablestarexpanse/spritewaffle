@@ -25,7 +25,7 @@ https://github.com/comfyanonymous/ComfyUI (or Stability Matrix) and wait. It mus
 
 ## 2. Get the code and install
 
-The repository is public and can be cloned without GitHub sign-in. **License:** SpriteWaffle is free for personal projects and making games, including commercial games. The [SpriteWaffle Community Use License 1.0](LICENSE.md) prohibits selling the tool, paid hosted access, and separate sales of artwork, sprite sheets, asset packs, or asset-only commissions made with the tool. See [the licensing guide](docs/LICENSING.md).
+The repository is public and can be cloned without GitHub sign-in. **License:** SpriteWaffle is free to use for personal projects, commercial games, saleable artwork, sprite sheets, asset packs, animation files, and paid commissions. The [MIT License with Commons Clause v1.0](LICENSE.md) restricts **selling SpriteWaffle itself or its substantially equivalent functionality as a paid service**, not selling things created with it. See [the licensing guide](docs/LICENSING.md).
 If they gave you a copy of the folder instead, skip `git clone` and `cd` into it.
 
 ```powershell
