@@ -150,3 +150,27 @@ def save_pages(out_dir: Path, base: str, pages: list[np.ndarray]) -> list[Path]:
         Image.fromarray(page, "RGBA").save(p)
         out.append(p)
     return out
+
+
+def map_pages(pages: list[np.ndarray], layout: dict, anims: list[dict], kind: str) -> list[np.ndarray]:
+    """Pages for a per-frame map (depth, normal) laid out exactly like the colour pages: each
+    frame's map is cut with the colour frame's trim and put in the colour frame's rectangle, so an
+    engine samples colour and map with the same UVs. Frames without the map stay empty."""
+    out = [np.zeros_like(p) for p in pages]
+    for a in anims:
+        lay = layout.get(a["name"]) or {}
+        maps = (a.get("maps") or {}).get(kind)
+        if maps is None or lay.get("flip_x_of"):
+            continue
+        for f, m in zip(lay["frames"], maps):
+            out[f["page"]][f["y"]:f["y"] + f["h"], f["x"]:f["x"] + f["w"]] = m[f["oy"]:f["oy"] + f["h"], f["ox"]:f["ox"] + f["w"]]
+    return out
+
+
+def save_map_pages(out_dir: Path, base: str, pages: list[np.ndarray]) -> list[Path]:
+    out = []
+    for i, p in enumerate(pages):
+        f = out_dir / f"{base}_{i}.png"
+        Image.fromarray(p).save(f)
+        out.append(f)
+    return out

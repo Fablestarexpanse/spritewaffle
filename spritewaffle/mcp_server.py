@@ -184,6 +184,63 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 "mirrored": sorted({t["args"]["facing"] for t in ts if t["stage"] == "mirror"})}
 
     @mcp.tool()
+    def camera_profile(action: str = "get", camera: dict | None = None, character: str | None = None,
+                       job_id: str | None = None, project_id: str | None = None) -> dict:
+        """Camera profile (elevation, framing, character_scale, light, background, border, style notes).
+        Without character/job_id: the project's (jobs folder) profile; with them: one asset's override.
+        action='get' reads; action='set' writes `camera` (only the fields to set; camera=None clears).
+        Fields: camera_elevation_degrees, framing, character_scale, light_yaw, light_elevation,
+        background_mode (green|black|transparent), canvas_border_px, style_notes."""
+        from dataclasses import asdict
+
+        from .core import camera as cam
+        from .core import manifest
+        if action not in ("get", "set"):
+            raise ValueError("action must be 'get' or 'set'")
+        if character and job_id:
+            job = job_for(character, job_id)
+            if action == "set":
+                cam.set_asset(job, camera)
+                manifest.refresh(job)
+            return {"effective": cam.snapshot(job), "override": job.read_meta()["inputs"].get("camera")}
+        if action == "set":
+            cam.set_project(base, camera, project_id)
+        return cam.project(base) | {"defaults": asdict(cam.CameraProfile())}
+
+    @mcp.tool()
+    def mirror_policy(character: str, job_id: str, policy: str, mirror_map: dict | None = None) -> dict:
+        """Per-asset mirror policy: legacy (today's per-run choices, the default), none (never flip;
+        use for asymmetric characters: shield arm, eyepatch, emblem), mirror_left_from_right (render S,
+        N and the right-facing half, flip the left half), custom (mirror_map {"<view_index>": source})."""
+        from .core import manifest
+        return manifest.set_mirror_policy(job_for(character, job_id), policy, mirror_map)
+
+    @mcp.tool()
+    def manifest(character: str, job_id: str, rebuild: bool = False) -> dict:
+        """The asset manifest (docs/MANIFEST.md): views by yaw, every frame's angle, foot point,
+        colour/depth/normal/master paths and downscale record, camera snapshot, mirror policy."""
+        from .core import manifest as mf
+        job = job_for(character, job_id)
+        if rebuild:
+            mf.write(job)
+        return mf.read(job)
+
+    @mcp.tool()
+    def manifest_migrate(rebuild: bool = False, limit: int = 0) -> dict:
+        """Write manifests for jobs that have none (rebuild=True: all). limit > 0 stops after that
+        many writes, so very large projects can be migrated in batches."""
+        from .core import manifest as mf
+        counts, failed = {}, []
+        for job, st in mf.migrate(base, rebuild=rebuild):
+            k = st.split(":")[0]
+            counts[k] = counts.get(k, 0) + 1
+            if k == "failed":
+                failed.append(f"{job.root.parent.name}/{job.root.name}: {st}")
+            if limit and counts.get("written", 0) >= limit:
+                break
+        return {"counts": counts, "failed": failed[:50]}
+
+    @mcp.tool()
     def approve(character: str, job_id: str, stage: str) -> dict:
         """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
         the output (status with include_images) and said yes; never approve on your own judgement."""

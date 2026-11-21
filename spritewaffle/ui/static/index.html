@@ -80,6 +80,9 @@
   .types label:has(input:checked) { border-color: var(--accent); } .types input { display: none; }
   .types small { color: var(--muted); font-size: 11px; }
   .frontback { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px; }
+  .tt { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .tt canvas { border-radius: 8px; background: repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/16px 16px; max-width: 100%; }
+  .tt .ctl { display: grid; gap: 8px; min-width: 240px; }
   .animrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-width: 900px; }
   .jobhead img { width: 56px; height: 56px; object-fit: contain; image-rendering: pixelated; background: var(--panel); border-radius: 6px; border: 1px solid var(--line); }
   .jobhead h2 { margin: 0; font-size: 19px; }
@@ -583,6 +586,148 @@ function stepDone(step, stages) {
   return false;
 }
 
+// --- directional readiness: mirror policy, camera profile, turntable (docs/MANIFEST.md) -------
+const POLICY_LABEL = {legacy: "as chosen per run (default)", none: "never mirror", mirror_left_from_right: "flip the left side from the right", custom: "custom map"};
+function mirrorPolicyHtml(j) {
+  const cur = j.inputs.mirror_policy || "legacy";
+  return `<label title="Asymmetric characters (shield arm, eyepatch, emblem, a bag on one side) should use 'never mirror': a flipped view swaps that detail to the wrong side.">Mirror policy
+    <select class="mpol">${Object.entries(POLICY_LABEL).filter(([k]) => k !== "custom" || cur === "custom").map(([k, l]) =>
+      `<option value="${k}" ${k === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+}
+function bindMirrorPolicy(j) {
+  $$(".mpol").forEach(s => s.onchange = async e => {
+    await api(jobPath() + "/mirror_policy", {policy: e.target.value});
+    toast(`Mirror policy: ${POLICY_LABEL[e.target.value]}`); lastSig = ""; refreshAll();
+  });
+}
+
+async function showCamera(j) {
+  const d = $("#dlg"), proj = await api("/api/project/camera"), mine = await api(jobPath() + "/camera");
+  const eff = mine.effective, help = {camera_elevation_degrees: "0 = eye level, 45 = classic top-down", framing: "character height ÷ generated frame height",
+    character_scale: "character height in px at final size", light_yaw: "light comes from (0 = camera side, clockwise from above)",
+    light_elevation: "degrees above the horizon", background_mode: "what generation keys out", canvas_border_px: "transparent border kept by Align feet",
+    style_notes: "added to every generation prompt"};
+  const field = k => k === "background_mode"
+    ? `<select data-cam="${k}">${["green", "black", "transparent"].map(o => `<option ${o === eff[k] ? "selected" : ""}>${o}</option>`).join("")}</select>`
+    : k === "style_notes" ? `<input data-cam="${k}" value="${esc(eff[k])}" style="width:100%">`
+    : `<input data-cam="${k}" type="number" step="any" value="${esc(String(eff[k]))}" style="width:110px">`;
+  d.innerHTML = `<h2>Camera profile <span class="chip">from: ${esc(eff.source)}</span><span class="spacer"></span><button class="ghost" id="cClose">Close</button></h2>
+    <p class="hint" style="margin-top:0">One per project (<b>${esc(proj.id)}</b>), optionally overridden for one asset. With none set, values come from the
+      game profile (projection, sprite height) and nothing about generation changes. Every asset's manifest records the profile that made it.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">${proj.fields.map(k => `<label class="field"><span>${esc(k.replace(/_/g, " "))}</span>${field(k)}<span class="hint" style="margin:0">${esc(help[k] || "")}</span></label>`).join("")}</div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="cProj">Save for the whole project</button>
+      <button id="cAsset">Save for this asset only</button>
+      ${mine.override ? `<button class="ghost" id="cAssetClear">Remove this asset's override</button>` : ""}
+      ${proj.camera ? `<button class="ghost danger" id="cProjClear">Remove the project profile</button>` : ""}
+    </div>`;
+  const vals = () => { const o = {}; $$("#dlg [data-cam]").forEach(i => o[i.dataset.cam] = i.type === "number" ? +i.value : i.value); return o; };
+  const changed = () => { const v = vals(), o = {}; Object.keys(v).forEach(k => { if (String(v[k]) !== String(eff[k])) o[k] = v[k]; }); return o; };
+  const done = async msg => { toast(msg); lastSig = ""; await refreshAll(); showCamera(job); };
+  $("#cClose").onclick = () => d.close();
+  $("#cProj").onclick = async () => { await api("/api/project/camera", {camera: {...(proj.camera || {}), ...vals()}}); done("Project camera profile saved"); };
+  $("#cAsset").onclick = async () => { const c = {...(mine.override || {}), ...changed()};
+    if (!Object.keys(c).length) return toast("Change a value first", true);
+    await api(jobPath() + "/camera", {camera: c}); done("Saved for this asset"); };
+  if ($("#cAssetClear")) $("#cAssetClear").onclick = async () => { await api(jobPath() + "/camera", {camera: null}); done("Asset override removed"); };
+  if ($("#cProjClear")) $("#cProjClear").onclick = async () => {
+    if (!confirm("Remove the project's camera profile? Assets fall back to their game profile's values.")) return;
+    await api("/api/project/camera", {camera: null}); done("Project camera profile removed"); };
+  if (!d.open) d.showModal();
+}
+
+// Turntable: read-only. Spins through an asset's views in yaw order; snap or crossfade between the
+// two nearest views; scrub; hide mirrored views; foot-point overlay. Only GET requests.
+async function showTurntable(j, action) {
+  const d = $("#dlg"), m = await api(jobPath() + "/manifest");
+  const fileUrl = rel => rel ? `/files/${encodeURIComponent(j.character)}/${encodeURIComponent(j.job_id)}/${rel}` : null;
+  const sources = [["facings", "Facings (stills)"], ...m.animations.map(a => [`${a.action}|${a.frame_set}`, `${a.action} · ${a.frame_set}`])];
+  const st = {src: action ? (sources.find(s => s[0].startsWith(action + "|")) || sources[0])[0] : "facings",
+              yaw: 0, speed: 45, playing: true, mode: "crossfade", mirrored: true, foot: true, frame: 0, fps: 8};
+  d.innerHTML = `<h2>Turntable <span class="muted">${esc(m.asset_id)} · ${m.view_count} views · read-only</span><span class="spacer"></span><button class="ghost" id="tClose">Close</button></h2>
+    <div class="tt"><canvas id="tCv" width="384" height="384"></canvas>
+      <div class="ctl">
+        <label>Show <select id="tSrc">${sources.map(([k, l]) => `<option value="${esc(k)}">${esc(l)}</option>`).join("")}</select></label>
+        <label>Yaw <input type="range" id="tYaw" min="0" max="359.9" step="0.1" style="flex:1"> <span id="tYawV" class="muted"></span></label>
+        <div class="row" style="margin:0"><button id="tPlay">Pause</button>
+          <label>Speed <input type="range" id="tSpeed" min="5" max="360" value="45"> <span id="tSpeedV" class="muted"></span></label></div>
+        <label><input type="radio" name="tMode" value="crossfade" checked> Crossfade the two nearest views</label>
+        <label><input type="radio" name="tMode" value="snap"> Snap to the nearest view</label>
+        <label><input type="checkbox" id="tMir" checked> Show mirrored views</label>
+        <label><input type="checkbox" id="tFoot" checked> Foot-point overlay</label>
+        <div id="tInfo" class="muted"></div>
+      </div></div>
+    <p class="hint">Views in yaw order (0° faces the camera, clockwise seen from above). Hidden mirrored views are skipped, so neighbours blend across the gap. Nothing here changes any file.</p>`;
+  $("#tSrc").value = st.src;
+  const cv = $("#tCv"), ctx = cv.getContext("2d"), cache = {};
+  // facing stills are saved on exact #00FF00: key it out once per image (a small copy, display only)
+  const keyed = im => {
+    const k = Math.min(1, 512 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    const x = c.getContext("2d"); x.imageSmoothingEnabled = false; x.drawImage(im, 0, 0, c.width, c.height);
+    const px = x.getImageData(0, 0, c.width, c.height), d8 = px.data;
+    for (let i = 0; i < d8.length; i += 4) if (d8[i + 1] > 200 && d8[i] < 90 && d8[i + 2] < 90) d8[i + 3] = 0;
+    x.putImageData(px, 0, 0); c.naturalWidth = c.width; c.naturalHeight = c.height; c.complete = true; return c;
+  };
+  const load = u => { if (!u) return null;
+    if (!cache[u]) { const im = new Image(); cache[u] = im;
+      im.onload = () => { if (u.includes("/02_facings/")) cache[u] = keyed(im); draw(); }; im.src = u; }
+    return cache[u]; };
+  const views = () => {           // [{yaw, url, mirrored, foot, label}] for the current source and frame
+    if (st.src === "facings")
+      return m.views.filter(v => v.facing_image).map(v => ({yaw: v.yaw_degrees, url: fileUrl(v.facing_image), mirrored: v.mirrored, foot: null, label: v.label}));
+    const [act, set] = st.src.split("|"), a = m.animations.find(x => x.action === act && x.frame_set === set);
+    st.fps = a.fps || 8;
+    const by = {};
+    a.frames.forEach(f => (by[f.yaw_degrees] ??= []).push(f));
+    return Object.entries(by).map(([y, fs]) => { const f = fs[st.frame % fs.length];
+      return {yaw: +y, url: fileUrl(f.color), mirrored: f.mirrored, foot: f.foot_point, label: m.views[f.view_index]?.label || `${y}°`, n: fs.length}; });
+  };
+  const draw = () => {
+    let vs = views().filter(v => st.mirrored || !v.mirrored).sort((a, b) => a.yaw - b.yaw);
+    ctx.clearRect(0, 0, cv.width, cv.height); ctx.imageSmoothingEnabled = false;
+    $("#tYawV").textContent = `${st.yaw.toFixed(1)}°`; $("#tYaw").value = st.yaw;
+    if (!vs.length) { $("#tInfo").textContent = "No views to show."; return; }
+    // the two views around the current yaw (wrapping), and how far between them
+    let i = vs.findIndex(v => v.yaw > st.yaw); if (i < 0) i = 0;
+    const b = vs[i], a = vs[(i - 1 + vs.length) % vs.length];
+    const span = ((b.yaw - a.yaw + 360) % 360) || 360, t = ((st.yaw - a.yaw + 360) % 360) / span;
+    const layers = st.mode === "snap" || vs.length === 1 ? [[t < 0.5 ? a : b, 1]] : [[a, 1 - t], [b, t]];
+    for (const [v, alpha] of layers) {
+      const im = load(v.url); if (!im || !im.complete || !im.naturalWidth) continue;
+      const k = Math.min(cv.width / im.naturalWidth, cv.height / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+      const x = (cv.width - w) / 2, y = (cv.height - h) / 2;
+      ctx.globalAlpha = alpha; ctx.drawImage(im, x, y, w, h); ctx.globalAlpha = 1;
+      if (st.foot && v.foot && alpha >= 0.5) {
+        const fx = x + v.foot[0] * k, fy = y + v.foot[1] * k;
+        ctx.strokeStyle = "#f2b33d"; ctx.lineWidth = 2; ctx.beginPath();
+        ctx.moveTo(fx - 8, fy); ctx.lineTo(fx + 8, fy); ctx.moveTo(fx, fy - 8); ctx.lineTo(fx, fy + 2); ctx.stroke();
+      }
+    }
+    $("#tInfo").innerHTML = layers.map(([v, al]) => `${esc(v.label)} ${v.mirrored ? "(mirrored)" : ""} ${Math.round(al * 100)}%`).join(" · ")
+      + (vs[0].n ? ` · frame ${st.frame % vs[0].n + 1}/${vs[0].n}` : "");
+  };
+  let last = performance.now(), frameT = 0;
+  const tick = now => {
+    if (!d.open) return;
+    const dt = (now - last) / 1000; last = now;
+    if (st.playing) st.yaw = (st.yaw + st.speed * dt) % 360;
+    if (st.src !== "facings") { frameT += dt; if (frameT > 1 / st.fps) { st.frame++; frameT = 0; } }
+    draw(); requestAnimationFrame(tick);
+  };
+  $("#tClose").onclick = () => d.close();
+  // every control redraws at once (scrubbing must not wait for the next animation frame)
+  $("#tSrc").onchange = e => { st.src = e.target.value; st.frame = 0; draw(); };
+  $("#tYaw").oninput = e => { st.yaw = +e.target.value; st.playing = false; $("#tPlay").textContent = "Play"; draw(); };
+  $("#tPlay").onclick = () => { st.playing = !st.playing; $("#tPlay").textContent = st.playing ? "Pause" : "Play"; };
+  $("#tSpeed").oninput = e => { st.speed = +e.target.value; $("#tSpeedV").textContent = `${st.speed}°/s`; };
+  $$('input[name="tMode"]').forEach(r => r.onchange = () => { st.mode = r.value; draw(); });
+  $("#tMir").onchange = e => { st.mirrored = e.target.checked; draw(); };
+  $("#tFoot").onchange = e => { st.foot = e.target.checked; draw(); };
+  $("#tSpeedV").textContent = `${st.speed}°/s`;
+  d.showModal(); draw(); requestAnimationFrame(tick);
+}
+
 // --- job page ----------------------------------------------------------------------------
 function renderJob() {
   const j = job, st = k => j.stages[k]?.status, steps = STEPS[j.asset_type] || STEPS.character;
@@ -610,6 +755,7 @@ function renderJob() {
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompt writer
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
+      <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
       <span class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
@@ -620,6 +766,7 @@ function renderJob() {
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
+  $("#jCamera").onclick = () => showCamera(j);
   if ($("#jVariant")) $("#jVariant").onclick = () => showVariant(j);
   if ($("#jFit") && itemReady) $("#jFit").onclick = () => showFitOn(j);
   $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
@@ -763,6 +910,7 @@ function paneFacings(j, st) {
               : `<button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? (isItem ? "Re-draw back" : "Re-generate all") : (isItem ? "Draw the back" : "Generate facings")}</button>`}
       <button class="primary" id="apFacings" ${done === want.length && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
     ${st("anchor") !== "approved" && !sheet ? `<p class="warn">Approve the anchor first.</p>` : ""}
+    ${isItem ? "" : `<div class="row" style="margin:0 0 12px">${mirrorPolicyHtml(j)}<button class="ghost" id="ttFacings">Turntable…</button></div>`}
     ${isItem ? `<div class="frontback">${[["S", "Front"], ["N", "Back"]].map(([f, label]) => {
       const x = j.facings.find(y => y.facing === f) || {};
       return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="${label}" title="enlarge">${img(x.image, label)}</a>` : img(null)}
@@ -789,6 +937,8 @@ function paneFacings(j, st) {
     run("anchor", {describe: j.inputs.description, asset_type: j.asset_type}, "New sheet queued");
   };
   $("#apFacings").onclick = () => approve("facings");
+  bindMirrorPolicy(j);
+  if ($("#ttFacings")) $("#ttFacings").onclick = () => showTurntable(j);
   $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
 }
 
@@ -797,7 +947,7 @@ function paneAnimations(j, st) {
   const byAction = {};
   j.actions.forEach(a => (byAction[a.action] ??= {})[a.facing] = a);
   const n = form.facings.size * form.actions.size;
-  const mirrored = form.mirror && !form.source.startsWith("tara") ? [...form.facings].filter(f => ["W", "NW", "SW"].includes(f) && form.facings.has({W: "E", NW: "NE", SW: "SE"}[f])).length * form.actions.size : 0;
+  const mirrored = (j.inputs.mirror_policy || "legacy") === "legacy" && form.mirror && !form.source.startsWith("tara") ? [...form.facings].filter(f => ["W", "NW", "SW"].includes(f) && form.facings.has({W: "E", NW: "NE", SW: "SE"}[f])).length * form.actions.size : 0;
   $("#pane").innerHTML = `<section>
     <h2>Animate ${ready ? "" : `<span class="warn">approve the facings first</span>`}</h2>
     <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
@@ -810,9 +960,16 @@ function paneAnimations(j, st) {
           ${j.motions.map(m => `<option value="flow|${esc(m)}" ${form.source === "flow|" + m ? "selected" : ""}>flow · ${esc(m)} (experimental)</option>
             <option value="tara|${esc(m)}" ${form.source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
         <label>Clip length <input id="secs" type="number" value="${form.seconds}" min="1" max="8" step="0.5" style="width:70px"> s</label>
-        <label><input type="checkbox" id="mirror" ${form.mirror ? "checked" : ""}> Mirror W / NW / SW from E / NE / SE</label>
+        ${mirrorPolicyHtml(j)}
+        ${(j.inputs.mirror_policy || "legacy") === "legacy"
+          ? `<label><input type="checkbox" id="mirror" ${form.mirror ? "checked" : ""}> Mirror W / NW / SW from E / NE / SE</label>`
+          : `<span class="muted">Mirroring follows the policy above.</span>`}
         <button class="primary" id="queueAnim" ${ready && n ? "" : "disabled"}>Queue ${n} animation${n === 1 ? "" : "s"}</button>
         <span class="muted">${mirrored ? `${mirrored} by mirroring (no render)` : ""}</span>
+        <div class="row" style="margin:0"><button class="ghost" id="ttAnims" ${j.actions.length ? "" : "disabled"}>Turntable…</button>
+          <button class="ghost" id="alignFeet" ${j.actions.length ? "" : "disabled"}
+            title="Keep each frame's foot point on the same pixel, with the camera profile's border. Writes aligned copies; the originals stay">${j.inputs.align_feet ? "Re-align feet" : "Align feet"}</button>
+          ${j.inputs.align_feet ? `<span class="chip" title="exports and the manifest use the aligned frames">feet aligned</span>` : ""}</div>
       </div>
     </div></section>
     ${Object.keys(byAction).sort().map(action => `<section>
@@ -842,10 +999,13 @@ function paneAnimations(j, st) {
   $("#fNone").onclick = () => { form.facings.clear(); renderJob(); };
   $("#src").onchange = e => { form.source = e.target.value; renderJob(); };
   $("#secs").onchange = e => form.seconds = +e.target.value || 2;
-  $("#mirror").onchange = e => { form.mirror = e.target.checked; renderJob(); };
+  if ($("#mirror")) $("#mirror").onchange = e => { form.mirror = e.target.checked; renderJob(); };
+  bindMirrorPolicy(j);
+  $("#ttAnims").onclick = () => showTurntable(j, Object.keys(byAction).sort()[0]);
+  $("#alignFeet").onclick = () => run("align", {}, "Foot alignment queued");
   $("#queueAnim").onclick = () => {
     const [method, motion] = form.source.split("|");
-    const args = {facings: [...form.facings], actions: [...form.actions], mirror: form.mirror};
+    const args = {facings: [...form.facings], actions: [...form.actions], mirror: (j.inputs.mirror_policy || "legacy") === "legacy" ? form.mirror : true};
     if (motion) Object.assign(args, {motion, method}); else args.seconds = form.seconds;
     run("animate", args, "Animations queued");
   };

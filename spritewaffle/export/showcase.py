@@ -34,7 +34,8 @@ def _trim(rgba: np.ndarray) -> np.ndarray:
 
 
 def _load_anim(sd: Path) -> list[np.ndarray]:
-    return [np.array(Image.open(p).convert("RGBA")) for p in sorted((sd / "frames").glob("*.png"))]
+    from ..frames.video import colour_frames
+    return [np.array(Image.open(p).convert("RGBA")) for p in colour_frames(sd / "frames")]
 
 
 def collect(job_root: Path, frame_set: str = "12f") -> dict:

@@ -16,9 +16,25 @@ from . import aseprite
 from .sheet import feet_pivot
 
 
+MAPS = ("depth", "normal")       # reserved per-frame maps: <frame>_depth.png, <frame>_normal.png
+
+
+def _frames(sd: Path, aligned: bool) -> list[Path]:
+    """The colour frames of a set (000.png, 001.png... only: never a _depth/_normal map). The
+    aligned copies when the asset uses align_feet and they are complete."""
+    plain = sorted((sd / "frames").glob("[0-9][0-9][0-9].png"))
+    if aligned:
+        al = sorted((sd / "frames_aligned").glob("[0-9][0-9][0-9].png"))
+        if len(al) == len(plain):
+            return al
+    return plain
+
+
 def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -> tuple[list[dict], list[str]]:
-    """Animations ready to ship: [{name, facing, action, cells (F,h,w,4), loop}], plus skip reasons."""
+    """Animations ready to ship: [{name, facing, action, cells (F,h,w,4), loop, maps}], plus skip
+    reasons. maps: {"depth"|"normal": (F,h,w,4)} for the maps that exist (missing frames empty)."""
     anims, skipped = [], []
+    aligned = bool(json.loads((Path(job_root) / "job.json").read_text())["inputs"].get("align_feet"))
     for sd in sorted((job_root / "04_pixel").glob(f"*/*/{frame_set}")):
         facing, action = sd.parent.parent.name, sd.parent.name
         qa = job_root / "05_qa" / facing / action / frame_set / "report.json"
@@ -29,14 +45,21 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
             if json.loads(qa.read_text())["status"] != "pass":
                 skipped.append(f"{action}_{facing}: QA failed")
                 continue
-        cells = np.stack([np.array(Image.open(p).convert("RGBA")) for p in sorted((sd / "frames").glob("*.png"))])
+        files = _frames(sd, aligned)
+        cells = np.stack([np.array(Image.open(p).convert("RGBA")) for p in files])
+        maps = {}
+        for kind in MAPS:
+            mp = [sd / "frames" / f"{p.stem}_{kind}.png" for p in files]
+            if any(m.exists() for m in mp):
+                maps[kind] = np.stack([np.array(Image.open(m).convert("RGBA")) if m.exists() else np.zeros_like(cells[0])
+                                       for m in mp])
         sel = job_root / "03_actions" / facing / action / "selection_report.json"
         loop = json.loads(sel.read_text())["loop"] if sel.exists() else True
         pl = sd / "placements.json"
         places = json.loads(pl.read_text()) if pl.exists() else []
         pivot = places[0].get("pivot") if places else None
         anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells, "loop": loop,
-                      "pivot": pivot or feet_pivot(cells)})
+                      "pivot": pivot or feet_pivot(cells), "maps": maps})
     return anims, skipped
 
 
@@ -127,6 +150,13 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
     page_files = atlasmod.save_pages(out_dir, base, pages)
     tp_files = atlasmod.write_texturepacker(out_dir, base, pages, layout, (w, h),
                                             {m["name"]: m["pivot"] for m in meta_anims})
+    map_pages = {}                                               # depth/normal: same rectangles as the colour pages
+    for kind in MAPS:
+        for old in out_dir.glob(f"{base}_{kind}_*.png"):
+            old.unlink()
+        if any(kind in a.get("maps", {}) for a in anims):
+            map_pages[kind] = [p.name for p in atlasmod.save_map_pages(out_dir, f"{base}_{kind}",
+                                                                      atlasmod.map_pages(pages, layout, anims, kind))]
     for ma in meta_anims:
         ma.pop("row", None)
         ma["frames_atlas"] = layout[ma["name"]]["frames"]
@@ -138,9 +168,10 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
             "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()],
             "pages": [{"image": p.name, "w": int(pg.shape[1]), "h": int(pg.shape[0])} for p, pg in zip(page_files, pages)],
             "max_size": max_size, "mirror": mirror, "animations": meta_anims,
-            "skipped": skipped}
+            "skipped": skipped, **({"map_pages": map_pages} if map_pages else {})}
     js = out_dir / f"{character}_atlas.json"
     js.write_text(json.dumps(meta, indent=2))
     return {"aseprite": str(ase_path), "atlas": str(page_files[0]), "pages": [str(p) for p in page_files],
             "engine_json": [str(p) for p in tp_files], "json": str(js), "mode": mode,
-            "animations": [a["name"] for a in meta_anims], "colours": len(pal), "skipped": skipped}
+            "animations": [a["name"] for a in meta_anims], "colours": len(pal), "skipped": skipped,
+            **({"map_pages": map_pages} if map_pages else {})}

@@ -96,7 +96,8 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
     st = styles.get(styles.of_job(job))
     if st["post"] == "smooth":                       # hand-painted / anime / comic: no grid, no palette
         from ..pixel import smooth
-        art, k = smooth.process(frames, profile.sprite_height_px * st["scale"], despill=profile.despill)
+        from . import camera
+        art, k = smooth.process(frames, camera.character_height(job, profile) * st["scale"], despill=profile.despill)
         pos = {s: n for n, s in enumerate(union)}
         info = _write_pixel_sets(job, profile, facing, action,
                                  {n: ([art[pos[i]] for i in idxs], idxs) for n, idxs in sets.items()},
@@ -105,7 +106,8 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
         return info
     from . import job_palette
     pal = palette or job_palette.resolve(job, profile)[0]    # explicit size = a one-off per-clip fit
-    params = PixelParams(palette=pal, pixel_size=profile.pixel_size, target_height=profile.sprite_height_px,
+    from . import camera
+    params = PixelParams(palette=pal, pixel_size=profile.pixel_size, target_height=camera.character_height(job, profile),
                          loop=rep["loop"], outline=profile.outline, despill=profile.despill)
     res = pixelize(frames, params)
     if not palette and not isinstance(pal, list):
@@ -198,7 +200,7 @@ def _rgba_to_index(cell: np.ndarray, pal: np.ndarray) -> np.ndarray:
 
 
 def _load_set(sd: Path) -> tuple[np.ndarray, list[dict]]:
-    cells = np.stack(video.load(video.list_frames(sd / "frames")))
+    cells = np.stack(video.load(video.colour_frames(sd / "frames")))
     if cells.shape[-1] == 3:
         cells = np.dstack([cells, np.full(cells.shape[:3], 255, np.uint8)])
     return cells, json.loads((sd / "placements.json").read_text())
@@ -346,7 +348,7 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
                if rep["palette"] else None)                          # None: full-colour style
     sets = {}
     for n, info in rep["sets"].items():
-        frames = video.load(video.list_frames(src / f"{n}f" / "frames"))
+        frames = video.load(video.colour_frames(src / f"{n}f" / "frames"))
         frames = [f if f.shape[2] == 4 else np.dstack([f, np.full(f.shape[:2], 255, np.uint8)]) for f in frames]
         sets[n] = ([np.ascontiguousarray(f[:, ::-1]) for f in frames], info["sources"])
     warnings = []
@@ -367,3 +369,31 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
                                                        "action": action, "warnings": warnings}, indent=2))
     job.set_stage(f"action:{facing}/{action}", "review", mode="mirror", source=source, warnings=warnings)
     return {**out, "warnings": warnings}
+
+
+def align(job: Job, profile: GameProfile, facing: str | None = None, action: str | None = None) -> dict:
+    """Optional: every frame's foot point on the set's median foot point, with the camera profile's
+    transparent border (default 2 px). Writes <n>f/frames_aligned/ next to frames/ (the originals
+    stay) and turns on the asset's align_feet, so the manifest and the character export use the
+    aligned frames. Whole-pixel moves only; no resampling."""
+    from . import camera
+    border = int(camera.effective(job, profile)[0].canvas_border_px)
+    root = job.root / "04_pixel"
+    sets = sorted(root.glob(f"{facing or '*'}/{action or '*'}/*f"))
+    sets = [sd for sd in sets if (sd / "frames").is_dir()]
+    if not sets:
+        raise FileNotFoundError("nothing pixelized to align" + (f" for {facing} {action}" if facing or action else ""))
+    report = {"border": border, "sets": {}}
+    for sd in sets:
+        files = sorted((sd / "frames").glob("[0-9][0-9][0-9].png"))
+        cells = [np.array(Image.open(f).convert("RGBA")) for f in files]
+        out, pts, warns = layout.align_feet(cells, border=border)
+        _save_pngs(list(out), sd / "frames_aligned", [f.stem for f in files])
+        (sd / "frames_aligned" / "footpoints.json").write_text(json.dumps(pts))
+        key = f"{sd.parent.parent.name}/{sd.parent.name}/{sd.name}"
+        report["sets"][key] = {"frames": len(files), "foot_point": pts[0] if pts else None, "warnings": warns}
+    (root / "align_report.json").write_text(json.dumps(report, indent=2))
+    job.update_inputs(align_feet=True)
+    job.set_stage("align", "done", border=border, sets=len(sets),
+                  warnings=sum(len(v["warnings"]) for v in report["sets"].values()))
+    return report

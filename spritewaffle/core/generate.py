@@ -29,6 +29,12 @@ def _seed(seed: int | None) -> int:
 
 
 def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> dict:
+    """One image generation. A project/asset camera profile adds its sentence to the prompt here, so
+    every still (anchor, facings, items, variants) gets it; none set -> the prompt is unchanged."""
+    from . import camera
+    extra = camera.prompt_sentence(job)
+    if extra and isinstance(values.get("prompt"), str):
+        values = {**values, "prompt": f"{values['prompt'].rstrip()} {extra}"}
     tmp = dest.parent / f".{dest.stem}_tmp"
     prov = client.run_template(slot, values, tmp)
     src = Path(prov["files"][0])
@@ -39,7 +45,7 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> 
     prov["files"] = [str(dest.relative_to(job.root))]
     prov["values"] = {k: (str(v) if isinstance(v, Path) else [str(x) for x in v] if isinstance(v, list) else v)
                       for k, v in prov["values"].items()}
-    job.log_provenance(str(dest.relative_to(job.root)), **prov)
+    job.log_provenance(str(dest.relative_to(job.root)), **prov, camera=camera.snapshot(job))
     return prov
 
 
@@ -280,6 +286,19 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     want = [f for f in (builder.CARDINALS + builder.DIAGONALS)[: 4 if profile.directions == 4 else 8]]
     todo = [f for f in want if f != "S" and (not only or f in only)]
     report = {"diagonals": diagonals, "facings": {}, "mirrored": {}, "warnings": []}
+    # per-asset mirror policy (docs/MANIFEST.md); legacy = the behaviour below, unchanged
+    inputs = job.read_meta()["inputs"]
+    policy = inputs.get("mirror_policy") or "legacy"
+    flip_from = {}
+    if policy in ("mirror_left_from_right", "custom"):
+        from . import angles
+        for f in want:
+            src = angles.mirror_source(angles.yaw_of(f), policy, inputs.get("mirror_map"), n=profile.directions)
+            if src is not None and angles.label(src) in want:
+                flip_from[f] = angles.label(src)
+    elif policy == "none":
+        mirror = "off"
+    todo = [f for f in todo if f not in flip_from]
 
     for f in [x for x in todo if x in builder.CARDINALS] + [x for x in todo if x in builder.DIAGONALS]:
         if f in builder.DIAGONALS and diagonals == "nearest":
@@ -295,6 +314,15 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
                                        animal=job.read_meta()["inputs"].get("asset_type") == "animal"), "ref_images": imgs, "seed": _seed(seed)},
              out / f"{f}.png")
 
+    for f, src in flip_from.items():                  # policy: flipped, never rendered
+        if f == "S" or (only and f not in only and src not in only):
+            continue
+        if not (out / f"{src}.png").exists():
+            raise RuntimeError(f"{f} is flipped from {src} (mirror policy {policy}); generate {src} first")
+        takes.stash(job, out / f"{f}.png")
+        Image.open(out / f"{src}.png").transpose(Image.FLIP_LEFT_RIGHT).save(out / f"{f}.png")
+        report["mirrored"][f] = {"from": src, "policy": policy}
+        job.log_provenance(f"02_facings/{f}.png", mirrored_from=src, reason=f"mirror_policy {policy}")
     a = _rgba(a_path)
     asym = layout.asymmetry(a)
     if asym["asymmetric"]:

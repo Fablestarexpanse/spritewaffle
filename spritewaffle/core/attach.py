@@ -116,7 +116,8 @@ def preview(job: Job, facing: str, action: str, frame_set: str = "12f", fps: int
     if not att:
         raise FileNotFoundError("no effect attached to this animation")
     sd = job.root / "04_pixel" / facing / action / frame_set
-    cells = [np.array(Image.open(p).convert("RGBA")) for p in sorted((sd / "frames").glob("*.png"))]
+    from ..frames.video import colour_frames
+    cells = [np.array(Image.open(p).convert("RGBA")) for p in colour_frames(sd / "frames")]
     if not cells:
         raise FileNotFoundError(f"{action} {facing} has no {frame_set} frames yet")
     fx, meta, _ = effect_files(job.root.parent.parent / att["effect_job"])

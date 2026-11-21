@@ -1,4 +1,4 @@
-NEXT: (2026-11-21) directional readiness step 1 (angles+manifest+migration) committed; next: camera profile (core/camera.py written, not wired), align stage, depth/normal export, mirror policy, turntable, docs/MANIFEST.md, CHANGELOG. Plan: docs/PLAN_DIRECTIONAL.md.
+NEXT: (2026-11-21) directional readiness built + pushed (manifest, camera profile, foot points/align, depth/normal slots, mirror policy, turntable; docs/MANIFEST.md, CHANGELOG.md). Open: >8-view generation (R4, not requested), P3 UI polish.
 
 # SpriteWaffle decisions log
 
@@ -321,3 +321,4 @@ NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects
 - 2026-11-21 UI audit fixes (P1 #1-4, P2 #5-12) done, checked in the browser at 1440/800 px; queue became a drawer (the fixed 340 px column was what pushed Make a variant/Archive off-screen). Open: test-job cleanup, P3 polish.
 - 2026-11-21 Directional sprite readiness (Myth-style billboards) requested: plan in docs/PLAN_DIRECTIONAL.md, waiting for Ronan's calls on R1 border default, R2 mirror_policy default, R4 >8-view generation. Jobs archive choice (14 vs 18) also still open.
 - 2026-11-21 Ronan approved docs/PLAN_DIRECTIONAL.md as proposed: R1 2px border only on the new align output (pixel stage keeps 1px); R2 missing mirror_policy = 'legacy' (today's behaviour) for all assets, 'none' selectable; R4 generation stays 4/8 views, manifest/viewer take any N. Archived the 18 listed test/superseded jobs (reversible: jobs/_archive).
+- 2026-11-21 Directional readiness built. Measured: replay_downscale matches stored frames' lit pixels (worst 0.9% over 250 frames incl. mirrored, knight/cat/hare); manifest migration of 21 real jobs ~10 s first time (foot points measured once, cached). Turntable: requestAnimationFrame stops when the page is hidden, so controls and image loads redraw directly.

@@ -12,7 +12,7 @@ import json
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-from .profile import GameProfile
+from .profile import GameProfile, resolve
 
 SCHEMA_VERSION = 1
 PROJECTION_ELEVATION = {"side": 0.0, "topdown_34": 45.0, "iso_2to1": 30.0}
@@ -88,8 +88,16 @@ def set_project(base: Path, camera: dict | None, project_id: str | None = None) 
     return d
 
 
-def effective(job, profile: GameProfile) -> tuple[CameraProfile, str]:
+def job_profile(job) -> GameProfile:
+    try:
+        return resolve(job.read_meta()["inputs"].get("profile"))
+    except (FileNotFoundError, ValueError):
+        return GameProfile(name="default")
+
+
+def effective(job, profile: GameProfile | None = None) -> tuple[CameraProfile, str]:
     """(camera profile, source): source = 'asset' | 'project' | 'implied'."""
+    profile = profile or job_profile(job)
     base = job.root.parent.parent
     proj = project(base)["camera"] or {}
     over = (job.read_meta()["inputs"].get("camera") or {})
@@ -97,9 +105,10 @@ def effective(job, profile: GameProfile) -> tuple[CameraProfile, str]:
     return CameraProfile(**vals), ("asset" if over else "project" if proj else "implied")
 
 
-def prompt_sentence(job, profile: GameProfile) -> str:
+def prompt_sentence(job, profile: GameProfile | None = None) -> str:
     """Extra prompt text, only for what the GameProfile doesn't already say (plan R3): a camera
     elevation different from the projection's, a different framing, style notes. '' otherwise."""
+    profile = profile or job_profile(job)
     cam, source = effective(job, profile)
     if source == "implied":
         return ""
@@ -116,6 +125,28 @@ def prompt_sentence(job, profile: GameProfile) -> str:
     return " ".join(out)
 
 
-def snapshot(job, profile: GameProfile) -> dict:
+def character_height(job, profile: GameProfile) -> int:
+    """Target sprite height for the pixel stage: the camera profile's character_scale when one is
+    set for this asset or project (and it fits the cell), else the GameProfile's sprite height."""
+    cam, source = effective(job, profile)
+    if source != "implied" and 4 <= int(cam.character_scale) <= int(profile.cell_size) - 2:
+        return int(cam.character_scale)
+    return int(profile.sprite_height_px)
+
+
+def snapshot(job, profile: GameProfile | None = None) -> dict:
     cam, source = effective(job, profile)
     return {"source": source, **asdict(cam)}
+
+
+def set_asset(job, camera: dict | None) -> dict:
+    """Set (or with None clear) one asset's override; validated against the merged result."""
+    cam = clean(camera) if camera else None
+    if cam:
+        CameraProfile(**(asdict(effective(job)[0]) | cam))
+    with job.mutate() as meta:
+        if cam:
+            meta["inputs"]["camera"] = cam
+        else:
+            meta["inputs"].pop("camera", None)
+    return snapshot(job)

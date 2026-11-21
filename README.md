@@ -156,6 +156,16 @@ onto a grey card, `01_anchor/item_ref.png`), so the item keeps its real design; 
 and every facing are the base's own images with the item fitted on, so poses line up. Back views show
 only the back of the item (no chest gem on the back).
 
+### Directional sprites: manifest, camera profile, turntable
+
+Every asset keeps a manifest (`manifest.json`): each frame's view angle in degrees (any number of
+views), foot point, colour / depth / normal / high-res master files and how it was downscaled,
+ready for engines that blend between angles and light sprites with maps. **Camera…** sets the
+project's camera profile (or one asset's), **Mirror policy** on Facings/Animations decides which
+views are flipped, **Align feet** pins every frame's foot point, and **Turntable…** spins through
+the views (read-only) to spot angle-to-angle drift. Existing assets: `spritewaffle manifest`.
+Details and every call: [docs/MANIFEST.md](docs/MANIFEST.md).
+
 ### Equipment items (paper doll)
 
 New → type `item` (armor, cape, weapon). The anchor is the item on its own, front view; Facings
@@ -230,7 +240,8 @@ spritewaffle export-character --job knight/k1
 ## Agents (MCP)
 
 `spritewaffle mcp` is an MCP server on stdio with `generate`, `animate`, `animate_all`, `status`,
-`approve`, `export_character` and `stack`. For Claude Code:
+`approve`, `export_character` and `stack`, plus the directional-sprite calls `camera_profile`,
+`mirror_policy`, `manifest` and `manifest_migrate` ([docs/MANIFEST.md](docs/MANIFEST.md)). For Claude Code:
 
 ```powershell
 claude mcp add spritewaffle -- "C:\path\to\spritewaffle\.venv\Scripts\spritewaffle.exe" mcp

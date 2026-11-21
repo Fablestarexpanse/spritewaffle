@@ -275,3 +275,29 @@ def replay_downscale(image: np.ndarray, record: dict, alpha_from: np.ndarray | N
     if pl:
         return layout._place(art, layout.Placement(float(pl["scale"]), tuple(pl["crop"]), tuple(pl["paste"])), (cell, cell))
     return art
+
+
+def set_mirror_policy(job: Job, policy: str, mirror_map: dict | None = None) -> dict:
+    """Per-asset mirror policy (docs/MANIFEST.md). legacy = today's per-run choices; none = never
+    flip; mirror_left_from_right = render S, N and the right-facing half, flip the left half;
+    custom = mirror_map {"<view_index>": <source view_index>}."""
+    if policy not in angles.POLICIES:
+        raise ValueError(f"mirror_policy must be one of {angles.POLICIES}")
+    n = view_count(job)
+    clean_map = None
+    if policy == "custom":
+        if not mirror_map:
+            raise ValueError("custom needs mirror_map, e.g. {\"1\": 7} = view 1 (SW) flipped from view 7 (SE)")
+        clean_map = {}
+        for k, v in mirror_map.items():
+            if not (str(k).isdigit() and 0 <= int(k) < n and 0 <= int(v) < n and int(k) != int(v)):
+                raise ValueError(f"mirror_map entries must be two different view indices 0..{n - 1}: {k}->{v}")
+            clean_map[str(int(k))] = int(v)
+    with job.mutate() as meta:
+        meta["inputs"]["mirror_policy"] = policy
+        if clean_map is None:
+            meta["inputs"].pop("mirror_map", None)
+        else:
+            meta["inputs"]["mirror_map"] = clean_map
+    refresh(job)
+    return {"mirror_policy": policy, "mirror_map": clean_map, "view_count": n}

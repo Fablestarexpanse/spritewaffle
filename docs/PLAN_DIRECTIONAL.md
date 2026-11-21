@@ -1,6 +1,6 @@
 # Plan: directional sprite readiness (Myth-style billboards)
 
-Status: **plan, waiting for approval.** No code written yet.
+Status: **built 2026-11-21** as approved (R1 border on align output only, R2 missing policy = legacy, R4 generation stays 4/8). Schema and calls: [MANIFEST.md](MANIFEST.md); changes: [../CHANGELOG.md](../CHANGELOG.md).
 
 Goal: SpriteWaffle's data and output carry everything a later Myth-style test needs (many view
 angles, crossfading between neighbours, per-frame depth/normal maps), without changing any

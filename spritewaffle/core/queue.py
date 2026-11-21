@@ -102,6 +102,9 @@ def _stages():
         need(a, "facing", "action", "motion")
         return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"], loop=a.get("loop"))
 
+    def align(job, prof, a):
+        return stages.align(job, prof, a.get("facing"), a.get("action"))
+
     def mirror(job, prof, a):
         need(a, "facing", "action")
         return stages.mirror_action(job, prof, a["facing"], a["action"], a.get("source"))
@@ -150,11 +153,11 @@ def _stages():
 
     gpu = {"model3d": model3d, "effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
            "ortho": ortho}
-    cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
+    cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export, "align": align}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export", "align")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 # stages after which the asset manifest (core/manifest.py) is rebuilt
 MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align")
@@ -236,20 +239,47 @@ class Queue:
         requested are made by flipping the partner's pixel art (after its pixelize task) instead of
         rendering — same pixels, no GPU time. Each one still gets its own QA and export."""
         from .stages import MIRROR_OF
+        flip = self._mirror_plan(job, facings, mirror, profile)
         tasks = []
         for action in actions:
             pix_task = {}
-            mirrored = [f for f in facings if mirror and f in ("W", "NW", "SW") and MIRROR_OF[f] in facings]
-            for f in [f for f in facings if f not in mirrored]:
+            mirrored = {f: src for f, src in flip.items() if f in facings}
+            render = [f for f in facings if f not in mirrored]
+            render += [s for s in dict.fromkeys(mirrored.values()) if s not in render
+                       and not (Path(job) / "04_pixel" / s / action / "pixel_report.json").exists()]
+            for f in render:
                 chain = self.submit_action_pipeline(job, f, action, profile, **action_args)
                 pix_task[f] = next(t["id"] for t in chain if t["stage"] in ("pixelize", "flow"))
                 tasks += chain
-            for f in mirrored:
-                m = self.submit(job, "mirror", {"facing": f, "action": action}, profile, after=[pix_task[MIRROR_OF[f]]])
+            for f, src in mirrored.items():
+                m = self.submit(job, "mirror", {"facing": f, "action": action, "source": src}, profile,
+                                after=[pix_task[src]] if src in pix_task else [])
                 q = self.submit(job, "qa", {"facing": f, "action": action}, profile, after=[m["id"]])
                 e = self.submit(job, "export", {"facing": f, "action": action}, profile, after=[q["id"]])
                 tasks += [m, q, e]
         return tasks
+
+    def _mirror_plan(self, job, facings: list[str], mirror: bool, profile: str | None) -> dict[str, str]:
+        """facing -> the facing it is flipped from. legacy (no policy): the run's mirror flag, W/NW/SW
+        from a requested partner, as before. none: nothing. mirror_left_from_right / custom: per the
+        policy, and a missing source is rendered too (docs/MANIFEST.md)."""
+        from . import angles
+        from .job import Job
+        from .stages import MIRROR_OF
+        jf = Path(job) / "job.json"
+        inputs = Job.open(Path(job)).read_meta()["inputs"] if jf.exists() else {}
+        policy = inputs.get("mirror_policy") or "legacy"
+        if policy == "legacy":
+            return {f: MIRROR_OF[f] for f in facings if mirror and f in ("W", "NW", "SW") and MIRROR_OF[f] in facings}
+        if policy == "none":
+            return {}
+        n = resolve(profile).directions if profile else 8
+        out = {}
+        for f in facings:
+            src = angles.mirror_source(angles.yaw_of(f), policy, inputs.get("mirror_map"), n=n)
+            if src is not None:
+                out[f] = angles.label(src)
+        return out
 
     def submit_reprocess(self, job, profile: str | None = None) -> list[dict]:
         """Re-run every pixelized clip of a job from its frames (no rendering), e.g. after the job

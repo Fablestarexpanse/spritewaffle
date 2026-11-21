@@ -56,6 +56,12 @@ def list_frames(folder: str | Path) -> list[Path]:
     return sorted(Path(folder).glob("*.png"))
 
 
+def colour_frames(folder: str | Path) -> list[Path]:
+    """A pixel set's colour frames (000.png, 001.png...), never the reserved per-frame maps
+    (000_depth.png, 000_normal.png) that may sit next to them (docs/MANIFEST.md)."""
+    return sorted(Path(folder).glob("[0-9][0-9][0-9].png"))
+
+
 def load(paths: list[Path]) -> list[np.ndarray]:
     """Load PNGs as RGB, or RGBA when the file has alpha."""
     out = []

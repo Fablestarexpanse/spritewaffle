@@ -262,7 +262,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 qa = read_json(j.root / "05_qa" / facing / action / n / "report.json")
                 sets[n] = {"preview": url(j.root / "06_export" / facing / action / n / f"{action}_{facing}_{n}_preview.gif"),
                            "qa": qa and {k: qa[k] for k in ("status", "errors", "warnings", "reroll")}}
-            sets["12f"]["frames"] = [url(p) for p in sorted((j.root / "04_pixel" / facing / action / "12f" / "frames").glob("*.png"))]
+            sets["12f"]["frames"] = [url(p) for p in sorted((j.root / "04_pixel" / facing / action / "12f" / "frames").glob("[0-9][0-9][0-9].png"))]
             att = (meta["inputs"].get("attachments") or {}).get(f"{action}_{facing}")
             fxgif = j.root / "06_export" / facing / action / "12f" / f"{action}_{facing}_12f_with_fx.gif"
             actions.append({"facing": facing, "action": action, "attachment": att, "fx_preview": url(fxgif) if att else None,
@@ -288,7 +288,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "directions": profile_directions(j),
                 "effect_jobs": effect_jobs() if meta["inputs"].get("asset_type") != "effect" else [],
                 "items": item_jobs() if meta["inputs"].get("asset_type") not in ("item", "effect") else [],
-                "fits": meta["inputs"].get("fits") or [],
+                "fits": [f for f in meta["inputs"].get("fits") or []
+                         if (base / f["character"] / f["job_id"] / "job.json").exists()],    # archived fits hidden
                 "action_presets": sorted(builder.actions_for(meta["inputs"].get("asset_type"))),
                 "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
                 "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit"),
@@ -585,6 +586,62 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         j.set_stage("export:character", "done", pages=len(out["pages"]), mirror=mirror,
                     **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
+
+    # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------
+    @app.get("/api/project/camera")
+    def project_camera():
+        from dataclasses import asdict
+
+        from ..core import camera
+        return camera.project(base) | {"defaults": asdict(camera.CameraProfile()), "fields": list(camera.FIELDS)}
+
+    @app.post("/api/project/camera")
+    def set_project_camera(body: dict = Body(...)):
+        from ..core import camera
+        try:
+            return camera.set_project(base, body.get("camera"), body.get("id"))
+        except ValueError as e:
+            bad(e)
+
+    @app.get("/api/jobs/{char}/{jid}/camera")
+    def job_camera(char: str, jid: str):
+        from ..core import camera
+        j = job_or_404(char, jid)
+        return {"effective": camera.snapshot(j), "override": j.read_meta()["inputs"].get("camera")}
+
+    @app.post("/api/jobs/{char}/{jid}/camera")
+    def set_job_camera(char: str, jid: str, body: dict = Body(...)):
+        from ..core import camera, manifest
+        j = job_or_404(char, jid)
+        try:
+            out = camera.set_asset(j, body.get("camera"))
+        except ValueError as e:
+            bad(e)
+        manifest.refresh(j)
+        return out
+
+    @app.post("/api/jobs/{char}/{jid}/mirror_policy")
+    def set_mirror_policy(char: str, jid: str, body: dict = Body(...)):
+        from ..core import manifest
+        try:
+            return manifest.set_mirror_policy(job_or_404(char, jid), str(body.get("policy", "")), body.get("mirror_map"))
+        except ValueError as e:
+            bad(e)
+
+    @app.get("/api/jobs/{char}/{jid}/manifest")
+    def get_manifest(char: str, jid: str):
+        from ..core import manifest
+        try:
+            return manifest.read(job_or_404(char, jid))
+        except ValueError as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/manifest/rebuild")
+    def rebuild_manifest(char: str, jid: str):
+        from ..core import manifest
+        j = job_or_404(char, jid)
+        manifest.write(j)
+        return manifest.read(j)
 
     @app.post("/api/jobs/{char}/{jid}/export_item")
     def export_item(char: str, jid: str):
