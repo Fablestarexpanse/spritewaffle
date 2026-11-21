@@ -314,3 +314,4 @@ NEXT: (2026-11-21) Built + real-run: variants, sprite stack viewer/GIFs, effects
   * "which way does the body face?" 8/11: called failed turns (only the head turned) "left"/"right"; mixed up left/right on the knight's E. The pixel copy check (turned_from) caught 7 of 7 of those.
   * A strict "one word only" system prompt returned empty text; a plain "Answer yes or no." works.
   Verdict: not reliable enough to gate or auto re-roll. Not built.
+- 2026-11-21 Ronan: no automatic mistake checker for fitted items (colour check / bigger VLM declined): "let human look over it, they can always re-run". Review + Re-roll is the check.
