@@ -133,7 +133,7 @@ def test_item_variant_sends_the_item_as_picture_2(tmp_path, monkeypatch):
     assert "<Subject 3>" in c.calls[0][1]["prompt"] and "wearing <Subject 2>" in c.calls[0][1]["prompt"]
     v.set_stage("anchor", "approved")
     variant.facings(v, prof, client=c)
-    n = next(vals for _, vals in c.calls if vals["ref_images"][0] == b.root / "02_facings" / "N.png")
+    n = next(vals for _, vals in c.calls if vals["ref_images"][0] == b.root / "02_facings" / "NE.png")
     assert n["ref_images"][1] == ref and "only the back of it shows: golden breastplate; the gem" in n["prompt"]
 
 

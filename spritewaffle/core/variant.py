@@ -67,7 +67,8 @@ def item_reference(item: Path, dest: Path, size: int = 1024, frac: float = 0.35)
 
 
 def create(base: Job, instruction: str, job_id: str | None = None, item: str | Path | None = None,
-           client: ComfyClient | None = None) -> Job:
+           client: ComfyClient | None = None, item_back: str | Path | None = None,
+           item_description: str | None = None, extra: dict | None = None) -> Job:
     """New job next to the base (same character name), linked to it. The base must have approved
     facings: the variant copies their poses.
 
@@ -75,7 +76,10 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
     this", "holding this in the right hand"). It goes to H3 Image edit as <Picture 2> (a small copy on
     a grey card, 01_anchor/item_ref.png) with a Subject caption (builder.item_reference). The local
     prompt writer (Qwen3-VL 4B) names the item and, when the base has no description, the character:
-    the caption needs both in words."""
+    the caption needs both in words.
+
+    item_back: the item's own back view (item jobs, core/item.py): back facings use it as <Picture 2>.
+    item_description: skips the writer when the item is already described (item jobs)."""
     instruction = (instruction or "").strip().rstrip(".")
     item_desc = None
     if item:
@@ -83,7 +87,7 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
         if not item.exists():
             raise FileNotFoundError(f"item picture {item} not found")
         from ..prompts import writer
-        item_desc = writer.describe_item(item, client=client)
+        item_desc = item_description or writer.describe_item(item, client=client)
         character = (base.read_meta()["inputs"].get("description")
                      or writer.describe("", image=base.root / "01_anchor" / "anchor.png", client=client))
         item_how = instruction or "wearing this"
@@ -101,11 +105,13 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
     job = Job.create(bm["character"], job_id, base=base.root.parent.parent, **keep,
                      description=f"{desc}; {instruction}" if desc else instruction,
                      base_job=str(base.root), edit=instruction, **({"item_description": item_desc, "item_how": item_how, "character_description": character}
-                        if item_desc else {}))
+                        if item_desc else {}), **(extra or {}))
     if item:
         import shutil
         shutil.copyfile(item, job.stage_dir("01_anchor") / "item.png")
         item_reference(item, job.stage_dir("01_anchor") / "item_ref.png")
+        if item_back:
+            item_reference(Path(item_back), job.stage_dir("01_anchor") / "item_ref_back.png")
     job.log_provenance("variant", base=f"{bm['character']}/{bm['job_id']}", edit=instruction,
                        **({"item": str(item), "item_description": item_desc} if item else {}))
     return job
@@ -120,11 +126,17 @@ def _edit_values(job: Job, inputs: dict, f: str, src: Path, raised: bool) -> dic
     """Prompt + reference pictures for one variant view. With an item picture: base view + item card
     and the Subject caption; otherwise base view + the change in words."""
     ref = job.root / "01_anchor" / "item_ref.png"
-    if ref.exists() and inputs.get("item_description"):
+    # N goes by words: measured 2026-11-21 (red cape on knight/p2_002) with the item back as Picture 2
+    # the knight's belt was drawn across the cape in 5 of 5 rolls; in words, 0 of 2. NE/NW kept the
+    # reference fine (3 of 4).
+    if ref.exists() and inputs.get("item_description") and f != "N":
+        back_ref = job.root / "01_anchor" / "item_ref_back.png"
+        use_back = f in builder.BACK and back_ref.exists()
         return {"prompt": builder.item_reference(f, inputs.get("character_description") or "character",
                                                  inputs["item_description"], inputs.get("item_how") or "wearing this",
-                                                 back_item=item_core(inputs["item_description"]), raised=raised),
-                "ref_images": [src, ref]}
+                                                 back_item=item_core(inputs["item_description"]), raised=raised,
+                                                 back_ref=use_back),
+                "ref_images": [src, back_ref if use_back else ref]}
     edit = inputs["edit"]
     if f == "S":
         return {"prompt": builder.edit_anchor(edit), "ref_images": [src]}

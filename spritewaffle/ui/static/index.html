@@ -191,7 +191,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
-               prop: ["anchor", "stack", "export"], effect: ["effect"]};
+               prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings"]};
 const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
 
 let status = {profiles: [], actions: [], asset_types: []};
@@ -470,7 +470,7 @@ async function loadStatus() {
 
 // --- sidebar -----------------------------------------------------------------------------
 function fillNewForm() {
-  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t}</option>`).join("");
+  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t === "item" ? "item — armor, cape, weapon (front + back)" : t}</option>`).join("");
   $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
   $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
 }
@@ -554,7 +554,7 @@ function renderJob() {
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
-      ${st("facings") === "approved" ? `<button id="jVariant" title="This character with one change: add an item, clothing, a different weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
+      ${st("facings") === "approved" && j.asset_type !== "item" ? `<button id="jVariant" title="This character with one change: add an item, clothing, a different weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
@@ -571,17 +571,19 @@ function renderJob() {
     d.innerHTML = `<h2>Make a variant of ${esc(j.character)} <span class="spacer"></span><button class="ghost" id="vClose2">Close</button></h2>
       <p class="hint" style="margin-top:0">A new job: this character with one change. Its anchor is this anchor edited; each facing is redrawn from this job's facing (same pose and angle) with the change added.</p>
       <label class="field"><span>The change</span><input id="vEdit" placeholder="e.g. add a long green cape and a round wooden shield on the left arm"></label>
+      ${j.items.length ? `<label class="field"><span>…or one of your items (front and back approved): the change then says how it's used, e.g. "wearing this", "holding this in the right hand"</span>
+        <select id="vItemJob"><option value="">none</option>${j.items.map(i => `<option value="${esc(i.character)}/${esc(i.job_id)}">${esc(i.character)} / ${esc(i.job_id)}</option>`).join("")}</select></label>` : ""}
       <label class="field"><span>…or an item picture (full path, optional): the change then says how it's used, e.g. "wearing this", "holding this in the right hand"</span>
         <input id="vItem" placeholder="C:\\path\\to\\armor.png"></label>
       <label class="field"><span>Job name (optional)</span><input id="vName" placeholder="${esc(j.job_id)}_…"></label>
       <div class="row" style="margin-top:10px"><button class="primary" id="vGo">Create variant</button></div>`;
     $("#vClose2").onclick = () => d.close();
     $("#vGo").onclick = async () => {
-      const instruction = $("#vEdit").value.trim(), item = $("#vItem").value.trim();
-      if (!instruction && !item) return toast("Describe the change or give an item picture", true);
-      $("#vGo").disabled = true; $("#vGo").textContent = item ? "Reading the item…" : "Creating…";
+      const instruction = $("#vEdit").value.trim(), item = $("#vItem").value.trim(), item_job = $("#vItemJob")?.value || "";
+      if (!instruction && !item && !item_job) return toast("Describe the change, pick an item or give an item picture", true);
+      $("#vGo").disabled = true; $("#vGo").textContent = item || item_job ? "Reading the item…" : "Creating…";
       let r;
-      try { r = await api(jobPath() + "/variant", {instruction: instruction || "wearing this", item, job_id: $("#vName").value.trim()}); }
+      try { r = await api(jobPath() + "/variant", {instruction: instruction || "wearing this", item, item_job, job_id: $("#vName").value.trim()}); }
       finally { $("#vGo").disabled = false; $("#vGo").textContent = "Create variant"; }
       d.close(); toast("Variant created: rendering its anchor");
       location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
@@ -598,6 +600,8 @@ function paneAnchor(j, st) {
   const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
   $("#pane").innerHTML = `<section>
     <h2>Anchor ${badge(st("anchor"))}</h2>
+    ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Equipment item: the anchor is its front, Facings draws its back. Once both are approved, open a character and use <b>Make a variant…</b> to fit it on.
+      ${j.fits.length ? `Worn by: ${j.fits.map(f => `<a href="#${esc(f.character)}/${esc(f.job_id)}">${esc(f.character)} / ${esc(f.job_id)}</a>`).join(", ")}.` : ""}</p>` : ""}
     ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;background:#00000022;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
       <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
@@ -648,10 +652,10 @@ function paneAnchor(j, st) {
 }
 
 function paneFacings(j, st) {
-  const want = j.directions === 4 ? ["S", "E", "N", "W"] : COMPASS.filter(Boolean);
+  const want = j.asset_type === "item" ? ["S", "N"] : j.directions === 4 ? ["S", "E", "N", "W"] : COMPASS.filter(Boolean);
   const done = j.facings.filter(f => f.image && want.includes(f.facing)).length, fr = j.facings_report || {};
   $("#pane").innerHTML = `<section>
-    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
+    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${j.asset_type === "item" ? " · item: front and back" : want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
       <span class="spacer"></span>
       <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? "Re-generate all" : "Generate facings"}</button>
       <button class="primary" id="apFacings" ${done === want.length && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
@@ -659,7 +663,7 @@ function paneFacings(j, st) {
     <div class="compass">${COMPASS.map(f => {
       if (!f) return `<div class="center">compass<br>view</div>`;
       const x = j.facings.find(y => y.facing === f);
-      if (!want.includes(f)) return `<div class="ph" title="this profile uses 4 directions">${f}<br><span class="muted">not used</span></div>`;
+      if (!want.includes(f)) return `<div class="ph" title="${j.asset_type === "item" ? "items have a front and a back" : "this profile uses 4 directions"}">${f}<br><span class="muted">not used</span></div>`;
       return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="Facing ${esc(f)}" title="enlarge">${img(x.image, f)}</a>` : img(null)}
         <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
           <span class="muted ${driftCls(x.drift)}">${x.drift ? `drift ${x.drift.color}` : ""}${x.mirrored ? " · mirrored" : ""}</span></div>

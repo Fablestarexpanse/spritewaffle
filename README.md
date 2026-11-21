@@ -151,6 +151,14 @@ Every variant also writes the change on its own: `02_facings/layers/<facing>.png
 canvas as the facings. Drawn over the base, it gives the variant back: an equipment layer for
 paper-doll games. A facing where the variant moved the body gets a warning (the layer won't fit).
 
+### Equipment items (paper doll)
+
+New → type `item` (armor, cape, weapon). The anchor is the item on its own, front view; Facings
+draws its back. Approve both, then open any character → **Make a variant…** → pick the item and say
+how it's used ("wearing this"). The worn variant gets all 8 facings plus per-facing layers; the item
+job keeps its original front/back and lists every character it was fitted on. Different races or
+bodies are just different base characters.
+
 ### Animals (four-legged)
 
 New → type `animal`. The anchor step draws one **turnaround sheet** (front, side, back and two

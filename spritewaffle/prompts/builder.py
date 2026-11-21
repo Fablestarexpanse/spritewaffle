@@ -53,6 +53,11 @@ ASSET_TYPES = {
              "pose": "Resting upright on its base, {view}, the whole object visible.",
              "actions": ["idle"]},
     "effect": {"subject": "Game visual effect sprite", "pose": "{view}", "actions": []},   # see prompts/effects.py
+    # equipment for paper-doll games: drawn on its own, front (anchor) and back (core/item.py), then
+    # fitted onto any base character (Ronan 2026-11-21)
+    "item": {"subject": "Single video game equipment item sprite, shown on its own and not worn by anyone",
+             "pose": "Upright, {view}, shaped as if worn by an invisible body, the whole item visible.",
+             "actions": []},
 }
 
 
@@ -201,13 +206,27 @@ def edit_facing(target: str, instruction: str, raised: bool = False) -> str:
 BACK = ("N", "NE", "NW")
 
 
+def item_back(description: str = "") -> str:
+    """Image-edit prompt: an item's front (Picture 1) -> the same item seen from behind. Measured
+    2026-11-21 (red cape): "draw the same item seen from behind" gave a copy of the front (open front,
+    clasp; turned_from 5.2); "turn it around 180 degrees" + "the back is one closed outer surface"
+    gave closed backs at 18-20 (one seed in two still showed the clasp: re-roll)."""
+    what = f": {description.strip().rstrip('.')}" if description.strip() else ""
+    return (f"<Picture 1> shows a video game equipment item from the front{what}. Turn the item around 180 degrees "
+            "and draw its back side, the side that faces away from the viewer in <Picture 1>. From behind, the "
+            "opening, the inner lining and anything fastened at the front (clasp, buckle, gem, emblem, lacing) "
+            "cannot be seen: the back is one closed outer surface with only its outline, seams and trim. Same shape, "
+            f"size, colours, materials, {styles.get()['noun']} style and outline. Same scale and position in the frame "
+            "as <Picture 1>. " + FRAMING)
+
+
 def item_reference(target: str, character: str, item: str, how: str, back_item: str = "",
-                   raised: bool = False) -> str:
+                   raised: bool = False, back_ref: bool = False) -> str:
     """H3 Image edit caption for base facing (<Picture 1>) + item picture (<Picture 2>), written in the
     enhancer's own Subject format (facing_multiref node 39). <Subject 3> pins the canvas to Picture 1:
     without it the item picture was read as the canvas (huge armor, tiny knight). how: "wearing this",
     "holding this in the right hand" ('this' becomes <Subject 2>). back_item: the item without its
-    front details, for back views."""
+    front details, for back views. back_ref: <Picture 2> is the item's own back view (item jobs)."""
     V = VIEW_RAISED if raised else VIEW
     def bare(t):                                   # "The" is added here; drop the writer's own article
         t = t.strip().rstrip(".")
@@ -219,9 +238,14 @@ def item_reference(target: str, character: str, item: str, how: str, back_item: 
     use = how.strip().rstrip(".") or "wearing this"
     use = use.replace("this", "<Subject 2>", 1) if "this" in use else f"{use} <Subject 2>"
     back = target in BACK
-    seen = (f"Seen from behind, only the back of it shows: {(bare(back_item) or 'its plain back')}; "
-            "the gem, emblem and other front details are hidden. " if back else
-            "It is shown as it looks from this side. ")
+    if back and back_ref:
+        seen = ("<Picture 2> shows the back of <Subject 2>; seen from behind it looks exactly like that back, "
+                "and its front details are hidden. ")
+    elif back:
+        seen = (f"Seen from behind, only the back of it shows: {(bare(back_item) or 'its plain back')}; "
+                "the gem, emblem and other front details are hidden. ")
+    else:
+        seen = "It is shown as it looks from this side. "
     noun = styles.get()["noun"]
     return (f"The {c} in <Picture 1> is <Subject 1>. The {i} in <Picture 2> is <Subject 2>. "
             "The flat pure green background, framing and camera of <Picture 1> are <Subject 3>. "

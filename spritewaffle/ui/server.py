@@ -110,6 +110,17 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 out.add(f"{jr.parent.name}/{jr.name}")
         return sorted(out)
 
+    def item_jobs() -> list[dict]:
+        """Equipment items ready to fit (asset type 'item', front + back approved)."""
+        out = []
+        for jf in sorted(base.glob("*/*/job.json")):
+            if jf.parent.parent.name.startswith("_"):
+                continue
+            m = read_json(jf) or {}
+            if (m.get("inputs") or {}).get("asset_type") == "item" and (m.get("stages") or {}).get("facings", {}).get("status") == "approved":
+                out.append({"character": jf.parent.parent.name, "job_id": jf.parent.name, "thumb": thumb(jf.parent)})
+        return out
+
     def profile_directions(j: Job) -> int:
         try:
             return resolve(job_profile(j)).directions
@@ -274,6 +285,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
                 "directions": profile_directions(j),
                 "effect_jobs": effect_jobs() if meta["inputs"].get("asset_type") != "effect" else [],
+                "items": item_jobs() if meta["inputs"].get("asset_type") not in ("item", "effect") else [],
+                "fits": meta["inputs"].get("fits") or [],
                 "action_presets": sorted(builder.actions_for(meta["inputs"].get("asset_type"))),
                 "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
                 "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit"),
@@ -427,8 +440,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         base_job = job_or_404(char, jid)
         try:
             item = str(body.get("item") or "").strip().strip('"') or None
-            v = variant.create(base_job, str(body.get("instruction", "")), (body.get("job_id") or "").strip() or None,
-                               item=item)
+            ij = str(body.get("item_job") or "").strip()
+            if ij:
+                from ..core import item as items
+                ic, _, iid = ij.partition("/")
+                v = items.fit(job_or_404(ic, iid), base_job, str(body.get("instruction") or "wearing this"),
+                              (body.get("job_id") or "").strip() or None)
+            else:
+                v = variant.create(base_job, str(body.get("instruction", "")), (body.get("job_id") or "").strip() or None,
+                                   item=item)
         except (ValueError, FileExistsError, FileNotFoundError, RuntimeError) as e:
             bad(e)
         t = queue.submit(v.root, "anchor", {}, job_profile(v))

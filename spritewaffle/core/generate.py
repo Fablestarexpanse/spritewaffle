@@ -260,6 +260,9 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     if job.read_meta()["inputs"].get("asset_type") == "animal" and not only:
         raise ValueError("animals get their facings from the turnaround sheet: re-roll the anchor to draw a new "
                          "sheet (all views at once), or re-roll single facings with only=...")
+    if job.read_meta()["inputs"].get("asset_type") == "item":   # equipment: front + back only
+        from . import item
+        return item.facings(job, profile, client, seed=seed)
     if job.read_meta()["inputs"].get("base_job"):          # a variant: every facing from the base's
         from . import variant
         return variant.facings(job, profile, client, only=only, seed=seed)
