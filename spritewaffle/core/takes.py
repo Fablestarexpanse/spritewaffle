@@ -30,7 +30,8 @@ def _index(folder: Path) -> list[dict]:
     return json.loads(p.read_text()) if p.exists() else []
 
 
-def _latest_provenance(job: Job, rel: str) -> dict:
+def latest_provenance(job: Job, rel: str) -> dict:
+    """The newest provenance entry for one output (rel to the job root)."""
     for e in reversed(job.read_meta().get("provenance", [])):
         if str(e.get("output", "")).replace("\\", "/") == rel:     # older entries use Windows separators
             return {k: v for k, v in e.items() if k != "output"}
@@ -58,7 +59,7 @@ def stash(job: Job, path: Path) -> Path | None:
     shutil.copy2(path, take)
     rel = path.relative_to(job.root).as_posix()
     idx = _index(folder)
-    idx.append({"take": take.name, "of": path.name, "kept": stamp, **_latest_provenance(job, rel)})
+    idx.append({"take": take.name, "of": path.name, "kept": stamp, **latest_provenance(job, rel)})
     (folder / "index.json").write_text(json.dumps(idx, indent=2, default=str))
     return take
 

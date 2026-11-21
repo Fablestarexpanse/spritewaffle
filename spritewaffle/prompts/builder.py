@@ -81,16 +81,18 @@ def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "
             f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
 
-def facing(target: str, refs: list[str], first: str = "S") -> str:
+def facing(target: str, refs: list[str], first: str = "S", note: str = "") -> str:
     """Edit prompt for one facing. <Picture 1> shows facing `first` (the anchor when S);
-    refs = facings shown in <Picture 2..n>."""
+    refs = facings shown in <Picture 2..n>. note: the human's extra detail for this view (e.g.
+    "the quiver is visible on the back"); the framing rules always follow it."""
     parts = [f"<Picture 1> shows the character, {VIEW[first]}."]
     for i, f in enumerate(refs, start=2):
         parts.append(f"<Picture {i}> shows the same character, {VIEW[f]}.")
     parts.append(
         f"Draw this exact character again, {VIEW[target]}, in the same relaxed idle pose. "
         f"Keep the identical outfit, colors, proportions, size, {styles.get()['noun']} style and outline as <Picture 1>. "
-        "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
+        + (f"{note.strip().rstrip('.')}. " if note.strip() else "")
+        + "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
     return " ".join(parts)
 
 

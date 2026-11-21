@@ -135,6 +135,15 @@ def resolve_action_spec(job: Job, action_name: str, client=None) -> dict:
     from ..prompts import writer
     inputs = job.read_meta()["inputs"]
     preset = builder.ACTIONS.get(action_name)
+    override = {k: v for k, v in ((inputs.get("action_overrides") or {}).get(action_name) or {}).items() if v not in (None, "")}
+    if override:                                  # the human's own text wins over preset and AI
+        base = dict(preset or (inputs.get("action_specs") or {}).get(action_name) or {})
+        spec = base | override | {"source": "edited"}
+        spec.setdefault("cyclic", bool(preset and preset["cyclic"]))
+        missing = [k for k in ("motion", "transition") if not spec.get(k)]
+        if missing:
+            raise ValueError(f"action '{action_name}' needs {' and '.join(missing)} text (Animations -> Prompts)")
+        return spec
     if inputs.get("prompt_writer") != "ai":
         if preset is None:
             raise ValueError(f"no preset for action '{action_name}'; known: {sorted(builder.ACTIONS)} "
@@ -195,6 +204,12 @@ def _drifted(d: dict, max_color: float, height_tol: float) -> bool:
     return d["color"] > max_color or abs(d["height_ratio"] - 1) > height_tol
 
 
+def facing_note(job: Job, f: str) -> str:
+    """The human's extra detail for facing f: the note for all facings, then the one for f."""
+    notes = job.read_meta()["inputs"].get("facing_notes") or {}
+    return " ".join(n.strip().rstrip(".") + "." for n in (notes.get("*"), notes.get(f)) if n and n.strip()).rstrip(".")
+
+
 def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, only: list[str] | None = None,
             seed: int | None = None, mirror: str = "auto", diagonals: str = "nearest",
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
@@ -220,7 +235,8 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             raise RuntimeError(f"{f} needs cardinals {missing} first")
         imgs = [out / f"{first}.png"] + [out / f"{r}.png" for r in refs]
         _run(client, job, "facing_multiref",
-             {"prompt": builder.facing(f, refs, first), "ref_images": imgs, "seed": _seed(seed)}, out / f"{f}.png")
+             {"prompt": builder.facing(f, refs, first, facing_note(job, f)), "ref_images": imgs, "seed": _seed(seed)},
+             out / f"{f}.png")
 
     a = _rgba(a_path)
     asym = layout.asymmetry(a)

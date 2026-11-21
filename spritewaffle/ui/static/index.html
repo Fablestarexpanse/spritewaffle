@@ -103,6 +103,11 @@
     image-rendering: pixelated; background: repeating-conic-gradient(#0002 0 25%, #0000 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
   .takes .take { width: 96px; text-align: center; }
   .takes .take img { width: 96px; height: 96px; object-fit: contain; }
+  .prompt { white-space: pre-wrap; font: 12px/1.45 ui-monospace, Consolas, monospace; background: var(--bg, #0001);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; margin: 4px 0 10px; }
+  .pgroup > summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
+  .pgroup textarea { width: 100%; min-height: 54px; }
+  .pgroup .field { align-items: stretch; margin: 6px 0; }      /* labels left, inputs full width */
   #viewer .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
   .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 420px; }
@@ -216,6 +221,79 @@ document.addEventListener("click", async e => {
   } finally { $("#dlg").open && $("#dlg").close(); lastSig = ""; refreshAll(); }
 });
 
+// --- prompts dialog: what will be sent, what was sent, and the editable creative text ---------
+const pendingActs = new Set();            // added in the dialog, not saved yet
+async function showPrompts(open = {}) {
+  const d = $("#dlg");
+  const v = await api(jobPath() + "/prompts");
+  pendingActs.forEach(a => { if (!v.actions[a]) v.actions[a] = {source: "new: write motion + transition", spec: {motion: "", transition: "", sound: "", cyclic: false}, edited: {}, preview: null, used: {}}; });
+  const pre = (label, text) => text ? `<div class="muted">${label}</div><div class="prompt">${esc(text)}</div>` : "";
+  const isOpen = k => open[k] ? "open" : "";
+  const act = Object.entries(v.actions);
+  d.innerHTML = `<h2>Prompts <span class="muted">${esc(job.character)} · writer: ${esc(v.writer)}</span>
+      <span class="spacer"></span><button class="ghost" id="pClose">Close</button></h2>
+    <p class="hint" style="margin-top:0">You edit the creative text. The rules around it (green background, framing, in-place motion, style) are always added and can't be removed. Edits apply to the next render.</p>
+    <details class="pgroup" ${isOpen("anchor")}><summary>Anchor</summary>
+      <p class="muted">Description: <b>${esc(v.anchor.description || "—")}</b> (edit it on the Anchor tab)</p>
+      ${v.anchor.visual_description ? pre("AI description of the approved look", v.anchor.visual_description) : ""}
+      ${pre("Will send", v.anchor.preview)}${pre("Last sent", v.anchor.used)}
+    </details>
+    <details class="pgroup" ${isOpen("facings")}><summary>Facings</summary>
+      <label class="field"><span>Note for every facing (e.g. "the quiver is always on the back")</span>
+        <div class="row"><input data-fnote="*" value="${esc(v.facing_note_all)}" style="flex:1"><button data-fsave="*">Save</button></div></label>
+      ${Object.entries(v.facings).map(([f, x]) => `<details ${isOpen("f:" + f)}><summary>${f}${x.note ? " · has a note" : ""}</summary>
+        <div class="row"><input data-fnote="${f}" value="${esc(x.note)}" placeholder="note just for ${f}" style="flex:1"><button data-fsave="${f}">Save</button></div>
+        ${pre("Will send", x.preview)}${pre("Last sent", x.used)}</details>`).join("")}
+    </details>
+    <details class="pgroup" ${isOpen("actions")}><summary>Actions</summary>
+      <div class="row"><input id="pNewAct" placeholder="new action name, e.g. cast spell" style="width:220px"><button id="pAddAct">Add</button></div>
+      ${act.map(([a, x]) => `<details ${isOpen("a:" + a)}><summary>${esc(a)} <span class="chip">${esc(x.source)}</span>${x.spec.cyclic ? ' <span class="muted">loops</span>' : ""}</summary>
+        ${["motion", "transition", "sound"].map(k => `<label class="field"><span>${k}${k === "transition" ? " (the first/last pose: a small step from idle)" : k === "motion" ? " (short and literal)" : ""}</span>
+          <textarea data-a="${esc(a)}" data-k="${k}">${esc(x.spec[k] || "")}</textarea></label>`).join("")}
+        <div class="row"><button class="primary" data-asave="${esc(a)}">Save</button>
+          ${Object.keys(x.edited).length ? `<button class="ghost" data-areset="${esc(a)}">Back to ${v.writer === "ai" ? "AI / preset" : "preset"} text</button>` : ""}</div>
+        ${x.preview ? pre("Will send: transition pose (facing S)", x.preview.transition) + pre("Will send: video (facing S)", x.preview.video) : ""}
+        ${Object.entries(x.used).map(([f, u]) => pre(`Last sent: ${f} video`, u.video)).join("")}
+      </details>`).join("")}
+    </details>`;
+  const keepOpen = () => {
+    const o = {};
+    $$("#dlg details[open] > summary").forEach(sm => {
+      const det = sm.parentElement, t = sm.textContent.trim();
+      if (det.classList.contains("pgroup")) o[t.toLowerCase()] = 1;
+      else if (det.querySelector("[data-fnote]")) o["f:" + det.querySelector("[data-fnote]").dataset.fnote] = 1;
+      else if (det.querySelector("[data-asave]")) o["a:" + det.querySelector("[data-asave]").dataset.asave] = 1;
+    });
+    return o;
+  };
+  const save = async body => { await api(jobPath() + "/prompts", body); toast("Saved: used from the next render"); showPrompts(keepOpen()); };
+  $("#pClose").onclick = () => d.close();
+  $$("[data-fsave]").forEach(b => b.onclick = () =>
+    save({kind: "facing", facing: b.dataset.fsave, note: $(`[data-fnote="${b.dataset.fsave}"]`).value}));
+  $$("[data-asave]").forEach(b => b.onclick = () => {
+    const a = b.dataset.asave, body = {kind: "action", action: a};
+    $$(`textarea[data-a="${CSS.escape(a)}"]`).forEach(t => body[t.dataset.k] = t.value);
+    pendingActs.delete(a);
+    save(body);
+  });
+  $$("[data-areset]").forEach(b => b.onclick = () => save({kind: "action", action: b.dataset.areset}));
+  $("#pAddAct").onclick = () => {
+    const a = $("#pNewAct").value.trim().toLowerCase();
+    if (!a) return;
+    if (v.actions[a]) return toast(`${a} is already in the list`, true);
+    const o = keepOpen(); o.actions = 1; o["a:" + a] = 1;
+    pendingActs.add(a);
+    toast(`Write motion and transition text for ${a}, then Save`);
+    showNewAction(a, o);
+  };
+  if (!d.open) d.showModal();
+}
+async function showNewAction(a, o) {
+  await showPrompts(o);
+  const t = $(`textarea[data-a="${CSS.escape(a)}"][data-k="motion"]`);
+  if (t) { t.scrollIntoView({block: "center"}); t.focus(); }
+}
+
 function toast(msg, bad = false) {
   const t = document.createElement("div");
   t.className = "toast" + (bad ? " bad" : ""); t.textContent = msg;
@@ -308,6 +386,7 @@ function renderJob() {
         <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
       <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompts
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
+      <button id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
@@ -318,6 +397,7 @@ function renderJob() {
   $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
+  $("#jPrompts").onclick = () => showPrompts();
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
     await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };

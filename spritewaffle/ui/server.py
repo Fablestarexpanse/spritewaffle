@@ -319,6 +319,28 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 tasks.append(t["id"])
         return what | {"tasks": tasks}
 
+    @app.get("/api/jobs/{char}/{jid}/prompts")
+    def prompts_view(char: str, jid: str):
+        from ..core import prompt_view
+        return prompt_view.view(job_or_404(char, jid))
+
+    @app.post("/api/jobs/{char}/{jid}/prompts")
+    def prompts_edit(char: str, jid: str, body: dict = Body(...)):
+        """kind 'action': {action, motion, transition, sound} (empty = back to preset/AI);
+        kind 'facing': {facing: 'NE' or '*' for all, note}."""
+        from ..core import prompt_view
+        j = job_or_404(char, jid)
+        try:
+            if body.get("kind") == "action":
+                prompt_view.set_action(j, str(body.get("action", "")), body)
+            elif body.get("kind") == "facing":
+                prompt_view.set_facing_note(j, str(body.get("facing", "")), str(body.get("note", "")))
+            else:
+                raise ValueError("kind must be 'action' or 'facing'")
+        except ValueError as e:
+            bad(e)
+        return prompt_view.view(j)
+
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):
         """Queue work. stage: any queue stage, or 'pipeline' (one action), 'animate' (facings x

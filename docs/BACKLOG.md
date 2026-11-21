@@ -16,7 +16,7 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 
 | # | Note | Status | What's there / what's needed |
 |---|---|---|---|
-| 1 | "Access to the prompts" | **part** | `spritewaffle prompts --job J --action A` prints them; provenance stores every prompt used. Needs: see and edit the prompt in the UI before rendering (per anchor / facing / action), with the fixed rules kept. |
+| 1 | "Access to the prompts" | **done** 2026-11-20 (Prompts… dialog) | `spritewaffle prompts --job J --action A` prints them; provenance stores every prompt used. Needs: see and edit the prompt in the UI before rendering (per anchor / facing / action), with the fixed rules kept. |
 | 10, 12 | "Adjust size of cell borders if needed" / "set size if we want" | **part** | Profiles hold cell size, sprite height, palette size, fps — but only `spritewaffle profile new` makes one, and the UI only picks. Needs: profile editor in the UI; per-job cell override; the "too wide for the cell" warning offering a bigger cell. |
 | 7 | "Better sorting tools" | **new** | Job list is search-only. Needs: sort (recent, name, progress), filter by type/style/status, group by character. |
 
