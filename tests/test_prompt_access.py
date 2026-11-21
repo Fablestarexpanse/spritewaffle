@@ -39,7 +39,7 @@ def test_facing_notes_go_into_the_facing_prompt(job):
     prompt_view.set_facing_note(job, "N", "show the quiver clearly.")
     assert generate.facing_note(job, "N") == "the quiver is always on the back. show the quiver clearly"
     p = builder.facing("N", [], "S", generate.facing_note(job, "N"))
-    assert "quiver is always on the back. show the quiver clearly. Same scale" in p and builder.FRAMING in p
+    assert "quiver is always on the back. show the quiver clearly. Same camera angle" in p and builder.FRAMING in p
     assert "show the quiver" not in builder.facing("E", [], "S", generate.facing_note(job, "E"))
     with pytest.raises(ValueError):
         prompt_view.set_facing_note(job, "UP", "x")

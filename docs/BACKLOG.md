@@ -24,7 +24,7 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 
 | # | Note | Status | What's there / what's needed |
 |---|---|---|---|
-| 5 | "Test if we can also change game angle" | **part, untested** | Profiles have `projection` side / topdown_34 / iso_2to1 and the prompts change with it; never run end to end. Needs: one character in each projection, judged. |
+| 5 | "Test if we can also change game angle" | **tested** 2026-11-20: 4 directions work under top-down/iso; 8 do not (diagonals copy) | Profiles have `projection` side / topdown_34 / iso_2to1 and the prompts change with it; never run end to end. Needs: one character in each projection, judged. |
 | 2 | "Test more motion libraries" | **part** | Library holds 1 approved mannequin walk. Needs: more driving clips (idle, run, attack, jump) and a flow-vs-TARA comparison per action. |
 | 11 | "If I add to motion library it should convert to mannequin, or option to just use that one" | **new** | Library stores the clip as given. Idea: render a grey mannequin version of any added clip (TARA onto a mannequin) and keep both; test whether the mannequin transfers better. |
 

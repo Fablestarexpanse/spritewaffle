@@ -182,6 +182,26 @@ def _rgba(path: Path) -> np.ndarray:
     return chroma.key(np.array(Image.open(path).convert("RGB")))
 
 
+COPY_DIFF = 15.0    # below this a facing is a copy of its reference, not a turn (see turned_from)
+
+
+def turned_from(rgba: np.ndarray, ref_rgba: np.ndarray) -> float:
+    """How different a facing is from the picture it was drawn from: mean RGB difference of the two
+    sprites, each cropped and scaled to 64x96. Measured 2026-11-20: facings that did not turn
+    (top-down diagonals, the side-view knight's NW) score 7-13; real turns 22-86."""
+    def norm(a):
+        ys, xs = np.where(a[..., 3] > 0)
+        if not len(ys):
+            return np.zeros((96, 64, 4), float)
+        a = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        return np.array(Image.fromarray(a).resize((64, 96), Image.BOX)).astype(float)
+    a, b = norm(rgba), norm(ref_rgba)
+    m = (a[..., 3] > 0) | (b[..., 3] > 0)
+    if not m.any():
+        return 0.0
+    return float(np.abs(a[..., :3] * (a[..., 3:] > 0) - b[..., :3] * (b[..., 3:] > 0))[m].mean())
+
+
 def drift(anchor_rgba: np.ndarray, rgba: np.ndarray, bins: int = 6) -> dict:
     """How far a facing strays from the anchor: colour-distribution distance (0..1, Oklab histogram
     of opaque pixels) and silhouette height ratio."""
@@ -235,7 +255,7 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             raise RuntimeError(f"{f} needs cardinals {missing} first")
         imgs = [out / f"{first}.png"] + [out / f"{r}.png" for r in refs]
         _run(client, job, "facing_multiref",
-             {"prompt": builder.facing(f, refs, first, facing_note(job, f)), "ref_images": imgs, "seed": _seed(seed)},
+             {"prompt": builder.facing(f, refs, first, facing_note(job, f), raised=profile.projection != "side"), "ref_images": imgs, "seed": _seed(seed)},
              out / f"{f}.png")
 
     a = _rgba(a_path)
@@ -263,6 +283,20 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     for f, d in report["facings"].items():
         if _drifted(d, max_color, height_tol):
             report["warnings"].append(f"{f} still drifts from the anchor {d}: re-roll it")
+    # a facing that didn't turn: a near-copy of the picture it was drawn from
+    report["turned"] = {}
+    for f in want:
+        ref = "S" if f in builder.CARDINALS else builder.DIAGONAL_NEAREST[f]
+        p, rp = out / f"{f}.png", out / f"{ref}.png"
+        if f == "S" or f in report["mirrored"] or not (p.exists() and rp.exists()):
+            continue
+        t = round(turned_from(_rgba(p), _rgba(rp)), 1)
+        report["turned"][f] = t
+        if t < COPY_DIFF:
+            report["warnings"].append(f"{f} looks like a copy of {ref} (difference {t}): it didn't turn; re-roll it")
+    if profile.projection != "side" and profile.directions == 8:
+        report["warnings"].append("8 directions under a top-down / isometric camera: diagonals often come out as "
+                                  "copies of their neighbour. 4 directions with W mirrored from E works (Sizes…)")
 
     (out / "facings_report.json").write_text(json.dumps(report, indent=2))
     sheet = [np.array(Image.open(out / f"{f}.png").convert("RGB")) for f in want if (out / f"{f}.png").exists()]

@@ -52,3 +52,27 @@ def test_fit_warnings_name_a_cell_that_fits():
     tall = Placement(1.0, (0, 0, 40, 300), (108, -45), (128.0, 255.0))  # painted x4: 256 px cell, profile 64
     w = stages._fit_warnings(tall, 256, 64)
     assert w[0].startswith("cut off: the top 45px") and "a 80px profile cell" in w[0]
+
+
+def test_turned_from_flags_copies_not_turns():
+    import numpy as np
+    from spritewaffle.core import generate
+    a = np.zeros((100, 60, 4), np.uint8)
+    a[10:90, 15:45] = (200, 50, 50, 255)
+    a[10:30, 15:45] = (240, 220, 180, 255)                     # face
+    same = a.copy()
+    same[50:52, 20:22] = (190, 60, 60, 255)                    # a few pixels moved: still a copy
+    turned = a.copy()
+    turned[10:90, 15:45] = (40, 60, 200, 255)                  # back view: different colours everywhere
+    assert generate.turned_from(same, a) < generate.COPY_DIFF < generate.turned_from(turned, a)
+
+
+def test_job_page_knows_four_direction_profiles(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPRITEWAFFLE_HOME", str(tmp_path))
+    save_named("four", {"directions": 4}, tmp_path / "profiles")
+    j = Job.create("hero", "j", base=tmp_path / "jobs")
+    j.update_inputs(profile="four")
+    Job.create("hero", "k", base=tmp_path / "jobs").update_inputs(profile="gone")
+    with TestClient(create_app(tmp_path / "jobs", worker=False)) as c:
+        assert c.get("/api/jobs/hero/j").json()["directions"] == 4
+        assert c.get("/api/jobs/hero/k").json()["directions"] == 8        # missing profile: page still loads

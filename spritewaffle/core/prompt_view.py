@@ -59,7 +59,7 @@ def view(job: Job) -> dict:
         if f == "S":
             continue
         first, refs = (builder.DIAGONAL_NEAREST[f], []) if f in builder.DIAGONALS else ("S", [])
-        fac[f] = {"note": notes.get(f, ""), "preview": builder.facing(f, refs, first, facing_note(job, f)),
+        fac[f] = {"note": notes.get(f, ""), "preview": builder.facing(f, refs, first, facing_note(job, f), raised=prof.projection != "side"),
                   "used": _used(job, f"02_facings/{f}.png")}
 
     names = set(builder.ACTIONS) | set(inputs.get("action_overrides") or {}) | set(inputs.get("action_specs") or {})

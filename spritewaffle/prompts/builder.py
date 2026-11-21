@@ -33,8 +33,8 @@ FRAMING = ("The character is centered and occupies about 45 percent of the image
 
 STYLE = {
     "side": "Chunky retro pixel-art style with large visible square pixels, bold dark outline, flat cel shading, limited palette.",
-    "topdown_34": "Chunky retro pixel-art style for a top-down 3/4 game, large visible square pixels, bold dark outline, flat cel shading, limited palette.",
-    "iso_2to1": "Chunky retro pixel-art style for a 2:1 isometric game, large visible square pixels, bold dark outline, flat cel shading, limited palette.",
+    "topdown_34": "Chunky retro pixel-art style for a top-down RPG, large visible square pixels, bold dark outline, flat cel shading, limited palette.",
+    "iso_2to1": "Chunky retro pixel-art style for a tactics game seen from above, large visible square pixels, bold dark outline, flat cel shading, limited palette.",
 }
 
 
@@ -58,10 +58,31 @@ def asset(asset_type: str) -> dict:
     return ASSET_TYPES[asset_type]
 
 
+# Where the camera is. Measured 2026-11-20: with only the STYLE words ("for a top-down 3/4 game")
+# H3 Image kept an eye-level camera and turned the character a quarter instead (a front anchor came
+# out as a three-quarter view). Saying where the camera is, and that the body still faces the
+# viewer, is what the projection needs; facings and clips then keep "the same camera angle as
+# Picture 1".
+CAMERA = {
+    "side": "",
+    "topdown_34": ("The camera is high above, tilted down about 45 degrees like a classic top-down RPG: we look "
+                   "down onto the top of the head and the shoulders, the body is foreshortened and the feet "
+                   "tuck under it. Only the camera is raised: the chest and face point straight down the screen "
+                   "toward us, both shoulders equally visible, not turned left or right."),
+    "iso_2to1": ("The camera is above, tilted down about 30 degrees like a tactics game: we see the top of the "
+                 "head and shoulders and the body is slightly foreshortened. Only the camera is raised: the chest "
+                 "and face point straight down the screen toward us, both shoulders equally visible, not turned "
+                 "left or right."),
+}
+
+
 def style_text(profile: GameProfile) -> str:
-    """The active style's look sentence (pixel art keeps its projection-specific wording)."""
+    """The active style's look sentence (pixel art keeps its projection-specific wording) plus the
+    camera sentence for top-down / isometric profiles."""
     st = styles.get()
-    return STYLE[profile.projection] if st["post"] == "pixel" else st["prompt"]
+    look = STYLE[profile.projection] if st["post"] == "pixel" else st["prompt"]
+    cam = CAMERA.get(profile.projection, "")
+    return f"{look} {cam}".strip()
 
 
 def anchor(description: str, profile: GameProfile, facing: str = "S", asset_type: str = "character") -> str:
@@ -81,18 +102,28 @@ def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "
             f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
 
-def facing(target: str, refs: list[str], first: str = "S", note: str = "") -> str:
+# Facings under a raised camera (top-down, isometric). Measured 2026-11-20 (knight, seed 21):
+# side-view words alone -> E/W dropped to an eye-level profile, diagonals copied their reference;
+# screen-direction words ("toward the lower-right corner") -> nothing rotated at all. This keeps
+# the side-view words (they do rotate) and adds the camera.
+VIEW_RAISED = {f: (f"{v}, still seen from the same high camera above, looking down on the top of the head"
+                   if f != "S" else v) for f, v in VIEW.items()}
+
+
+def facing(target: str, refs: list[str], first: str = "S", note: str = "", raised: bool = False) -> str:
     """Edit prompt for one facing. <Picture 1> shows facing `first` (the anchor when S);
     refs = facings shown in <Picture 2..n>. note: the human's extra detail for this view (e.g.
-    "the quiver is visible on the back"); the framing rules always follow it."""
-    parts = [f"<Picture 1> shows the character, {VIEW[first]}."]
+    "the quiver is visible on the back"); the framing rules always follow it. raised: top-down /
+    isometric camera, so directions are said as screen directions."""
+    V = VIEW_RAISED if raised else VIEW
+    parts = [f"<Picture 1> shows the character, {V[first]}."]
     for i, f in enumerate(refs, start=2):
-        parts.append(f"<Picture {i}> shows the same character, {VIEW[f]}.")
+        parts.append(f"<Picture {i}> shows the same character, {V[f]}.")
     parts.append(
-        f"Draw this exact character again, {VIEW[target]}, in the same relaxed idle pose. "
+        f"Draw this exact character again, {V[target]}, in the same relaxed idle pose. "
         f"Keep the identical outfit, colors, proportions, size, {styles.get()['noun']} style and outline as <Picture 1>. "
         + (f"{note.strip().rstrip('.')}. " if note.strip() else "")
-        + "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
+        + "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
     return " ".join(parts)
 
 
@@ -140,7 +171,7 @@ def transition(action: str, facing_: str, spec: dict | None = None) -> str:
             f"Draw this exact character in the same facing, {(spec or action_spec(action))['transition']}. "
             "This is only a small step away from the idle pose, not the extreme pose. "
             f"Keep the identical outfit, colors, proportions, size, {styles.get()['noun']} style and outline. "
-            "Same scale and same position in the frame as <Picture 1>. " + FRAMING)
+            "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
 
 
 def action_video(action: str, facing_: str, seconds: float, last_frame: bool, spec: dict | None = None) -> str:
@@ -155,7 +186,7 @@ def action_video(action: str, facing_: str, seconds: float, last_frame: bool, sp
     else:
         head = "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced."
         end = ""
-    body = (f"[Shot 1] 2D {styles.get()['noun']} game sprite with a locked camera: no zoom, no pan. The character begins in the pose "
+    body = (f"[Shot 1] 2D {styles.get()['noun']} game sprite with a locked camera: no zoom, no pan, the same camera height and angle as Picture 1. The character begins in the pose "
             f"and position established by Picture 1, pinned to the center of the frame, and {spec['motion']}. "
             f"It {HOLD[facing_]}; it must not turn or move across the screen. The flat #00FF00 background stays "
             f"unchanged for the whole shot, and the {styles.get()['look']} stays the same.{end}")

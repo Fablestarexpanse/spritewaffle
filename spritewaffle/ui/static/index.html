@@ -569,16 +569,18 @@ function paneAnchor(j, st) {
 }
 
 function paneFacings(j, st) {
-  const done = j.facings.filter(f => f.image).length, fr = j.facings_report || {};
+  const want = j.directions === 4 ? ["S", "E", "N", "W"] : COMPASS.filter(Boolean);
+  const done = j.facings.filter(f => f.image && want.includes(f.facing)).length, fr = j.facings_report || {};
   $("#pane").innerHTML = `<section>
-    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/8 · diagonals from the nearest cardinal</span>
+    <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
       <span class="spacer"></span>
       <button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? "Re-generate all" : "Generate facings"}</button>
-      <button class="primary" id="apFacings" ${done === 8 && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
+      <button class="primary" id="apFacings" ${done === want.length && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
     ${st("anchor") !== "approved" ? `<p class="warn">Approve the anchor first.</p>` : ""}
     <div class="compass">${COMPASS.map(f => {
       if (!f) return `<div class="center">compass<br>view</div>`;
       const x = j.facings.find(y => y.facing === f);
+      if (!want.includes(f)) return `<div class="ph" title="this profile uses 4 directions">${f}<br><span class="muted">not used</span></div>`;
       return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="Facing ${esc(f)}" title="enlarge">${img(x.image, f)}</a>` : img(null)}
         <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
           <span class="muted ${driftCls(x.drift)}">${x.drift ? `drift ${x.drift.color}` : ""}${x.mirrored ? " · mirrored" : ""}</span></div>

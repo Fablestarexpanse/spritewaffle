@@ -88,6 +88,12 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     def job_profile(j: Job, body: dict | None = None) -> str | None:
         return (body or {}).get("profile") or j.read_meta()["inputs"].get("profile")
 
+    def profile_directions(j: Job) -> int:
+        try:
+            return resolve(job_profile(j)).directions
+        except (FileNotFoundError, ValueError):      # a missing profile must not break the job page
+            return 8
+
     # --- static + files -------------------------------------------------------------------
     @app.get("/")
     def index():
@@ -240,7 +246,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "stages": meta["stages"], "anchor": crop(j.root / "01_anchor" / "anchor.png"),
                 "anchor_full": url(j.root / "01_anchor" / "anchor.png"),
                 "anchor_takes": takes_of("01_anchor/anchor.png"),
-                "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals")},
+                "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
+                "directions": profile_directions(j),
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
                 "stack": {"views": {v: crop(j.root / "02_ortho" / f"{v}.png") for v in ("front", "back", "right", "top")},
