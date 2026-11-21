@@ -49,6 +49,7 @@ ASSET_TYPES = {
     "prop": {"subject": "Single video game prop sprite",
              "pose": "Resting upright on its base, {view}, the whole object visible.",
              "actions": ["idle"]},
+    "effect": {"subject": "Game visual effect sprite", "pose": "{view}", "actions": []},   # see prompts/effects.py
 }
 
 

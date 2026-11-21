@@ -134,13 +134,22 @@ def _stages():
         need(a, "facing", "action")
         return stages.export(job, prof, a["facing"], a["action"], a.get("format", "both"))
 
-    gpu = {"sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
+    def effect_render(job, prof, a):
+        from . import effect
+        return effect.render(job, seed=a.get("seed"))
+
+    def effect_process(job, prof, a):
+        from . import effect
+        m = effect.process(job, prof)
+        return {k: m[k] for k in ("name", "frames", "cell", "loop", "dir")}
+
+    gpu = {"effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
            "ortho": ortho}
-    cpu = {"mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
+    cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -187,7 +196,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
+                 "resource": "gpu" if stage in ("effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)

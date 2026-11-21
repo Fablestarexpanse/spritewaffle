@@ -88,6 +88,19 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     def job_profile(j: Job, body: dict | None = None) -> str | None:
         return (body or {}).get("profile") or j.read_meta()["inputs"].get("profile")
 
+    def effect_view(j: Job) -> dict:
+        from ..core import effect
+        from ..prompts import effects as fx
+        s = effect.spec(j)
+        d = j.root / "06_export" / "effect" / s["name"].replace(" ", "_")
+        meta = read_json(d / f"{s['name'].replace(' ', '_')}.json")
+        return {"spec": s, "presets": {k: {kk: v.get(kk) for kk in ("still", "motion", "loop")} for k, v in fx.PRESETS.items()},
+                "still": url(j.root / "01_anchor" / "anchor.png"),
+                "clip": url(j.root / "03_actions" / "S" / "effect" / "raw.mp4"),
+                "preview": url(d / f"{s['name'].replace(' ', '_')}_preview.gif") if meta else None,
+                "sheet": url(d / f"{s['name'].replace(' ', '_')}_sheet.png") if meta else None,
+                "meta": meta}
+
     def profile_directions(j: Job) -> int:
         try:
             return resolve(job_profile(j)).directions
@@ -248,6 +261,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "anchor_takes": takes_of("01_anchor/anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
                 "directions": profile_directions(j),
+                "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
                 "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit")}
                             if meta["inputs"].get("base_job") else None),
                 "actions": actions,
@@ -426,6 +440,46 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError) as e:
             bad(e)
         return out | {"url": url(Path(out["file"]))}
+
+    @app.post("/api/jobs/{char}/{jid}/effect")
+    def effect_settings(char: str, jid: str, body: dict = Body(...)):
+        """Save the effect's settings; queue=render (render + process) or process (frames only)."""
+        from ..core import effect
+        from ..prompts import effects as fx
+        j = job_or_404(char, jid)
+        f = {}
+        try:
+            if "preset" in body:
+                p = str(body.get("preset") or "").lower()
+                if p and p not in fx.PRESETS:
+                    raise ValueError(f"unknown preset '{p}'; known: {sorted(fx.PRESETS)}")
+                f["preset"] = p
+            for k in ("still", "motion", "sound", "effect_name"):
+                if k in body:
+                    f[k] = str(body[k] or "").strip()
+            if "loop" in body:
+                f["loop"] = bool(body["loop"])
+            if "bg" in body:
+                if body["bg"] not in ("black", "green"):
+                    raise ValueError("background must be black or green")
+                f["bg"] = body["bg"]
+            for k, lo, hi in (("seconds", 1, 8), ("size", 8, 1024), ("frame_count", 4, 48), ("fps", 1, 60), ("colours", 2, 256)):
+                if k in body and body[k] not in (None, ""):
+                    v = float(body[k]) if k == "seconds" else int(body[k])
+                    if not lo <= v <= hi:
+                        raise ValueError(f"{k} must be {lo}-{hi}")
+                    f[k] = v
+        except (TypeError, ValueError) as e:
+            bad(e)
+        with j.mutate() as meta:
+            meta["inputs"].update(f)
+        tasks = []
+        if body.get("queue") == "render":
+            r = queue.submit(j.root, "effect_render", {"seed": body.get("seed")}, job_profile(j))
+            tasks = [r["id"], queue.submit(j.root, "effect_process", {}, job_profile(j), after=[r["id"]])["id"]]
+        elif body.get("queue") == "process":
+            tasks = [queue.submit(j.root, "effect_process", {}, job_profile(j))["id"]]
+        return {"spec": effect.spec(j), "tasks": tasks}
 
     @app.post("/api/jobs/{char}/{jid}/run")
     def run(char: str, jid: str, body: dict = Body(...)):

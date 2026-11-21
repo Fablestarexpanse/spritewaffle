@@ -114,6 +114,8 @@
   #dlg .field { align-items: stretch; }
   .ok-note { color: var(--ok, #3a3); margin: 0 0 8px; }
   .pgroup .field { align-items: stretch; margin: 6px 0; }      /* labels left, inputs full width */
+  .fxpane .field { align-items: stretch; }
+  .fxpane figure img, .fxpane figure .ph { max-width: 220px; max-height: 220px; }
   .stackview { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .stackview canvas { border-radius: 8px; max-width: 100%; cursor: grab; touch-action: none; }
   figure { margin: 0; } figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -187,8 +189,8 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
-               prop: ["anchor", "stack", "export"]};
-const TITLES = {anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
+               prop: ["anchor", "stack", "export"], effect: ["effect"]};
+const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
 
 let status = {profiles: [], actions: [], asset_types: []};
 let jobsCache = [];
@@ -422,7 +424,7 @@ async function loadStatus() {
 
 // --- sidebar -----------------------------------------------------------------------------
 function fillNewForm() {
-  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t}</option>`).join("");
+  $("#nType").innerHTML = status.asset_types.map(t => `<option value="${t}" ${t === "character" ? "selected" : ""}>${t === "prop" ? "prop — sprite stack" : t === "effect" ? "effect — spell, fire, explosion…" : t}</option>`).join("");
   $("#nStyle").innerHTML = status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
   $("#nProfile").innerHTML = `<option value="">default profile</option>` + status.profiles.map(p => `<option>${esc(p)}</option>`).join("");
 }
@@ -477,6 +479,7 @@ async function loadJobs() {
 function saveJf() { try { localStorage.setItem("sw.jobfilters", JSON.stringify(jf)); } catch {} loadJobs(); }
 function stepDone(step, stages) {
   const st = k => stages[k]?.status ?? stages[k];
+  if (step === "effect") return st("effect:export") === "done";
   if (step === "anchor") return st("anchor") === "approved";
   if (step === "facings") return st("facings") === "approved";
   if (step === "animations") return Object.keys(stages).some(k => k.startsWith("export:") && k !== "export:character");
@@ -511,7 +514,7 @@ function renderJob() {
     <nav class="tabs">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}">
       <span class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
     <div id="pane"></div>`;
-  ({anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
+  ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
   $$(".tab").forEach(b => b.onclick = () => { tab = b.dataset.tab; setHash(); renderJob(); });
   $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
   $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
@@ -530,7 +533,7 @@ function renderJob() {
       if (!instruction) return toast("Describe the change", true);
       const r = await api(jobPath() + "/variant", {instruction, job_id: $("#vName").value.trim()});
       d.close(); toast("Variant created: rendering its anchor");
-      location.hash = `${r.character}/${r.job_id}/anchor`;
+      location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
     };
     d.showModal();
   };
@@ -774,6 +777,66 @@ function paneExport(j) {
   }
 }
 
+// --- effects: spells, fire, explosions, impacts as their own sprites ----------------------------
+let fxDraft = {key: "", v: {}};                       // typed but unsaved, survives refreshes for this job
+function paneEffect(j, st) {
+  const e = j.effect, key = j.character + "/" + j.job_id;
+  if (fxDraft.key !== key) fxDraft = {key, v: {}};
+  const v = {...e.spec, preset: j.inputs.preset || "", ...fxDraft.v};
+  const m = e.meta, busy = st("effect:render") === "running";
+  $("#pane").innerHTML = `<section class="fxpane">
+    <h2>Effect ${badge(st("effect:export"))}</h2>
+    <p class="muted" style="margin-top:0">A visual effect as its own sprite: spells, fire, explosions, impacts, auras. H3 draws a first frame, then the clip; the background becomes transparency.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+      <label class="field"><span>Preset</span><select data-fx="preset"><option value="">(your own)</option>
+        ${Object.keys(e.presets).map(k => `<option ${k === v.preset ? "selected" : ""}>${esc(k)}</option>`).join("")}</select></label>
+      <label class="field"><span>Plays</span><select data-fx="loop"><option value="1" ${v.loop ? "selected" : ""}>loops</option><option value="0" ${v.loop ? "" : "selected"}>once (one-shot)</option></select></label>
+      <label class="field" title="Black: glowing effects (fire, magic, lightning) — alpha from brightness, also works additively. Green: effects with dark parts (smoke, dust, debris)">
+        <span>Background</span><select data-fx="bg"><option value="black" ${v.bg === "black" ? "selected" : ""}>black (glowing)</option><option value="green" ${v.bg === "green" ? "selected" : ""}>green (smoke, dust)</option></select></label>
+      <label class="field"><span>Clip length (s)</span><input type="number" data-fx="seconds" value="${v.seconds}" min="1" max="8" step="0.5"></label>
+      <label class="field"><span>Size (px, largest frame)</span><input type="number" data-fx="size" value="${v.size}" min="8" max="1024"></label>
+      <label class="field"><span>Frames</span><input type="number" data-fx="frame_count" value="${v.frames}" min="4" max="48"></label>
+      <label class="field"><span>FPS</span><input type="number" data-fx="fps" value="${v.fps}" min="1" max="60"></label>
+      <label class="field"><span>Colours (pixel art)</span><input type="number" data-fx="colours" value="${v.colours}" min="2" max="256"></label>
+    </div>
+    <label class="field"><span>First frame: what it looks like</span><textarea data-fx="still" placeholder="e.g. a round fireball of swirling orange flames">${esc(v.still)}</textarea></label>
+    <label class="field"><span>What it does (short and literal)</span><textarea data-fx="motion" placeholder="e.g. the fireball churns and flickers in place, embers drifting off">${esc(v.motion)}</textarea></label>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="fxRender" ${busy ? "disabled" : ""}>${e.clip ? "Re-render effect" : "Render effect"}</button>
+      ${e.clip ? `<button id="fxProcess">Re-process frames</button>` : ""}
+      <span class="hint">Render ≈ 1–2 min (still + clip); re-process uses the clip you have (size, frames, colours).</span>
+    </div>
+    <div class="row" style="align-items:flex-start;margin-top:14px;gap:16px;flex-wrap:wrap">
+      ${e.still ? `<figure><a href="${esc(e.still)}" data-view="First frame">${img(e.still, "first frame")}</a><figcaption>first frame</figcaption></figure>` : ""}
+      ${e.clip ? `<figure><a href="${esc(e.clip)}" data-view="Effect clip"><button class="ghost">▶ play clip</button></a><figcaption>H3 clip</figcaption></figure>` : ""}
+      ${e.preview ? `<figure><img class="pix" src="${esc(e.preview)}" style="max-width:256px;background:#12121a;border-radius:6px"><figcaption>${m.frames} frames · ${m.cell.join("×")} px · ${m.loop ? "loop" : "one-shot"} · ${esc(m.blend)}</figcaption></figure>` : ""}
+      ${e.sheet ? `<figure><a href="${esc(e.sheet)}" data-view="Flipbook sheet"><img class="pix" src="${esc(e.sheet)}" style="max-width:256px;background:#12121a;border-radius:6px"></a><figcaption>flipbook sheet ${m.sheet.cols}×${m.sheet.rows}</figcaption></figure>` : ""}
+    </div>
+    ${(j.exports || []).filter(f => f.group.startsWith("effect/")).length ? `<h3 style="margin:14px 0 4px">Files</h3>
+      <table>${j.exports.filter(f => f.group.startsWith("effect/")).map(f => `<tr><td><a href="${esc(f.url)}">${esc(f.name)}</a></td><td class="muted" style="width:90px">${kb(f.size)}</td></tr>`).join("")}</table>
+      <p class="hint">Strip PNG, flipbook sheet, .aseprite (plays once if one-shot), preview GIF, JSON with fps / loop / blend. Black-background effects also work with additive blending.</p>` : ""}</section>`;
+  const read = () => {
+    const out = {};
+    $$("[data-fx]").forEach(i => { const k = i.dataset.fx; out[k] = k === "loop" ? i.value === "1" : i.value; });
+    return out;
+  };
+  $$("[data-fx]").forEach(i => i.oninput = i.onchange = () => {
+    fxDraft.v = read();
+    if (i.dataset.fx === "preset" && i.value && e.presets[i.value]) {        // a preset fills the texts
+      const pr = e.presets[i.value];
+      Object.assign(fxDraft.v, {still: pr.still, motion: pr.motion, loop: pr.loop});
+      renderJob();
+    }
+  });
+  const send = async q => {
+    const body = {...read(), queue: q};
+    try { await api(jobPath() + "/effect", body); fxDraft.v = {}; toast(q === "render" ? "Effect queued: render, then process" : "Re-processing frames"); }
+    finally { lastSig = ""; refreshAll(); }
+  };
+  $("#fxRender").onclick = () => send("render");
+  if ($("#fxProcess")) $("#fxProcess").onclick = () => send("process");
+}
+
 function paneStack(j, st) {
   const s = j.stack, info = s.info;
   $("#pane").innerHTML = `<section>
@@ -875,13 +938,14 @@ function renderHome() {
   $("#main").innerHTML = `<div class="empty"><h2>Pixel-art sprites from AI images and video</h2>
     <p>Pick a job on the left, or click <b>New</b>.</p>
     <div class="row" style="justify-content:center;margin:14px 0"><button class="primary" id="homeChar">New character</button>
-      <button id="homeStack">New sprite stack</button></div>
+      <button id="homeStack">New sprite stack</button><button id="homeFx">New effect</button></div>
     <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
       Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
     ${status.comfy.ok ? "" : `<p class="warn">ComfyUI isn't reachable (${esc(status.comfy.detail)}). Frame processing works, generation won't.</p>`}</div>`;
   const openNew = type => { $("#newForm").hidden = false; fillNewForm(); $("#nType").value = type; $("#nName").focus(); };
   $("#homeChar").onclick = () => openNew("character");
   $("#homeStack").onclick = () => openNew("prop");
+  $("#homeFx").onclick = () => openNew("effect");
 }
 
 // --- queue + library ---------------------------------------------------------------------
@@ -960,7 +1024,7 @@ $("#nCreate").onclick = async () => {
   if (!name) return toast("Give the job a name", true);
   const r = await api("/api/jobs", {character: name, asset_type: $("#nType").value, style: $("#nStyle").value, profile: $("#nProfile").value || null});
   $("#newForm").hidden = true; $("#nName").value = "";
-  location.hash = `${r.character}/${r.job_id}/anchor`;
+  location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
 };
 $$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
 $("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };

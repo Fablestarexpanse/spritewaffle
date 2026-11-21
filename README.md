@@ -122,6 +122,22 @@ back to the fixed template wording; the rules (green background, framing, in-pla
 never left to the model. `spritewaffle prompts --job <job> --action walk` shows template vs AI text
 without rendering.
 
+### Effects (spells, fire, explosions, impacts)
+
+Home → **New effect** (type `effect`). Pick a preset (fireball, explosion, magic circle, healing,
+slash, lightning) or write your own first frame and motion; choose loops / once, the background,
+size, frames and fps; **Render effect**. H3 draws the first frame, then a clip; the background
+becomes transparency:
+- **black** (glowing effects): alpha from brightness. Works with normal alpha blending and, since
+  empty areas stay black, with an additive material too.
+- **green** (effects with dark parts, like smoke or dust): keyed like a character. Dark smoke on
+  black can't be separated from the background.
+
+Loops skip the clip's first frames and use the window (at least 1 s) whose ends match best;
+one-shots keep everything from the first to the last visible frame. Exports: strip PNG, frames,
+square flipbook sheet, `.aseprite` (one-shots play once), preview GIF, JSON (fps, loop, blend).
+**Re-process frames** changes size / frames / colours without rendering again.
+
 ### Prop (sprite stacking)
 
 New → type `prop` → anchor (a straight **front** view) → approve → **Sprite stack** →
