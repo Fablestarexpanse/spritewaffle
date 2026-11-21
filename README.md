@@ -138,6 +138,14 @@ one-shots keep everything from the first to the last visible frame. Exports: str
 square flipbook sheet, `.aseprite` (one-shots play once), preview GIF, JSON (fps, loop, blend).
 **Re-process frames** changes size / frames / colours without rendering again.
 
+### Variants: one change, or an item from a picture
+
+On a character with approved facings: **Make a variant…** → describe the change ("add a long green
+cape") *or* give an item picture (armor, weapon, hat) and say how it's used ("wearing this",
+"holding this in the right hand"). The local prompt writer turns the picture into words; the
+variant's anchor and every facing are the base's own images with that change, so poses line up.
+Back views get the item without its front details (no chest gem on the back).
+
 ### Animals (four-legged)
 
 New → type `animal`. The anchor step draws one **turnaround sheet** (front, side, back and two

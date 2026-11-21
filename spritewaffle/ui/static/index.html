@@ -571,13 +571,18 @@ function renderJob() {
     d.innerHTML = `<h2>Make a variant of ${esc(j.character)} <span class="spacer"></span><button class="ghost" id="vClose2">Close</button></h2>
       <p class="hint" style="margin-top:0">A new job: this character with one change. Its anchor is this anchor edited; each facing is redrawn from this job's facing (same pose and angle) with the change added.</p>
       <label class="field"><span>The change</span><input id="vEdit" placeholder="e.g. add a long green cape and a round wooden shield on the left arm"></label>
+      <label class="field"><span>…or an item picture (full path, optional): the change then says how it's used, e.g. "wearing this", "holding this in the right hand"</span>
+        <input id="vItem" placeholder="C:\\path\\to\\armor.png"></label>
       <label class="field"><span>Job name (optional)</span><input id="vName" placeholder="${esc(j.job_id)}_…"></label>
       <div class="row" style="margin-top:10px"><button class="primary" id="vGo">Create variant</button></div>`;
     $("#vClose2").onclick = () => d.close();
     $("#vGo").onclick = async () => {
-      const instruction = $("#vEdit").value.trim();
-      if (!instruction) return toast("Describe the change", true);
-      const r = await api(jobPath() + "/variant", {instruction, job_id: $("#vName").value.trim()});
+      const instruction = $("#vEdit").value.trim(), item = $("#vItem").value.trim();
+      if (!instruction && !item) return toast("Describe the change or give an item picture", true);
+      $("#vGo").disabled = true; $("#vGo").textContent = item ? "Reading the item…" : "Creating…";
+      let r;
+      try { r = await api(jobPath() + "/variant", {instruction: instruction || "wearing this", item, job_id: $("#vName").value.trim()}); }
+      finally { $("#vGo").disabled = false; $("#vGo").textContent = "Create variant"; }
       d.close(); toast("Variant created: rendering its anchor");
       location.hash = `${r.character}/${r.job_id}/${(STEPS[$("#nType").value] || STEPS.character)[0]}`;
     };
@@ -593,7 +598,7 @@ function paneAnchor(j, st) {
   const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
   $("#pane").innerHTML = `<section>
     <h2>Anchor ${badge(st("anchor"))}</h2>
-    ${j.variant ? `<p class="muted" style="margin-top:0">Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
+    ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;background:#00000022;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
       <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
     <div style="display:grid;grid-template-columns:minmax(200px,320px) 1fr;gap:20px">

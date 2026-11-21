@@ -137,6 +137,26 @@ def describe(idea: str, asset_type: str = "character", image: Path | None = None
     return _with_retry(one, seed)
 
 
+SYS_ITEM = (
+    "You describe one video game item for an image generator. Write exactly one plain sentence of at most "
+    "30 words naming what the item is, its shape, colours, materials and notable details (gems, trims, "
+    "patterns). No headings, no lists, no quotes. Do not mention the background, the camera, lighting or "
+    "the art style.")
+
+
+def describe_item(image: Path, client: ComfyClient | None = None, seed: int = 0) -> str:
+    """An item picture (armor, weapon, hat...) -> one sentence. Measured 2026-11-21: H3 Image edit
+    given the item picture as a second reference copied the item as the whole image (the character
+    vanished); the same item said in words was added correctly in every facing."""
+    client = client or ComfyClient()
+
+    def one(s):
+        vals = {"system": SYS_ITEM, "prompt": "Describe this item.", "seed": s, "max_tokens": 800,
+                "ref_images": [sprite_view(image)]}
+        return _clean(_sentence(client.run_text("prompt_writer", vals)["text"]), 30, "item description")
+    return _with_retry(one, seed)
+
+
 def _short(text: str, max_words: int = 26) -> str:
     """Keep descriptions short in the action request: with a 36-word description ComfyUI's text
     generation returned an empty string at every seed and budget (27 words: fine). Keep the subject

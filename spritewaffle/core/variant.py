@@ -25,10 +25,46 @@ def _slug(text: str) -> str:
     return "_".join(s.split("_")[:4])[:32] or "variant"
 
 
-def create(base: Job, instruction: str, job_id: str | None = None) -> Job:
+STYLE_WORDS = re.compile(r"\b(pixel[- ]art|pixelated|sprite|8-bit|16-bit)\s*", re.I)
+
+
+def item_edit(instruction: str, description: str) -> str:
+    """'wearing this' + 'a golden breastplate…' -> 'wearing a golden breastplate…'. Without 'this'
+    the description is appended."""
+    d = STYLE_WORDS.sub("", description).strip().rstrip(".")
+    d = d[0].lower() + d[1:] if d else d
+    instruction = (instruction or "wearing this").strip().rstrip(".")
+    if re.search(r"\bthis\b", instruction):
+        return re.sub(r"\bthis\b", d, instruction, count=1)
+    return f"{instruction} {d}"
+
+
+def item_core(description: str) -> str:
+    """The item without its front details ('a golden breastplate featuring a central red gem' ->
+    'a golden breastplate'), for back views. Measured 2026-11-21: with the full description every
+    back view showed the gem on the back, even when told front details are hidden."""
+    return re.split(r"\s+(?:featuring|with|detailed|decorated|adorned|that|which)\b|,", description, maxsplit=1)[0].strip()
+
+
+def create(base: Job, instruction: str, job_id: str | None = None, item: str | Path | None = None,
+           client: ComfyClient | None = None) -> Job:
     """New job next to the base (same character name), linked to it. The base must have approved
-    facings: the variant copies their poses."""
+    facings: the variant copies their poses.
+
+    item: a picture of an item (armor, weapon, hat). The local prompt writer (Qwen3-VL 4B) turns it
+    into words and `instruction` says how it is used ("wearing this", "holding this in the right
+    hand"); the picture is kept with the job for reference. Measured 2026-11-21: given to the image
+    model as a second picture, the item replaced the character; in words it was added correctly."""
     instruction = (instruction or "").strip().rstrip(".")
+    item_desc = None
+    if item:
+        item = Path(item)
+        if not item.exists():
+            raise FileNotFoundError(f"item picture {item} not found")
+        from ..prompts import writer
+        item_desc = writer.describe_item(item, client=client)
+        item_how = instruction or "wearing this"
+        instruction = item_edit(item_how, item_desc)
     if not instruction:
         raise ValueError("describe the change, e.g. 'add a long green cape'")
     base.require_approved("facings")
@@ -41,8 +77,12 @@ def create(base: Job, instruction: str, job_id: str | None = None) -> Job:
     desc = bm["inputs"].get("description") or ""
     job = Job.create(bm["character"], job_id, base=base.root.parent.parent, **keep,
                      description=f"{desc}; {instruction}" if desc else instruction,
-                     base_job=str(base.root), edit=instruction)
-    job.log_provenance("variant", base=f"{bm['character']}/{bm['job_id']}", edit=instruction)
+                     base_job=str(base.root), edit=instruction, **({"item_description": item_desc, "item_how": item_how} if item_desc else {}))
+    if item:
+        import shutil
+        shutil.copyfile(item, job.stage_dir("01_anchor") / "item.png")
+    job.log_provenance("variant", base=f"{bm['character']}/{bm['job_id']}", edit=instruction,
+                       **({"item": str(item), "item_description": item_desc} if item else {}))
     return job
 
 
@@ -79,7 +119,10 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
         raise FileNotFoundError("this job is not a variant, or its base job is gone")
     styles.use(styles.of_job(job))
     client = client or ComfyClient()
-    edit = job.read_meta()["inputs"]["edit"]
+    inputs = job.read_meta()["inputs"]
+    edit = inputs["edit"]
+    back_edit = (item_edit(inputs["item_how"], item_core(inputs["item_description"]))
+                 if inputs.get("item_description") and inputs.get("item_how") else edit)
     out = job.stage_dir("02_facings")
     a_path = job.root / "01_anchor" / "anchor.png"
     generate.flatten_background(Image.open(a_path).convert("RGB"), out / "S.png")
@@ -90,7 +133,8 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
         if not src.exists():
             continue
         generate._run(client, job, "facing_multiref",
-                      {"prompt": builder.edit_facing(f, edit, raised), "ref_images": [src],
+                      {"prompt": builder.edit_facing(f, back_edit if f in ("N", "NE", "NW") else edit, raised),
+                       "ref_images": [src],
                        "seed": generate._seed(seed)}, out / f"{f}.png")
         done.append(f)
     a = generate._rgba(a_path)

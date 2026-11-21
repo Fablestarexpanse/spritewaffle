@@ -276,7 +276,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "effect_jobs": effect_jobs() if meta["inputs"].get("asset_type") != "effect" else [],
                 "action_presets": sorted(builder.actions_for(meta["inputs"].get("asset_type"))),
                 "effect": effect_view(j) if meta["inputs"].get("asset_type") == "effect" else None,
-                "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit")}
+                "variant": ({"base": Path(meta["inputs"]["base_job"]).name, "edit": meta["inputs"].get("edit"),
+                             "item": url(j.root / "01_anchor" / "item.png")}
                             if meta["inputs"].get("base_job") else None),
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
@@ -425,8 +426,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         from ..core import variant
         base_job = job_or_404(char, jid)
         try:
-            v = variant.create(base_job, str(body.get("instruction", "")), (body.get("job_id") or "").strip() or None)
-        except (ValueError, FileExistsError, RuntimeError) as e:
+            item = str(body.get("item") or "").strip().strip('"') or None
+            v = variant.create(base_job, str(body.get("instruction", "")), (body.get("job_id") or "").strip() or None,
+                               item=item)
+        except (ValueError, FileExistsError, FileNotFoundError, RuntimeError) as e:
             bad(e)
         t = queue.submit(v.root, "anchor", {}, job_profile(v))
         return {"character": char, "job_id": v.root.name, "tasks": [t["id"]]}

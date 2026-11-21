@@ -82,5 +82,33 @@ def test_variant_api(tmp_path):
         r = c.post("/api/jobs/knight/k1/variant", json={"instruction": "add a cape", "job_id": "caped"}).json()
         assert r["job_id"] == "caped" and len(r["tasks"]) == 1
         j = c.get("/api/jobs/knight/caped").json()
-        assert j["variant"] == {"base": "k1", "edit": "add a cape"}
+        assert j["variant"] == {"base": "k1", "edit": "add a cape", "item": None}
         assert c.get("/api/queue").json()[0]["stage"] == "anchor"
+
+
+def test_item_edit_puts_the_description_where_this_is():
+    d = "A pixel-art golden breastplate featuring a central red gemstone."
+    assert variant.item_edit("wearing this", d) == "wearing a golden breastplate featuring a central red gemstone"
+    assert variant.item_edit("holding this in the right hand", "A short sword.") == "holding a short sword in the right hand"
+    assert variant.item_edit("add", "A red cape") == "add a red cape"
+
+
+def test_variant_from_an_item_picture(tmp_path, monkeypatch):
+    from spritewaffle.prompts import writer
+    b = _base(tmp_path)
+    b.set_stage("facings", "approved")
+    item = tmp_path / "armor.png"
+    Image.fromarray(render(draw_sprite(1), canvas=(256, 256))).save(item)
+    monkeypatch.setattr(writer, "describe_item", lambda image, client=None, seed=0: "A golden breastplate with a red gem.")
+    v = variant.create(b, "wearing this", job_id="gold", item=item)
+    m = v.read_meta()["inputs"]
+    assert m["edit"] == "wearing a golden breastplate with a red gem" and m["item_description"].startswith("A golden")
+    assert (v.root / "01_anchor" / "item.png").exists()
+    with pytest.raises(FileNotFoundError):
+        variant.create(b, "wearing this", job_id="gold2", item=tmp_path / "nope.png")
+
+
+def test_back_views_get_the_item_without_its_front_details():
+    assert variant.item_core("A golden breastplate featuring a central red gemstone, detailed with gold") == "A golden breastplate"
+    assert variant.item_core("a short sword with a ruby pommel") == "a short sword"
+    assert variant.item_core("a plain iron helmet") == "a plain iron helmet"

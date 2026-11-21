@@ -190,7 +190,10 @@ def edit_facing(target: str, instruction: str, raised: bool = False) -> str:
     V = VIEW_RAISED if raised else VIEW
     return (f"<Picture 1> shows a character, {V[target]}. Draw this exact character again in exactly the same "
             f"view, pose and position, changed only like this: {instruction.strip().rstrip('.')}, as it looks "
-            f"from this side. Everything else stays identical: face, body, outfit, proportions, size, colors, "
+            f"from this side. "
+            + ("Seen from behind, anything on the front of it (a gem, an emblem, a buckle on the chest) is hidden. "
+               if target in ("N", "NE", "NW") else "")
+            + f"Everything else stays identical: face, body, outfit, proportions, size, colors, "
             f"{styles.get()['noun']} style and outline. "
             "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
 
