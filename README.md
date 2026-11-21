@@ -11,6 +11,14 @@ frame picking, pixelizing, QA, export — is built in. Nothing goes to the cloud
 
 > Install SpriteWaffle by following `AGENT_INSTALL.md` in https://github.com/Fablestarexpanse/spritewaffle. Ask me before downloading models.
 
+## License — free for noncommercial use
+
+SpriteWaffle is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may use, modify, and redistribute SpriteWaffle for purposes permitted by that license, at no charge.
+
+**Commercial use requires a separate written license** from the copyright holder. This includes using SpriteWaffle to produce assets for paid client work, commercial game development, or other commercial workflows. A public repository does not grant commercial-use permission.
+
+The SpriteWaffle license applies only to the original project software—not to third-party dependencies, ComfyUI, model weights, imported artwork, or the assets you produce. Those may have separate rights or restrictions. Read [the licensing guide](docs/LICENSING.md) before commercial use.
+
 ## Requirements
 
 - Python 3.11+, an NVIDIA GPU for ComfyUI (tested: Windows 11, 24 GB VRAM; less VRAM untested).
