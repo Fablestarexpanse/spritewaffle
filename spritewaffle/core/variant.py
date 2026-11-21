@@ -200,10 +200,6 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
         report.setdefault("turned", {})[f] = s
         if s < generate.COPY_DIFF:
             report["warnings"].append(f"{f} looks like a copy of the front view (difference {s}): it lost the base pose; re-roll it")
-    from . import layer
-    lr = layer.facings(base.root / "02_facings", out, out / "layers")   # the change alone, per facing
-    report["layers"] = {k: lr[k] for k in ("layers", "uncovered")}
-    report["warnings"] += [f"layer {w}" for w in lr["warnings"]]
     import json
     (out / "facings_report.json").write_text(json.dumps(report, indent=2))
     job.set_stage("facings", "review", variant_of=base.root.name, rendered=done)

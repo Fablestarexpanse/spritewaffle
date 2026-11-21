@@ -147,15 +147,11 @@ onto a grey card, `01_anchor/item_ref.png`), so the item keeps its real design; 
 and every facing are the base's own images with the item fitted on, so poses line up. Back views show
 only the back of the item (no chest gem on the back).
 
-Every variant also writes the change on its own: `02_facings/layers/<facing>.png`, transparent, same
-canvas as the facings. Drawn over the base, it gives the variant back: an equipment layer for
-paper-doll games. A facing where the variant moved the body gets a warning (the layer won't fit).
-
 ### Equipment items (paper doll)
 
 New → type `item` (armor, cape, weapon). The anchor is the item on its own, front view; Facings
 draws its back. Approve both, then open any character → **Make a variant…** → pick the item and say
-how it's used ("wearing this"). The worn variant gets all 8 facings plus per-facing layers; the item
+how it's used ("wearing this"). The worn variant gets all 8 facings; the item
 job keeps its original front/back and lists every character it was fitted on. Different races or
 bodies are just different base characters.
 

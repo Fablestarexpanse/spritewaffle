@@ -4,8 +4,8 @@ we add it to base but we still have our original item"; "front and back").
 An item is its own job (asset type "item"): the anchor is its front (S), the facings stage draws
 its back (N) from the front with H3 Image edit. Fitting it onto a base character makes a variant of
 that base (core/variant.py) with the item front as <Picture 2> for front and side views and the item
-back for back views; the variant's per-facing layers (core/layer.py) are the worn item. Any number
-of bases (races, bodies) can wear the same item; the item job lists them in inputs.fits.
+back for back views (words for N). The worn variant is the result; the item job stays the
+original. Any number of bases (races, bodies) can wear the same item; the item job lists them in inputs.fits.
 """
 from __future__ import annotations
 
