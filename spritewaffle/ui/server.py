@@ -285,6 +285,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                           "rotations": next((url(p) for p in st.glob("*_rotations.png")), None) if st.is_dir() else None,
                           "info": read_json(next(st.glob("*_slices.json"), Path("_none"))) if st.is_dir() else None,
                           "slices": next((url(p) for p in st.glob("*_slices.png")), None) if st.is_dir() else None,
+                          "render3d": crop(j.root / "02_ortho" / "render3d.png"),
+                          "model3d": url(j.root / "02_ortho" / "model.glb"),
                           "spin_gif": next((url(p) for p in st.glob("*_spin.gif")), None) if st.is_dir() else None,
                           "build_gif": next((url(p) for p in st.glob("*_build.gif")), None) if st.is_dir() else None},
                 "exports": exports,
@@ -523,7 +525,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             if stage == "stack_pipeline":
                 tasks = queue.submit_stack_pipeline(j.root, profile, views=args.get("views", True),
-                                                    height=int(args.get("height", 24)), seed=args.get("seed"))
+                                                    height=int(args.get("height", 24)), seed=args.get("seed"),
+                                                    method=args.get("method", "3d"))
             elif stage == "pipeline":
                 gen = args.pop("generate", True)
                 tasks = queue.submit_action_pipeline(j.root, args.pop("facing"), args.pop("action"),

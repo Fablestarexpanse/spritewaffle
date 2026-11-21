@@ -161,9 +161,13 @@ thrown object (an effect, e.g. a spinning shield) as a projectile at the release
 
 ### Prop (sprite stacking)
 
-New → type `prop` → anchor (a straight **front** view) → approve → **Sprite stack** →
-*Generate views + build*. You get a slice strip + JSON for stacking engines, a turntable GIF and an
-8-angle rotation sheet. Rigid objects only: hollows come out solid, the left side mirrors the right.
+New → **New sprite stack** (type `prop`) → anchor (a straight front view) → approve → **Sprite
+stack** → *Make 3D model + build*. Method **3D model** (default): the anchor is redrawn as a lit
+3D render and TRELLIS.2 (on your ComfyUI) builds a real 3D model, which is cut into slices:
+overhangs, gaps and uneven sides survive (a pine keeps its branch tiers). Method **outline carve**:
+front/back/side/top outlines intersected; fine for boxy props, but hollows come out solid and the
+left side mirrors the right. The viewer spins the result (tilt, layer spacing, zoom); exports: slice
+strip + JSON for stacking engines, rotation sheet, spin and build-up GIFs, and `model.glb`.
 
 ### An existing clip → pixel art
 

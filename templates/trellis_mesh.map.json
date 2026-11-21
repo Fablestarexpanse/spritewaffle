@@ -1,0 +1,17 @@
+{
+  "slot": "trellis_mesh",
+  "params": {
+    "ref_images": [
+      {
+        "node": "122",
+        "input": "image",
+        "kind": "image"
+      }
+    ],
+    "seed": {
+      "node": "3",
+      "input": "seed"
+    }
+  },
+  "output_node": "322"
+}

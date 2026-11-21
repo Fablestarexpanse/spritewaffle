@@ -62,6 +62,14 @@ class ComfyClient:
         info = self.object_info()
         return sorted(c for c in templates.class_types(workflow) if c not in info)
 
+    def free(self) -> None:
+        """Unload models and free VRAM (ComfyUI /free). Used before a heavy model family change:
+        measured 2026-11-21, TRELLIS.2 ran out of memory (22.7 GB held) right after H3 Image."""
+        try:
+            self._json("/free", {"unload_models": True, "free_memory": True})
+        except (ComfyError, ValueError):                 # empty reply body is fine
+            pass
+
     def upload_image(self, path: str | Path, overwrite: bool = True) -> str:
         """POST /upload/image (multipart). Returns the name to put in LoadImage inputs."""
         path = Path(path)

@@ -904,11 +904,16 @@ function paneStack(j, st) {
   $("#pane").innerHTML = `<section>
     <h2>Sprite stack ${badge(st("stack"))}
       ${info ? `<span class="muted">${info.slices} slices · ${info.slice_size.join("×")} px · ${info.voxels} voxels</span>` : ""}</h2>
-    <div class="grid4">${["front", "back", "right", "top"].map(v => `<div class="card">${img(s.views[v], v)}<b>${v}</b></div>`).join("")}</div>
+    <div class="row" style="margin-bottom:8px"><label title="3D model: TRELLIS.2 builds a real 3D model from the anchor (overhangs, gaps, uneven sides). Outline carve: front/back/side/top outlines intersected (boxy rigid props)">Method
+      <select id="stMethod"><option value="3d" ${form.stMethod !== "carve" ? "selected" : ""}>3D model (TRELLIS.2)</option>
+        <option value="carve" ${form.stMethod === "carve" ? "selected" : ""}>outline carve</option></select></label></div>
+    ${form.stMethod === "carve" ? `<div class="grid4">${["front", "back", "right", "top"].map(v => `<div class="card">${img(s.views[v], v)}<b>${v}</b></div>`).join("")}</div>`
+      : `<div class="row" style="align-items:flex-start">${s.render3d ? `<figure>${img(s.render3d, "3D render")}<figcaption>3D-look render fed to TRELLIS.2</figcaption></figure>` : ""}
+          ${s.model3d ? `<p class="muted"><a href="${esc(s.model3d)}&download=1">model.glb</a> (vertex colours)</p>` : `<p class="muted">No 3D model yet.</p>`}</div>`}
     <div class="row">
-      <button class="primary" id="genOrtho" ${st("anchor") === "approved" ? "" : "disabled"}>Generate views + build</button>
+      <button class="primary" id="genOrtho" ${st("anchor") === "approved" ? "" : "disabled"}>${form.stMethod === "carve" ? "Generate views + build" : "Make 3D model + build"}</button>
       <label>Slices <input id="stH" type="number" value="${info?.slices || form.stackH}" min="4" max="96" style="width:70px"></label>
-      <button id="buildStack" ${s.views.top ? "" : "disabled"}>Rebuild from views</button>
+      <button id="buildStack" ${(form.stMethod === "carve" ? s.views.top : s.model3d) ? "" : "disabled"}>${form.stMethod === "carve" ? "Rebuild from views" : "Rebuild from model"}</button>
     </div>
     ${s.slices ? `<h3 style="margin:16px 0 6px">Viewer <span class="muted">drag to turn</span></h3>
       <div class="stackview">
@@ -931,8 +936,10 @@ function paneStack(j, st) {
       </div>` : ""}
     <p class="hint">Rigid props only: the shape is carved from the front, side and top outlines, so hollows come out solid and the left side mirrors the right.</p></section>`;
   const h = () => parseInt($("#stH").value) || 24;
-  $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: h()}, "Views + stack queued");
-  $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: h()}, "Stack rebuild queued");
+  const meth = () => form.stMethod === "carve" ? "carve" : "3d";
+  $("#stMethod").onchange = e => { form.stMethod = e.target.value; renderJob(); };
+  $("#genOrtho").onclick = () => run("stack_pipeline", {views: true, height: h(), method: meth()}, meth() === "3d" ? "3D model + stack queued" : "Views + stack queued");
+  $("#buildStack").onclick = () => run("stack_pipeline", {views: false, height: h(), method: meth()}, "Stack rebuild queued");
   if (s.slices) startStackViewer(s);
 }
 

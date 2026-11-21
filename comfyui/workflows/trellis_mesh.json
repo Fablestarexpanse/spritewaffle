@@ -1,0 +1,2260 @@
+{
+  "id": "fc213fc1-d41b-4033-9806-8142d6dca86f",
+  "revision": 0,
+  "last_node_id": 327,
+  "last_link_id": 56,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [
+        2725.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        292.0
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 2
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 3
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            33
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        56,
+        "fixed",
+        12,
+        7.5,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 12,
+      "type": "KSampler",
+      "pos": [
+        3355.0,
+        372.0
+      ],
+      "size": [
+        270.0,
+        292.0
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 5
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            22
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        43,
+        "fixed",
+        12,
+        1,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 15,
+      "type": "CLIPVisionLoader",
+      "pos": [
+        745.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP_VISION",
+          "type": "CLIP_VISION",
+          "links": [
+            50
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPVisionLoader"
+      },
+      "widgets_values": [
+        "dino_v3_L_naf_fp32.safetensors"
+      ],
+      "title": "Load CLIP Vision: dino_v3_L_naf_fp32",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 18,
+      "type": "KSampler",
+      "pos": [
+        3355.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        292.0
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 9
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 10
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 11
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            27
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        20,
+        7.5,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 23,
+      "type": "KSampler",
+      "pos": [
+        2725.0,
+        372.0
+      ],
+      "size": [
+        270.0,
+        292.0
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 14
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 15
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            20,
+            31
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        12,
+        7.5,
+        "euler",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 40,
+      "type": "UNETLoader",
+      "pos": [
+        745.0,
+        140.0
+      ],
+      "size": [
+        270.0,
+        109.0
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            5,
+            40,
+            48
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "trellis_2_int8_convrot.safetensors",
+        "default"
+      ],
+      "title": "Load Diffusion Model: trellis_2_int8_convrot",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 87,
+      "type": "EmptyTrellis2LatentStructure",
+      "pos": [
+        0.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyTrellis2LatentStructure"
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
+      "id": 91,
+      "type": "Trellis2ShapeStage",
+      "pos": [
+        2050.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        103.0
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 17
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 18
+        },
+        {
+          "name": "voxel",
+          "type": "VOXEL",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            10,
+            25
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            11,
+            26
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            12
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Trellis2ShapeStage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 92,
+      "type": "VaeDecodeShapeTrellis",
+      "pos": [
+        3040.0,
+        372.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 20
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            41
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "shape_subdivides",
+          "type": "SHAPE_SUBDIVIDES",
+          "links": [
+            24
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VaeDecodeShapeTrellis"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 93,
+      "type": "VaeDecodeTextureTrellis",
+      "pos": [
+        2725.0,
+        744.0
+      ],
+      "size": [
+        270.0,
+        103.0
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 22
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 23
+        },
+        {
+          "name": "shape_subdivides",
+          "type": "SHAPE_SUBDIVIDES",
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "voxel_colors",
+          "type": "VOXEL",
+          "links": [
+            47
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VaeDecodeTextureTrellis"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 94,
+      "type": "Trellis2UpsampleStage",
+      "pos": [
+        2365.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        148.0
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 25
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 26
+        },
+        {
+          "name": "shape_latent",
+          "type": "LATENT",
+          "link": 27
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            14,
+            29
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            15,
+            30
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            16
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Trellis2UpsampleStage"
+      },
+      "widgets_values": [
+        1536
+      ]
+    },
+    {
+      "id": 98,
+      "type": "Trellis2TextureStage",
+      "pos": [
+        1735.0,
+        228.0
+      ],
+      "size": [
+        270.0,
+        103.0
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 29
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 30
+        },
+        {
+          "name": "shape_latent",
+          "type": "LATENT",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            7
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            8
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Trellis2TextureStage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 108,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        745.0,
+        749.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        5
+      ]
+    },
+    {
+      "id": 117,
+      "type": "VAELoader",
+      "pos": [
+        745.0,
+        289.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            21,
+            28,
+            34
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "trellis_2_shape_vae_bf16.safetensors"
+      ],
+      "title": "Load VAE: trellis_2_shape_vae_bf16",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 118,
+      "type": "VAELoader",
+      "pos": [
+        745.0,
+        429.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            23
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "trellis_2_texture_vae_bf16.safetensors"
+      ],
+      "title": "Load VAE: trellis_2_texture_vae_bf16",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 119,
+      "type": "VaeDecodeStructureTrellis2",
+      "pos": [
+        3040.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        106.0
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 33
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "voxel",
+          "type": "VOXEL",
+          "links": [
+            19
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VaeDecodeStructureTrellis2"
+      },
+      "widgets_values": [
+        "32"
+      ]
+    },
+    {
+      "id": 122,
+      "type": "LoadImage",
+      "pos": [
+        0.0,
+        140.0
+      ],
+      "size": [
+        270.0,
+        130.0
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            39,
+            54
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            44
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 125,
+      "type": "RescaleCFG",
+      "pos": [
+        1375.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            32
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RescaleCFG"
+      },
+      "widgets_values": [
+        0.7
+      ]
+    },
+    {
+      "id": 126,
+      "type": "RescaleCFG",
+      "pos": [
+        1375.0,
+        140.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            9,
+            13
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RescaleCFG"
+      },
+      "widgets_values": [
+        0.5
+      ]
+    },
+    {
+      "id": 186,
+      "type": "DecimateMesh",
+      "pos": [
+        3715.0,
+        381.0
+      ],
+      "size": [
+        270.0,
+        109.0
+      ],
+      "flags": {},
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            42
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DecimateMesh"
+      },
+      "widgets_values": [
+        700000,
+        "midpoint"
+      ]
+    },
+    {
+      "id": 192,
+      "type": "RemoveBackground",
+      "pos": [
+        1060.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "bg_removal_model",
+          "type": "BACKGROUND_REMOVAL",
+          "link": 38
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 39
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            45
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RemoveBackground"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 193,
+      "type": "LoadBackgroundRemovalModel",
+      "pos": [
+        745.0,
+        569.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "bg_model",
+          "type": "BACKGROUND_REMOVAL",
+          "links": [
+            38
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadBackgroundRemovalModel"
+      },
+      "widgets_values": [
+        "birefnet.safetensors"
+      ],
+      "title": "Load Background Removal Model: birefnet",
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 199,
+      "type": "CFGOverride",
+      "pos": [
+        1060.0,
+        140.0
+      ],
+      "size": [
+        270.0,
+        133.0
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            35
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CFGOverride"
+      },
+      "widgets_values": [
+        1,
+        0.667,
+        1
+      ]
+    },
+    {
+      "id": 202,
+      "type": "GetMeshInfo",
+      "pos": [
+        4030.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            43
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "info",
+          "type": "STRING",
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GetMeshInfo"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 238,
+      "type": "MeshSmoothNormals",
+      "pos": [
+        4030.0,
+        381.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            46
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MeshSmoothNormals"
+      },
+      "widgets_values": [
+        180
+      ]
+    },
+    {
+      "id": 241,
+      "type": "RemeshMesh",
+      "pos": [
+        4345.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        301.0
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 43
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            37
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RemeshMesh"
+      },
+      "widgets_values": [
+        768,
+        "solid",
+        20,
+        false,
+        1,
+        0,
+        false,
+        20,
+        0.01,
+        20000000
+      ]
+    },
+    {
+      "id": 248,
+      "type": "ComfySwitchNode",
+      "pos": [
+        3715.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        106.0
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "on_false",
+          "type": "COMFY_MATCHTYPE_V3",
+          "link": 44
+        },
+        {
+          "name": "on_true",
+          "type": "COMFY_MATCHTYPE_V3",
+          "link": 45
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "COMFY_MATCHTYPE_V3",
+          "links": [
+            53
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfySwitchNode"
+      },
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 252,
+      "type": "PaintMesh",
+      "pos": [
+        4345.0,
+        381.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 46
+        },
+        {
+          "name": "voxel_colors",
+          "type": "VOXEL",
+          "link": 47
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "links": [
+            49
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PaintMesh"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 279,
+      "type": "CFGOverride",
+      "pos": [
+        1060.0,
+        313.0
+      ],
+      "size": [
+        270.0,
+        133.0
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 48
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            36
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CFGOverride"
+      },
+      "widgets_values": [
+        1,
+        0.769,
+        1
+      ]
+    },
+    {
+      "id": 282,
+      "type": "MeshToFile3D",
+      "pos": [
+        3715.0,
+        570.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 49
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model_3d",
+          "type": "FILE_3D_GLB",
+          "links": [
+            56
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MeshToFile3D"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 299,
+      "type": "Trellis2Conditioning",
+      "pos": [
+        1735.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_vision_model",
+          "type": "CLIP_VISION",
+          "link": 50
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            2,
+            17
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            3,
+            18
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Trellis2Conditioning"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 302,
+      "type": "PreviewImage",
+      "pos": [
+        315.0,
+        242.0
+      ],
+      "size": [
+        340.0,
+        381.0
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 52
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            51
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 303,
+      "type": "MaskPreview",
+      "pos": [
+        3715.0,
+        146.0
+      ],
+      "size": [
+        270.0,
+        100.0
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 53
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            55
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskPreview"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 312,
+      "type": "ImageCropToMask",
+      "pos": [
+        315.0,
+        0.0
+      ],
+      "size": [
+        270.0,
+        202.0
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 54
+        },
+        {
+          "name": "masks",
+          "type": "MASK",
+          "link": 55
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            52
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageCropToMask"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1.1,
+        0,
+        "#000000"
+      ]
+    },
+    {
+      "id": 322,
+      "type": "Save3DAdvanced",
+      "pos": [
+        4030.0,
+        570.0
+      ],
+      "size": [
+        270.0,
+        217.0
+      ],
+      "flags": {},
+      "order": 34,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_3d",
+          "type": "FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
+          "link": 56
+        },
+        {
+          "name": "viewport_state",
+          "type": "LOAD_3D",
+          "link": null,
+          "widget": {
+            "name": "viewport_state"
+          }
+        },
+        {
+          "name": "model_3d_info",
+          "type": "LOAD3D_MODEL_INFO",
+          "link": null
+        },
+        {
+          "name": "camera_info",
+          "type": "LOAD3D_CAMERA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model_3d",
+          "type": "FILE_3D",
+          "links": [],
+          "slot_index": 0
+        },
+        {
+          "name": "model_3d_info",
+          "type": "LOAD3D_MODEL_INFO",
+          "links": [],
+          "slot_index": 1
+        },
+        {
+          "name": "camera_info",
+          "type": "LOAD3D_CAMERA",
+          "links": [],
+          "slot_index": 2
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [],
+          "slot_index": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [],
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Save3DAdvanced"
+      },
+      "widgets_values": [
+        "spritewaffle/trellis",
+        1024,
+        1024
+      ]
+    },
+    {
+      "id": 323,
+      "type": "MarkdownNote",
+      "pos": [
+        0.0,
+        -246.0
+      ],
+      "size": [
+        380.0,
+        206.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Inputs\n\nLoad your source image/media here.\n\nSet the image size (width / height / batch) here.\n\n| knob | now | range / choices | effect |\n|---|---|---|---|\n| batch_size (EmptyTrellis2LatentStructure #87) | 1 | 1-4096 | How many images render per run - more takes proportionally longer and more VRAM. |\n| width (ImageCropToMask #312) | 1024 | 64-4096 | Output width in pixels - usually needs to match the model's trained resolution bucket, or composition degrades. |\n| height (ImageCropToMask #312) | 1024 | 64-4096 | Output height in pixels - same caveat as width. |"
+      ],
+      "title": "Inputs",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 324,
+      "type": "MarkdownNote",
+      "pos": [
+        745.0,
+        -229.0
+      ],
+      "size": [
+        380.0,
+        189.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Models\n\nSwap models here to change the whole look.\n\n| knob | now | range / choices | effect |\n|---|---|---|---|\n| shift (ModelSamplingSD3 #108) | 5 | 0.0-100.0 | Shifts the noise schedule - affects how detail resolves across steps; usually a per-model tuned constant. |\n| cfg (CFGOverride #199) | 1 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |\n| cfg (CFGOverride #279) | 1 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |"
+      ],
+      "title": "Models",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 325,
+      "type": "MarkdownNote",
+      "pos": [
+        1735.0,
+        -178.0
+      ],
+      "size": [
+        380.0,
+        138.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Conditioning\n\nWires the prompt into the model - nothing to edit\nhere; change the prompt itself upstream (Inputs or\nPrompt Building)."
+      ],
+      "title": "Conditioning",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 326,
+      "type": "MarkdownNote",
+      "pos": [
+        2725.0,
+        -569.0
+      ],
+      "size": [
+        380.0,
+        529.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Sampling\n\n| knob | now | range / choices | effect |\n|---|---|---|---|\n| seed (KSampler #3) | 56 |  | Same seed + same settings = same result. Change it for a new variation; keep it fixed to iterate on one image. |\n| steps (KSampler #3) | 12 | 1-10000 | More steps = more refinement, with diminishing returns past the model's sweet spot; fewer steps is faster but can look unfinished. |\n| cfg (KSampler #3) | 7.5 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |\n| sampler_name (KSampler #3) | euler | euler, euler_cfg_pp, euler_ancestral, euler_ancestral_cfg_pp, heun, heunpp2, exp_heun_2_x0, exp_heun_2_x0_sde, dpm_2, dpm_2_ancestral, lms, dpm_fast, dpm_adaptive, dpmpp_2s_ancestral, dpmpp_2s_ancestral_cfg_pp, dpmpp_sde, dpmpp_sde_gpu, dpmpp_2m, dpmpp_2m_cfg_pp, dpmpp_2m_sde, dpmpp_2m_sde_gpu, dpmpp_2m_sde_heun, dpmpp_2m_sde_heun_gpu, dpmpp_3m_sde (+21 more) | Changes the sampling algorithm - affects speed and sharpness, and how much a given step count buys you. |\n| scheduler (KSampler #3) | normal | simple, sgm_uniform, karras, exponential, ddim_uniform, beta, normal, linear_quadratic, kl_optimal | Changes how noise is removed across steps - pairs with sampler_name; some samplers expect a specific scheduler. |\n| denoise (KSampler #3) | 1 | 0.0-1.0 | Higher denoise changes the image more (closer to a fresh generation); lower preserves more of the input. |\n| seed (KSampler #12) | 43 |  | Same seed + same settings = same result. Change it for a new variation; keep it fixed to iterate on one image. |\n| steps (KSampler #12) | 12 | 1-10000 | More steps = more refinement, with diminishing returns past the model's sweet spot; fewer steps is faster but can look unfinished. |\n| cfg (KSampler #12) | 1 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |\n| sampler_name (KSampler #12) | euler | euler, euler_cfg_pp, euler_ancestral, euler_ancestral_cfg_pp, heun, heunpp2, exp_heun_2_x0, exp_heun_2_x0_sde, dpm_2, dpm_2_ancestral, lms, dpm_fast, dpm_adaptive, dpmpp_2s_ancestral, dpmpp_2s_ancestral_cfg_pp, dpmpp_sde, dpmpp_sde_gpu, dpmpp_2m, dpmpp_2m_cfg_pp, dpmpp_2m_sde, dpmpp_2m_sde_gpu, dpmpp_2m_sde_heun, dpmpp_2m_sde_heun_gpu, dpmpp_3m_sde (+21 more) | Changes the sampling algorithm - affects speed and sharpness, and how much a given step count buys you. |\n| scheduler (KSampler #12) | normal | simple, sgm_uniform, karras, exponential, ddim_uniform, beta, normal, linear_quadratic, kl_optimal | Changes how noise is removed across steps - pairs with sampler_name; some samplers expect a specific scheduler. |\n| denoise (KSampler #12) | 1 | 0.0-1.0 | Higher denoise changes the image more (closer to a fresh generation); lower preserves more of the input. |\n| seed (KSampler #18) | 42 |  | Same seed + same settings = same result. Change it for a new variation; keep it fixed to iterate on one image. |\n| steps (KSampler #18) | 20 | 1-10000 | More steps = more refinement, with diminishing returns past the model's sweet spot; fewer steps is faster but can look unfinished. |\n| cfg (KSampler #18) | 7.5 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |\n| sampler_name (KSampler #18) | euler | euler, euler_cfg_pp, euler_ancestral, euler_ancestral_cfg_pp, heun, heunpp2, exp_heun_2_x0, exp_heun_2_x0_sde, dpm_2, dpm_2_ancestral, lms, dpm_fast, dpm_adaptive, dpmpp_2s_ancestral, dpmpp_2s_ancestral_cfg_pp, dpmpp_sde, dpmpp_sde_gpu, dpmpp_2m, dpmpp_2m_cfg_pp, dpmpp_2m_sde, dpmpp_2m_sde_gpu, dpmpp_2m_sde_heun, dpmpp_2m_sde_heun_gpu, dpmpp_3m_sde (+21 more) | Changes the sampling algorithm - affects speed and sharpness, and how much a given step count buys you. |\n| scheduler (KSampler #18) | normal | simple, sgm_uniform, karras, exponential, ddim_uniform, beta, normal, linear_quadratic, kl_optimal | Changes how noise is removed across steps - pairs with sampler_name; some samplers expect a specific scheduler. |\n| denoise (KSampler #18) | 1 | 0.0-1.0 | Higher denoise changes the image more (closer to a fresh generation); lower preserves more of the input. |\n| seed (KSampler #23) | 42 |  | Same seed + same settings = same result. Change it for a new variation; keep it fixed to iterate on one image. |\n| steps (KSampler #23) | 12 | 1-10000 | More steps = more refinement, with diminishing returns past the model's sweet spot; fewer steps is faster but can look unfinished. |\n| cfg (KSampler #23) | 7.5 | 0.0-100.0 | Higher CFG follows the prompt more literally but can oversaturate or burn; lower is more creative but may ignore the prompt. |\n| sampler_name (KSampler #23) | euler | euler, euler_cfg_pp, euler_ancestral, euler_ancestral_cfg_pp, heun, heunpp2, exp_heun_2_x0, exp_heun_2_x0_sde, dpm_2, dpm_2_ancestral, lms, dpm_fast, dpm_adaptive, dpmpp_2s_ancestral, dpmpp_2s_ancestral_cfg_pp, dpmpp_sde, dpmpp_sde_gpu, dpmpp_2m, dpmpp_2m_cfg_pp, dpmpp_2m_sde, dpmpp_2m_sde_gpu, dpmpp_2m_sde_heun, dpmpp_2m_sde_heun_gpu, dpmpp_3m_sde (+21 more) | Changes the sampling algorithm - affects speed and sharpness, and how much a given step count buys you. |\n| scheduler (KSampler #23) | simple | simple, sgm_uniform, karras, exponential, ddim_uniform, beta, normal, linear_quadratic, kl_optimal | Changes how noise is removed across steps - pairs with sampler_name; some samplers expect a specific scheduler. |\n| denoise (KSampler #23) | 1 | 0.0-1.0 | Higher denoise changes the image more (closer to a fresh generation); lower preserves more of the input. |"
+      ],
+      "title": "Sampling",
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 327,
+      "type": "MarkdownNote",
+      "pos": [
+        3715.0,
+        -212.0
+      ],
+      "size": [
+        380.0,
+        172.0
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "draftsman": "comfy-draftsman"
+      },
+      "widgets_values": [
+        "### Output\n\nFinished files land here (check the filename prefix).\n\n| knob | now | range / choices | effect |\n|---|---|---|---|\n| width | 1024 | 1-4096 | Output width in pixels - usually needs to match the model's trained resolution bucket, or composition degrades. |\n| height | 1024 | 1-4096 | Output height in pixels - same caveat as width. |"
+      ],
+      "title": "Output",
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      1,
+      108,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      299,
+      0,
+      3,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      3,
+      299,
+      1,
+      3,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      4,
+      87,
+      0,
+      3,
+      3,
+      "LATENT"
+    ],
+    [
+      5,
+      40,
+      0,
+      12,
+      0,
+      "MODEL"
+    ],
+    [
+      6,
+      98,
+      0,
+      12,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      98,
+      1,
+      12,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      98,
+      2,
+      12,
+      3,
+      "LATENT"
+    ],
+    [
+      9,
+      126,
+      0,
+      18,
+      0,
+      "MODEL"
+    ],
+    [
+      10,
+      91,
+      0,
+      18,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      11,
+      91,
+      1,
+      18,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      12,
+      91,
+      2,
+      18,
+      3,
+      "LATENT"
+    ],
+    [
+      13,
+      126,
+      0,
+      23,
+      0,
+      "MODEL"
+    ],
+    [
+      14,
+      94,
+      0,
+      23,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      15,
+      94,
+      1,
+      23,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      16,
+      94,
+      2,
+      23,
+      3,
+      "LATENT"
+    ],
+    [
+      17,
+      299,
+      0,
+      91,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      18,
+      299,
+      1,
+      91,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      19,
+      119,
+      0,
+      91,
+      2,
+      "VOXEL"
+    ],
+    [
+      20,
+      23,
+      0,
+      92,
+      0,
+      "LATENT"
+    ],
+    [
+      21,
+      117,
+      0,
+      92,
+      1,
+      "VAE"
+    ],
+    [
+      22,
+      12,
+      0,
+      93,
+      0,
+      "LATENT"
+    ],
+    [
+      23,
+      118,
+      0,
+      93,
+      1,
+      "VAE"
+    ],
+    [
+      24,
+      92,
+      1,
+      93,
+      2,
+      "SHAPE_SUBDIVIDES"
+    ],
+    [
+      25,
+      91,
+      0,
+      94,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      26,
+      91,
+      1,
+      94,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      27,
+      18,
+      0,
+      94,
+      2,
+      "LATENT"
+    ],
+    [
+      28,
+      117,
+      0,
+      94,
+      3,
+      "VAE"
+    ],
+    [
+      29,
+      94,
+      0,
+      98,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      30,
+      94,
+      1,
+      98,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      31,
+      23,
+      0,
+      98,
+      2,
+      "LATENT"
+    ],
+    [
+      32,
+      125,
+      0,
+      108,
+      0,
+      "MODEL"
+    ],
+    [
+      33,
+      3,
+      0,
+      119,
+      0,
+      "LATENT"
+    ],
+    [
+      34,
+      117,
+      0,
+      119,
+      1,
+      "VAE"
+    ],
+    [
+      35,
+      199,
+      0,
+      125,
+      0,
+      "MODEL"
+    ],
+    [
+      36,
+      279,
+      0,
+      126,
+      0,
+      "MODEL"
+    ],
+    [
+      37,
+      241,
+      0,
+      186,
+      0,
+      "MESH"
+    ],
+    [
+      38,
+      193,
+      0,
+      192,
+      0,
+      "BACKGROUND_REMOVAL"
+    ],
+    [
+      39,
+      122,
+      0,
+      192,
+      1,
+      "IMAGE"
+    ],
+    [
+      40,
+      40,
+      0,
+      199,
+      0,
+      "MODEL"
+    ],
+    [
+      41,
+      92,
+      0,
+      202,
+      0,
+      "MESH"
+    ],
+    [
+      42,
+      186,
+      0,
+      238,
+      0,
+      "MESH"
+    ],
+    [
+      43,
+      202,
+      0,
+      241,
+      0,
+      "MESH"
+    ],
+    [
+      44,
+      122,
+      1,
+      248,
+      0,
+      "MASK"
+    ],
+    [
+      45,
+      192,
+      0,
+      248,
+      1,
+      "MASK"
+    ],
+    [
+      46,
+      238,
+      0,
+      252,
+      0,
+      "MESH"
+    ],
+    [
+      47,
+      93,
+      0,
+      252,
+      1,
+      "VOXEL"
+    ],
+    [
+      48,
+      40,
+      0,
+      279,
+      0,
+      "MODEL"
+    ],
+    [
+      49,
+      252,
+      0,
+      282,
+      0,
+      "MESH"
+    ],
+    [
+      50,
+      15,
+      0,
+      299,
+      0,
+      "CLIP_VISION"
+    ],
+    [
+      51,
+      302,
+      0,
+      299,
+      1,
+      "IMAGE"
+    ],
+    [
+      52,
+      312,
+      0,
+      302,
+      0,
+      "IMAGE"
+    ],
+    [
+      53,
+      248,
+      0,
+      303,
+      0,
+      "COMFY_MATCHTYPE_V3"
+    ],
+    [
+      54,
+      122,
+      0,
+      312,
+      0,
+      "IMAGE"
+    ],
+    [
+      55,
+      303,
+      0,
+      312,
+      1,
+      "MASK"
+    ],
+    [
+      56,
+      282,
+      0,
+      322,
+      0,
+      "FILE_3D_GLB"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Inputs",
+      "bounding": [
+        -30.0,
+        -316.0,
+        715.0,
+        959.0
+      ],
+      "color": "#88553d",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Models",
+      "bounding": [
+        715.0,
+        -299.0,
+        960.0,
+        1168.0
+      ],
+      "color": "#3f5159",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Conditioning",
+      "bounding": [
+        1705.0,
+        -248.0,
+        960.0,
+        599.0
+      ],
+      "color": "#4a3d59",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "Sampling",
+      "bounding": [
+        2695.0,
+        -639.0,
+        960.0,
+        1506.0
+      ],
+      "color": "#42425c",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 5,
+      "title": "Output",
+      "bounding": [
+        3685.0,
+        -282.0,
+        960.0,
+        1089.0
+      ],
+      "color": "#653d3d",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "draftsman_title": "SpriteWaffle trellis_mesh"
+  },
+  "version": 0.4
+}

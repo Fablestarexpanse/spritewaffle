@@ -112,7 +112,12 @@ def _stages():
 
     def stack(job, prof, a):
         from ..stack import stage as stack_stage
-        return stack_stage.build(job, prof, stack_height=a.get("height", 24), layer_px=a.get("layer_px", 1))
+        return stack_stage.build(job, prof, stack_height=a.get("height", 24), layer_px=a.get("layer_px", 1),
+                                 method=a.get("method", "3d"))
+
+    def model3d(job, prof, a):
+        from ..stack import stage as stack_stage
+        return stack_stage.model3d(job, seed=a.get("seed"))
 
     def extract(job, prof, a):
         need(a, "video", "facing", "action")
@@ -143,13 +148,13 @@ def _stages():
         m = effect.process(job, prof)
         return {k: m[k] for k in ("name", "frames", "cell", "loop", "dir")}
 
-    gpu = {"effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
+    gpu = {"model3d": model3d, "effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
            "ortho": ortho}
     cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
+STAGE_NAMES = ("model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 
 
@@ -196,7 +201,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
+                 "resource": "gpu" if stage in ("model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
                  "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)
@@ -268,12 +273,15 @@ class Queue:
         return tasks
 
     def submit_stack_pipeline(self, job, profile: str | None = None, views: bool = True, height: int = 24,
-                              seed: int | None = None) -> list[dict]:
-        """Sprite stacking: ortho views (gpu) -> stack build (cpu). views=False rebuilds from existing views."""
+                              seed: int | None = None, method: str = "3d") -> list[dict]:
+        """Sprite stacking: 3D model or ortho views (gpu) -> stack build (cpu). views=False rebuilds
+        from the model / views already there."""
         tasks = []
         if views:
-            tasks.append(self.submit(job, "ortho", {"seed": seed} if seed is not None else {}, profile))
-        tasks.append(self.submit(job, "stack", {"height": height}, profile, after=[t["id"] for t in tasks]))
+            tasks.append(self.submit(job, "model3d" if method == "3d" else "ortho",
+                                     {"seed": seed} if seed is not None else {}, profile))
+        tasks.append(self.submit(job, "stack", {"height": height, "method": method}, profile,
+                                 after=[t["id"] for t in tasks]))
         return tasks
 
     def cancel(self, tid: str) -> dict:

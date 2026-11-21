@@ -160,8 +160,10 @@ def test_concurrent_task_updates_and_reads_do_not_fail(env):
 
 def test_stack_pipeline_chain(env):
     base, job, q = env
-    ts = q.submit_stack_pipeline(job.root, height=16)
-    assert [(t["stage"], t["resource"]) for t in ts] == [("ortho", "gpu"), ("stack", "cpu")]
-    assert ts[1]["after"] == [ts[0]["id"]] and ts[1]["args"] == {"height": 16}
+    ts = q.submit_stack_pipeline(job.root, height=16)                     # default: real 3D model
+    assert [(t["stage"], t["resource"]) for t in ts] == [("model3d", "gpu"), ("stack", "cpu")]
+    assert ts[1]["after"] == [ts[0]["id"]] and ts[1]["args"] == {"height": 16, "method": "3d"}
+    ts = q.submit_stack_pipeline(job.root, height=16, method="carve")
+    assert [t["stage"] for t in ts] == ["ortho", "stack"] and ts[1]["args"]["method"] == "carve"
     only = q.submit_stack_pipeline(job.root, views=False)
     assert [t["stage"] for t in only] == ["stack"] and only[0]["after"] == []

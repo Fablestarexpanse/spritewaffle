@@ -44,6 +44,11 @@ About 94 GB in total.
 | `minimax_h3_video_vae_fp16.safetensors` | `vae/` | 5.0 GB | TARA | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
 | `minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors` | `loras/MiniMax H3/` | 1.9 GB | TARA | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/loras/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors) |
 | `minimax_h3_motion_transfer_tara_v1.0_ref2va.safetensors` | `loras/MiniMax H3/` | 0.1 GB | TARA (community) | [Alissonerdx/Minimax-H3-ComfyUI](https://huggingface.co/Alissonerdx/Minimax-H3-ComfyUI) |
+| `trellis_2_int8_convrot.safetensors` | `diffusion_models/` | 5.0 GB | sprite stacks from a 3D model | [Comfy-Org/TRELLIS.2](https://huggingface.co/Comfy-Org/TRELLIS.2/resolve/main/diffusion_models/trellis_2_int8_convrot.safetensors) |
+| `trellis_2_shape_vae_bf16.safetensors` | `vae/` | 1.0 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/vae/trellis_2_shape_vae_bf16.safetensors) |
+| `trellis_2_texture_vae_bf16.safetensors` | `vae/` | 0.9 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/vae/trellis_2_texture_vae_bf16.safetensors) |
+| `dino_v3_L_naf_fp32.safetensors` | `clip_vision/` | 1.2 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/clip_vision/dino_v3_L_naf_fp32.safetensors) |
+| `birefnet.safetensors` | `background_removal/` | 0.4 GB | sprite stacks (3D) | [Comfy-Org/BiRefNet](https://huggingface.co/Comfy-Org/BiRefNet/resolve/main/background_removal/birefnet.safetensors) |
 
 Any ComfyUI install works (portable, git, desktop app, a launcher). `<ComfyUI>/models/` is the
 default model root; if yours keeps models elsewhere (`extra_model_paths.yaml`, or a launcher's
@@ -81,4 +86,5 @@ There are two copies of each workflow:
 | `h3_action_i2v` | first frame only, the fallback when FL2VA freezes |
 | `h3_tara_transfer` | TARA motion transfer from a driving clip (experimental, needs BFSNodes) |
 | `prompt_writer` | Qwen3-VL 4B looks at the character and writes prompt text |
-| `sam3_mask` | SAM 3 cuts figures off a character sheet |
+| `sam3_mask` | SAM 3 cuts figures off a character sheet (and animal turnaround sheets) |
+| `trellis_mesh` | TRELLIS.2: image → vertex-coloured 3D model for sprite stacks |
