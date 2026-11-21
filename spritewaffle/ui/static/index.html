@@ -1192,7 +1192,7 @@ function paneExport(j) {
     return;
   }
   $("#pane").innerHTML = `${j.asset_type !== "prop" ? `<section>
-    <h2>Export character ${badge(ch?.status)}</h2>
+    <h2>Export character <span id="exportFreshnessBadge" class="badge" ${ch ? "" : "hidden"}>Built</span></h2>
     <p class="muted" style="margin-top:0">One .aseprite with a tag per animation (Unity's Aseprite Importer turns each tag into a clip), plus atlas pages:
       trimmed frames packed into PNGs no bigger than the page limit, each with a TexturePacker JSON (Phaser, PixiJS, Godot importers…) and one SpriteWaffle JSON for the whole character.
       Animations that failed QA are left out unless you include them.</p>
@@ -1230,13 +1230,17 @@ function paneExport(j) {
   };
   if ($("#eGo")) {
     $("#eCheck").onclick = async event => {
-      const button = event.target, note = $("#exportStatus");
+      const button = event.target, note = $("#exportStatus"), indicator = $("#exportFreshnessBadge");
       button.disabled = true;
       note.hidden = false;
       note.className = "muted";
       note.textContent = "Checking export files…";
       try {
         const result = await api(jobPath() + "/export_character");
+        const labels = {current: "Current", missing: "Missing", untracked: "Untracked", incomplete: "Incomplete", stale: "Stale"};
+        indicator.textContent = labels[result.status];
+        indicator.className = result.status === "current" ? "badge pass" : result.status === "missing" ? "badge" : "badge warn";
+        indicator.hidden = false;
         const reasons = {
           current: "The character export matches its inputs and files.",
           missing: "No character export exists yet.",
