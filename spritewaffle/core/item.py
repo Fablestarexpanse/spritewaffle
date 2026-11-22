@@ -12,7 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageOps
 
 from ..comfy.client import ComfyClient
 from ..export import receipt
@@ -25,6 +26,29 @@ VIEWS = ("S", "N")          # front, back
 
 def is_item(job: Job) -> bool:
     return job.read_meta()["inputs"].get("asset_type") == "item"
+
+
+def reference_palette(path: Path) -> list[str]:
+    """Sample colour cues without passing the reference's subject to the renderer."""
+    with Image.open(path) as source:
+        image = ImageOps.exif_transpose(source).convert("RGBA")
+    image.thumbnail((256, 256), Image.Resampling.NEAREST)
+    rgba = np.asarray(image)
+    rgb = rgba[..., :3]
+    visible = rgba[..., 3] > 127
+    if visible.all():
+        # Saved SpriteWaffle anchors use an exact green matte. Keep other greens as artwork.
+        green = (rgb == (0, 255, 0)).all(axis=2)
+        border = np.concatenate((green[0], green[-1], green[1:-1, 0], green[1:-1, -1]))
+        if border.mean() > .5:
+            visible = ~green
+    colours = rgb[visible]
+    if len(colours) == 0:
+        raise ValueError("The item style reference has no visible colours. Choose another reference.")
+    indexed = Image.fromarray(colours.reshape(1, -1, 3)).quantize(colors=6)
+    palette = indexed.getpalette()
+    return ["#{:02x}{:02x}{:02x}".format(*palette[index * 3:index * 3 + 3])
+            for _, index in sorted(indexed.getcolors(), key=lambda entry: (-entry[0], entry[1]))]
 
 
 def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, seed: int | None = None) -> dict:

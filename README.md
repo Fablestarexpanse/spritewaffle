@@ -98,7 +98,8 @@ to keep the library portable. References are for visual guidance.
 
 On **Anchor**, choose one image under **Style reference → Project references** and describe
 the asset you want to generate. Click the reference thumbnail to inspect the original.
-SpriteWaffle queues the image with the description and records its ID in the job and manifest.
+SpriteWaffle records the reference ID in the job and manifest. Item anchors use only the image's
+colour cues. Other supported assets send the image and description to the image-edit workflow.
 The generated anchor opens for human review. If you archive a selected reference, restore it
 or choose another before generating. Animals and base bodies use their turnaround-sheet workflow.
 
@@ -401,13 +402,17 @@ views are flipped, **Align feet** pins every frame's foot point, and **Turntable
 the views (read-only) to spot angle-to-angle drift. Existing assets: `spritewaffle manifest`.
 Details and every call: [docs/MANIFEST.md](docs/MANIFEST.md).
 
-### Equipment items (paper doll)
+### Standalone items and equipment
 
-New → type `item` (armor, cape, weapon). The anchor is the item on its own, front view; Facings
-draws its back. Approve both, then open any character → **Make a variant…** → pick the item and say
-how it's used ("wearing this"). The worn variant gets all 8 facings; the item
-job keeps its original front/back and lists every character it was fitted on. Different races or
-bodies are just different base characters.
+Choose **New → Item** to create a standalone game object. Describe the item, its colours, and
+the view you want. The anchor defaults to a front view. **Facings** draws the back view.
+The active art style sets the render style. An optional library or approved hero reference
+contributes up to six colour swatches. The renderer receives those cues and your description.
+Approve both views to export the item on its own.
+
+To equip the item after approving both views, open a character, choose **Make a variant…**,
+pick the item, and say how it is used. The worn variant gets all eight facings. The standalone
+item keeps its views and lists the characters it was fitted on.
 
 For a clean body to fit items on: New → type `base body`. It's drawn as a turnaround sheet in plain
 grey undershirt and shorts (all 8 views at once, like animals) and animates like any character. An

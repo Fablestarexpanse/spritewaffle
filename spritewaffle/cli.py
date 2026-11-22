@@ -675,7 +675,8 @@ def build() -> argparse.ArgumentParser:
         JOB, PROFILE, SEED,
         (("--describe",), {"help": "what the asset looks like"}),
         (("--image",), {"help": "import this image instead of generating"}),
-        (("--asset-type",), {"default": "character", "choices": ("character", "creature", "prop")}),
+        (("--asset-type",), {"choices": ("character", "creature", "prop", "item"),
+                              "help": "defaults to the saved job type, or character for new jobs"}),
         (("--style-ref",), {"help": "approved hero job (<character>/<job_id>) to copy the art style from"}),
         (("--project-reference",), {"metavar": "ID", "help": "use one active project library image to guide the art style"}))
     cmd("sheet-import", cmd_sheet_import, "use YOUR character sheet (views side by side, any background) as anchor + facings",

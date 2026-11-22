@@ -1283,7 +1283,7 @@ function paneAnchor(j, st) {
   const projectRefsAllowed = !["animal", "base_body"].includes(j.asset_type);
   $("#pane").innerHTML = `<section>
     <h2>Anchor ${badge(st("anchor"))}</h2>
-    ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Equipment item: the anchor is its front, Facings draws its back. Once both are approved, open a character and use <b>Make a variant…</b> to fit it on.
+    ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Create the item on its own. Review its anchor and back view before exporting. To equip it, open a character and use <b>Make a variant…</b>.
       ${j.fits.length ? `Worn by: ${j.fits.map(f => `<a href="#${esc(f.character)}/${esc(f.job_id)}">${esc(f.character)} / ${esc(f.job_id)}</a>`).join(", ")}.` : ""}</p>` : ""}
     ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
@@ -1293,7 +1293,7 @@ function paneAnchor(j, st) {
         ${takesHtml(j.anchor_takes, "01_anchor/anchor.png", "Anchor")}</div>
       <div>
         <div class="field"><span>Description</span>
-          <textarea id="desc" placeholder="what it looks like: outfit, colours, props">${esc(j.inputs.description || "")}</textarea></div>
+          <textarea id="desc" placeholder="${j.asset_type === "item" ? "describe the item, its colours, and the view you want" : "what it looks like: outfit, colours, props"}">${esc(j.inputs.description || "")}</textarea></div>
         <div class="row">
           <label class="field" style="max-width:100%">Style reference <select id="styleRef"><option value="">None</option>
             ${heroes.length ? `<optgroup label="Approved hero jobs">${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}">${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</optgroup>` : ""}
@@ -1301,6 +1301,7 @@ function paneAnchor(j, st) {
           <a id="anchorReferencePreview" data-view="" aria-label="Preview selected project reference" hidden><img alt=""></a>
           <label>Seed <input id="seed" type="number" placeholder="random" style="width:110px"></label>
         </div>
+        ${j.asset_type === "item" ? `<p class="hint">The reference provides colour cues. Your description defines the item.</p>` : ""}
         <div class="row">
           <button ${st("anchor") === "approved" ? "" : 'class="primary"'} id="genAnchor"
             title="${st("anchor") === "approved" ? "Draws a new anchor; this resets the approval" : ""}">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
@@ -1318,7 +1319,7 @@ function paneAnchor(j, st) {
         </details>
         ${j.inputs.visual_description ? `<p class="muted"><b>AI description:</b> ${esc(j.inputs.visual_description)}</p>` : ""}
         <p class="hint">Everything else is built from the approved anchor, so get this one right. Re-rolling resets approval.
-          ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
+          ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : j.asset_type === "item" ? "" : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
       </div>
     </div></section>`;
   if ($("#vReroll")) $("#vReroll").onclick = () => run("anchor", {}, "Variant anchor queued");

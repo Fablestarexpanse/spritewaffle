@@ -72,7 +72,7 @@ def _stages():
             from . import variant                          # a variant re-rolls its edited anchor
             return str(variant.anchor(job, prof, seed=a.get("seed")))
         return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed"),
-                                   asset_type=a.get("asset_type", "character"), style_ref=a.get("style_ref"),
+                                   asset_type=a.get("asset_type"), style_ref=a.get("style_ref"),
                                    project_reference_id=a.get("project_reference_id")))
 
     def facings(job, prof, a):
@@ -207,9 +207,11 @@ class Queue:
         if args.get("project_reference_id") is not None:
             if stage != "anchor":
                 raise ValueError("A project reference can only be selected for the anchor stage.")
-            from .generate import anchor_reference
-            anchor_reference(Path(job).parent.parent, args["project_reference_id"], description=args.get("describe"),
-                             asset_type=args.get("asset_type", "character"), image=args.get("image"), style_ref=args.get("style_ref"))
+            from .generate import anchor_asset_type, anchor_reference
+            existing = Job.open(job)
+            anchor_reference(existing.root.parent.parent, args["project_reference_id"], description=args.get("describe"),
+                             asset_type=anchor_asset_type(existing, args.get("asset_type")),
+                             image=args.get("image"), style_ref=args.get("style_ref"))
         for a in after or []:
             if not self._path(a).exists():
                 raise ValueError(f"unknown task in after: {a}")

@@ -26,10 +26,10 @@ VIEW = {
 DIAGONAL_REFS = {"NE": ("N", "E"), "NW": ("N", "W"), "SE": ("E",), "SW": ("W",)}
 DIAGONAL_NEAREST = {"NE": "N", "NW": "N", "SE": "S", "SW": "S"}
 
+KEY_BACKGROUND = ("Background is one perfectly flat solid pure green #00FF00: uniform, no floor, "
+                  "no shadow, no gradient, no texture, no text.")
 FRAMING = ("The character is centered and occupies about 45 percent of the image height, with wide "
-           "empty margins on all sides; nothing within the outer quarter of the frame. Background is "
-           "one perfectly flat solid pure green #00FF00: uniform, no floor, no shadow, no gradient, "
-           "no texture, no text.")
+           f"empty margins on all sides; nothing within the outer quarter of the frame. {KEY_BACKGROUND}")
 
 STYLE = {
     "side": "Chunky retro pixel-art style with large visible square pixels, bold dark outline, flat cel shading, limited palette.",
@@ -108,6 +108,14 @@ def anchor(description: str, profile: GameProfile, facing: str = "S", asset_type
     a = asset(asset_type)
     return (f"{a['subject']}: {description.strip().rstrip('.')}. {a['pose'].format(view=VIEW[facing])} "
             f"{style_text(profile)} {FRAMING}")
+
+
+def item_anchor(description: str, profile: GameProfile, palette: list[str] | None = None) -> str:
+    cues = (f"Use these swatches for compatible shadows, highlights and accents: {', '.join(palette)}. "
+            "Keep any main colours specified in the item description. " if palette else "")
+    return (f"Single game inventory item sprite, shown on its own: {description.strip().rstrip('.')}. "
+            "Show the complete object. If no view is specified, show it from the front. No person, hands or mannequin. "
+            f"{style_text(profile)} {cues}Center it with wide empty margins. {KEY_BACKGROUND}")
 
 
 def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "character", *,
