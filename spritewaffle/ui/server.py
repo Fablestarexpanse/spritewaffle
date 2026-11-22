@@ -342,16 +342,24 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
 
     def palette_info(j: Job) -> dict | None:
         from ..core.camera import job_profile as resolve_job_profile
-        cur = job_palette.current(j, resolve_job_profile(j))
-        if not cur:
+        try:
+            cur = job_palette.current(j, resolve_job_profile(j))
+            if not cur:
+                return None
+            have = set(job_palette.clean_colours(cur["colours"]))
+        except (ValueError, TypeError, OSError, KeyError):
             return None
-        have = {colour.lower() for colour in cur["colours"]}
         stale = []
-        for c in job_palette.clips(j):
-            rep = j.root / "04_pixel" / c["facing"] / c["action"] / "pixel_report.json"
-            used = set((read_json(rep) or {}).get("palette") or [])
+        for path in sorted((j.root / "04_pixel").glob("*/*/pixel_report.json")):
+            try:
+                report = read_json(path)
+                if not isinstance(report, dict) or not report.get("palette"):
+                    continue
+                used = set(job_palette.clean_colours(report["palette"]))
+            except (ValueError, OSError):
+                continue
             if not used <= have:
-                stale.append(f"{c['action']} {c['facing']}")
+                stale.append(f"{path.parent.name} {path.parent.parent.name}")
         return cur | {"stale": stale}
 
     @app.post("/api/jobs/{char}/{jid}/palette")
@@ -811,6 +819,14 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return manifest.set_mirror_policy(job_or_404(char, jid), str(body.get("policy", "")), body.get("mirror_map"))
         except ValueError as e:
             bad(e)
+
+    @app.get("/api/jobs/{char}/{jid}/style-check")
+    def check_style(char: str, jid: str):
+        from ..qa import style_check
+        try:
+            return style_check.inspect(job_or_404(char, jid))
+        except (ValueError, OSError) as error:
+            bad(error)
 
     @app.get("/api/jobs/{char}/{jid}/manifest")
     def get_manifest(char: str, jid: str):

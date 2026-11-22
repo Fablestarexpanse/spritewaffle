@@ -80,6 +80,15 @@ palette** to clear that job override. Choose **Apply** to reprocess affected cli
 existing frames. To import palette files, use `spritewaffle project-palette --import FILE`.
 The HTTP API uses `/api/project/palette` and MCP uses `project_palette` and `palette`.
 
+Open **Check project style** on a job to compare its art style and game profile with the
+current project defaults. The check flags colours outside the master palette in the job's
+selected palette and recorded pixel-art clip palettes. A subset of the project palette is
+valid. A missing or unreadable processing record is shown as **Needs review**. The report
+uses saved processing records, so check manual frame edits separately. Findings are advisory.
+
+The same report is available through `spritewaffle style-check --job hero/job`,
+HTTP `GET /api/jobs/{character}/{job}/style-check`, and MCP `style_check`.
+
 Open **Settings → Project references** to build a visual reference library. Add a PNG, JPEG,
 or WebP still up to 16 MiB and 16,777,216 pixels. Set a collection and add notes, then use the
 collection filter to find the image again. Click its thumbnail to view the full original.

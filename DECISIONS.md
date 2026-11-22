@@ -1,6 +1,10 @@
-NEXT: Official branding and project palette are verified. Add project style consistency checks next.
+NEXT: Project style validation is verified. Measure a workflow for saved project references in generation next.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Baseline at `ba6eb0b` passed 287 tests in 73.45 s. The style check will compare an asset and recorded clip settings with the current project look without changing a job. A palette subset is allowed. Colours outside the master palette are warnings, and missing or invalid evidence needs review. This check reads the recorded processing palette and does not measure colours in repainted frames.
+- 2026-11-22 An unreadable `pixel_report.json` reproduced a job details HTTP 500 in the palette summary. The summary now reads each palette record once and skips records it cannot interpret. The style check reports missing and unreadable records as Needs review. On a disposable copy of `knight/p2_002`, all four real clip records passed against the original 16-colour palette. With an eight-colour project palette, each clip and the asset palette flagged exactly eight outside colours. Chromium verified all three statuses at 1440, 800, and 390 px, including Light at 150% interface scale. Copied frames and existing exports remained byte-identical.
+- 2026-11-22 The full suite passed 292 Python tests in 78.52 s with the existing Starlette warning, plus six Node tests. A final browser run and 16 focused tests verified the final dialog layout and protocol integration.
 
 - 2026-11-21 Baseline at `5cfd50a` passed 283 tests in 75.03 s. New jobs will capture the project palette at creation. Explicit game profile locks and job palettes retain their existing priority. Changing a project palette affects future jobs, while older jobs and variants keep the palette settings they were created with. GitHub `main` was at `f694ddf` before the planned fast-forward.
 - 2026-11-21 The supplied Concept #5 media kit provides the header icon, welcome wordmark, About badge, and platform icons. The app serves the originally supplied PNG and ICO variants. The verified wheel contains six artwork files totalling 596,685 bytes. The original ZIP preserves the masters and the official GitHub image is stored in `docs/branding/` outside the wheel.

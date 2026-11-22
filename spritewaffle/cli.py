@@ -328,6 +328,11 @@ def cmd_archive(a):
     print(f"archived to {_job(a.job).archive()}")
 
 
+def cmd_style_check(a):
+    from .qa import style_check
+    _print(style_check.inspect(_job(a.job)))
+
+
 def cmd_manifest(a):
     """Write asset manifests (docs/MANIFEST.md): one job, or every job (the migration)."""
     from .core import manifest
@@ -711,6 +716,7 @@ def build() -> argparse.ArgumentParser:
     cmd("export-character-status", cmd_character_export_status,
         "check the last character bundle for changed inputs or files", JOB, PROFILE)
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
+    cmd("style-check", cmd_style_check, "compare one asset and its processed clips with the project style", JOB)
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),
         (("--rebuild",), {"action": "store_true", "help": "rewrite manifests that already exist"}))

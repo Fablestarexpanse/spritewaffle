@@ -401,6 +401,12 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return manifest.set_mirror_policy(job_for(character, job_id), policy, mirror_map)
 
     @mcp.tool()
+    def style_check(character: str, job_id: str) -> dict:
+        """Read-only comparison of an asset and processed clips against the current project style and palette."""
+        from .qa import style_check as check
+        return check.inspect(job_for(character, job_id))
+
+    @mcp.tool()
     def manifest(character: str, job_id: str, rebuild: bool = False) -> dict:
         """The asset manifest (docs/MANIFEST.md): views by yaw, every frame's angle, foot point,
         colour/depth/normal/master paths and downscale record, camera snapshot, mirror policy."""

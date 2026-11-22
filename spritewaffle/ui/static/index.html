@@ -246,6 +246,13 @@
   #viewer img { display: block; max-width: calc(96vw - 24px); max-height: calc(94vh - 70px); margin: 0 auto;
     image-rendering: pixelated; border-radius: 6px; }
   #appearanceSettings, #projectStyleDialog, #projectPaletteDialog, #aboutDialog { width: min(38rem, 94vw); }
+  #styleCheckDialog { width: min(43rem, 94vw); }
+  #styleCheckDialog header { margin: 0; padding: 0; border: 0; background: transparent; }
+  #styleCheckTitle { margin: 0; }
+  #styleCheckResults { overflow-wrap: anywhere; }
+  #styleCheckResults p { margin: .55em 0; }
+  #styleCheckResults ul { padding-inline-start: 1.4em; }
+  #styleCheckResults li + li { margin-top: .7em; }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
@@ -358,6 +365,14 @@
 <dialog id="timelineDialog" aria-labelledby="tlTitle"></dialog>
 <dialog id="pixelEditor" aria-labelledby="pxTitle"></dialog>
 <dialog id="frameRepair" aria-labelledby="frTitle"></dialog>
+<dialog id="styleCheckDialog" aria-labelledby="styleCheckTitle">
+  <header class="row">
+    <h2 id="styleCheckTitle">Project style check</h2>
+    <span class="spacer"></span>
+    <form method="dialog"><button>Close</button></form>
+  </header>
+  <div id="styleCheckResults" aria-live="polite"></div>
+</dialog>
 <dialog id="appearanceSettings" aria-labelledby="settingsTitle">
   <h2 id="settingsTitle">Appearance</h2>
   <form id="appearanceFields" method="dialog">
@@ -1106,6 +1121,32 @@ async function showTurntable(j, action) {
 }
 
 // --- job page ----------------------------------------------------------------------------
+async function showStyleCheck() {
+  const dialog = $("#styleCheckDialog"), results = $("#styleCheckResults");
+  if (dialog.open) return;
+  results.innerHTML = '<p class="muted">Checking asset settings and processed clips…</p>';
+  const pending = results.firstElementChild;
+  dialog.showModal();
+  try {
+    const r = await api(jobPath() + "/style-check");
+    if (!dialog.open || results.firstElementChild !== pending) return;
+    const label = name => status.styles.find(s => s.name === name)?.label || name;
+    const summary = r.clips_checked ? `${r.clips_checked} processed clip ${r.clips_checked === 1 ? "record" : "records"} checked.` : "No processed clip records checked.";
+    const findings = [...r.findings].sort((a, b) => Number(b.classification === "review") - Number(a.classification === "review"));
+    results.innerHTML = `<p>${qaBadge(r, false)} <span class="muted">${esc(r.asset_id)}</span></p>
+      ${r.rules.style ? `<p>Project art style <b>${esc(label(r.rules.style))}</b> · Asset <b>${esc(label(r.asset.style))}</b></p>` : ""}
+      ${r.rules.profile ? `<p>Project game profile <b>${esc(r.rules.profile)}</b> · Asset <b>${esc(r.asset.profile)}</b></p>` : ""}
+      ${r.rules.palette.length ? `<p>Project palette <b>${r.rules.palette.length} colours</b>${r.asset.palette ? ` · Asset ${esc(r.asset.palette.source)}` : ""}</p>` : ""}
+      <p class="muted">${summary}</p>
+      ${findings.length ? `<ul>${findings.map(f => `<li>${qaBadge(f, false)}
+        ${f.facing ? `<b>${esc(f.facing)} / ${esc(f.action)}</b> ` : ""}${esc(f.message)}
+        ${f.colours?.length ? `<br><code>${esc(f.colours.join(", "))}</code>` : ""}</li>`).join("")}</ul>`
+        : "<p>The checked settings match the project.</p>"}`;
+  } catch (error) {
+    if (results.firstElementChild === pending) pending.textContent = error.message;
+  }
+}
+
 function renderJob() {
   const j = job, st = k => j.stages[k]?.status, steps = STEPS[j.asset_type] || STEPS.character;
   if (!steps.includes(tab)) tab = steps.find(s => !stepDone(s, j.stages)) || steps[0];
@@ -1134,6 +1175,7 @@ function renderJob() {
       <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
       ${j.inputs.style_guide ? '<button class="ghost" id="jProjectStyle" aria-haspopup="dialog">Saved style guide…</button>' : ""}
+      <button class="ghost" id="jStyleCheck" aria-haspopup="dialog">Check project style…</button>
     </div>
     <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
       <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
@@ -1151,6 +1193,7 @@ function renderJob() {
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
   $("#jCamera").onclick = () => showCamera(j);
+  $("#jStyleCheck").onclick = showStyleCheck;
   if ($("#jProjectStyle")) $("#jProjectStyle").onclick = () => {
     const d = $("#dlg"), guide = j.inputs.style_guide;
     const style = status.styles.find(s => guide.default_style === s.name)?.label || "Pixel art";

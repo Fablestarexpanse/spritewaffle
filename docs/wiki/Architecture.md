@@ -117,7 +117,7 @@ SpriteWaffle's own code.
 | `prompts/` | `builder.py`, `styles.py`, `writer.py`, `effects.py` | Prompt text (rules baked in), art styles, the Qwen3-VL prompt writer |
 | `frames/` | `video.py`, `picker.py`, `analysis.py`, `layout.py`, `contact.py`, `flowtransfer.py` | Frame I/O, picking 12/24 frame sets, canvas layout + foot points, contact sheets |
 | `pixel/` | `pipeline.py`, `grid.py`, `palette.py`, `quantize.py`, `cleanup.py`, `chroma.py`, `smooth.py`, `color.py` | Pixelizer: key, grid detect, palette (Oklab), hysteresis, cleanup; smooth styles |
-| `qa/` | `checks.py` | Per-clip QA report |
+| `qa/` | `checks.py`, `style_check.py` | Per-clip QA and read-only project style checks |
 | `export/` | `character.py`, `atlas.py`, `aseprite.py`, `sheet.py`, `showcase.py` | `.aseprite` writer, atlas pages + TexturePacker JSON, showcase GIF |
 | `stack/` | `stage.py`, `carve.py`, `mesh3d.py`, `gifs.py` | Sprite stacks (TRELLIS.2 or carve) |
 | `ui/` | `server.py`, `static/index.html` | FastAPI app + single-page UI (no build step) |
