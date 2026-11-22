@@ -225,7 +225,7 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     prep = json.loads((pdir / "pixel_report.json").read_text())
     pal_n = len(prep["palette"])
     from . import job_palette
-    jp = job_palette.get(job)
+    jp = job_palette.current(job, profile)
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
     for sd, clip in _playable_clips(job.root, _action_sets(pdir)):

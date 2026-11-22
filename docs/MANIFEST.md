@@ -35,6 +35,7 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | `asset_type` | str | character, base_body, item, animal, creature, effect, prop |
 | `style`, `profile` | str | art style; game profile name |
 | `style_guide` | optional object | Project guide at asset creation. `default_style`, `default_profile`, `target_engine`, and `art_direction` record the project choices even when the asset overrides an effective default. |
+| `project_palette` | optional list of hex colours | Project palette captured at asset creation. Frame downscale records still report the actual colours used. |
 | `camera` | object | snapshot of the effective camera profile (below), with `source`: `implied` / `project` / `asset` |
 | `mirror_policy` | str | `legacy` (default) / `none` / `mirror_left_from_right` / `custom` |
 | `mirror_map` | object\|null | custom only: `{"<view_index>": <source view_index>}` |

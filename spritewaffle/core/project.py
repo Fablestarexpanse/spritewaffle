@@ -97,14 +97,32 @@ def set_style(base: Path, changes: dict | None) -> dict:
         return _style_view(record)
 
 
+def palette(base: Path) -> list[str] | None:
+    return read(base).get("palette")
+
+
+def set_palette(base: Path, colours: list[str] | None) -> list[str] | None:
+    from .job_palette import clean_colours
+    cleaned = clean_colours(colours) if colours is not None else None
+    with edit(base) as record:
+        if cleaned is None:
+            record.pop("palette", None)
+        else:
+            record["palette"] = cleaned
+    return cleaned
+
+
 def creation_inputs(base: Path, inputs: dict) -> dict:
     """Apply project defaults to new independent assets and save the creation-time guide."""
     if inputs.get("base_job"):
         return inputs
-    guide = style(base)["style"]
-    if guide == STYLE_DEFAULTS:
-        return inputs
-    result = {**inputs, "style_guide": guide}
+    record = read(base)
+    guide = _style_view(record)["style"]
+    result = inputs.copy()
+    if guide != STYLE_DEFAULTS:
+        result["style_guide"] = guide
+    if record.get("palette") and "project_palette" not in inputs:
+        result["project_palette"] = record["palette"]
     if "style" not in result and guide["default_style"]:
         result["style"] = styles.get(guide["default_style"])["name"]
     if "profile" not in result and (name := guide["default_profile"]):

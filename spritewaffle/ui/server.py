@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, project, project_references, timeline
+from ..core import generate, job_palette, project, project_references, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -341,11 +341,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         return {"ok": True}
 
     def palette_info(j: Job) -> dict | None:
-        from ..core import job_palette
-        cur = job_palette.get(j)
+        from ..core.camera import job_profile as resolve_job_profile
+        cur = job_palette.current(j, resolve_job_profile(j))
         if not cur:
             return None
-        have = set(cur["colours"])
+        have = {colour.lower() for colour in cur["colours"]}
         stale = []
         for c in job_palette.clips(j):
             rep = j.root / "04_pixel" / c["facing"] / c["action"] / "pixel_report.json"
@@ -356,8 +356,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
 
     @app.post("/api/jobs/{char}/{jid}/palette")
     def palette(char: str, jid: str, body: dict = Body(...)):
-        """op: rebuild (from anchor + facings), file (load .gpl/.hex/.png from body.file), unlock."""
-        from ..core import job_palette
+        """Set, load, rebuild or clear the job palette override."""
         j = job_or_404(char, jid)
         try:
             op = body.get("op")
@@ -365,14 +364,13 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 f = str(body.get("file", "")).strip().strip('"')
                 job_palette.save(j, job_palette.load_file(f), f"file {Path(f).name}")
             elif op == "rebuild":
-                cols = job_palette.from_stills(j, resolve(job_profile(j)))
-                if not cols:
-                    raise FileNotFoundError("no anchor or facing stills to build from")
-                job_palette.save(j, cols, f"anchor + facings ({len(job_palette.stills(j))} stills)")
+                job_palette.rebuild(j, resolve(job_profile(j)))
+            elif op == "set":
+                job_palette.save(j, body.get("colours"), "job override")
             elif op == "unlock":
                 job_palette.clear(j)
             else:
-                raise ValueError("op must be rebuild, file or unlock")
+                raise ValueError("op must be rebuild, file, set, or unlock")
         except (ValueError, FileNotFoundError, OSError) as e:
             bad(e)
         return palette_info(j) or {}
@@ -725,6 +723,22 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             return project_references.list_all(base, include_archived)
         except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.get("/api/project/palette")
+    def get_project_palette():
+        try:
+            return {"colours": project.palette(base)}
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.post("/api/project/palette")
+    def set_project_palette(body: dict = Body(...)):
+        try:
+            if "colours" not in body:
+                raise ValueError("Pass a colours array, or null to clear the project palette")
+            return {"colours": project.set_palette(base, body["colours"])}
+        except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
     @app.post("/api/project/references")

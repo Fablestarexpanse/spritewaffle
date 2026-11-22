@@ -16,7 +16,7 @@ from pydantic import StrictInt
 
 from . import paths
 from .core import generate as gen
-from .core import project, project_references as references
+from .core import job_palette, project, project_references as references
 from .core.job import Job
 from .core.profile import resolve
 from .core.queue import Queue, Worker
@@ -317,6 +317,33 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if action == "clear":
             return project.set_style(base, None)
         raise ValueError("Use action='get', action='set' with a style object, or action='clear'")
+
+    @mcp.tool()
+    def project_palette(action: str = "get", colours: list[str] | None = None, file: str | None = None) -> dict:
+        """Read or set the master palette used by future jobs. Set takes #RRGGBB colours.
+        Import takes a local palette file and clear removes the default for future jobs."""
+        if action == "get":
+            return {"colours": project.palette(base)}
+        if action == "set" and colours is not None:
+            return {"colours": project.set_palette(base, colours)}
+        if action == "import" and file:
+            return {"colours": project.set_palette(base, job_palette.load_file(file))}
+        if action == "clear":
+            return {"colours": project.set_palette(base, None)}
+        raise ValueError("Use get, set with colours, import with file, or clear")
+
+    @mcp.tool()
+    def palette(character: str, job_id: str, action: str = "get", colours: list[str] | None = None) -> dict:
+        """Read the effective asset palette. Set provides an asset override as #RRGGBB colours.
+        Unlock clears that override, revealing the saved project palette or automatic fitting."""
+        job = job_for(character, job_id)
+        if action == "set" and colours is not None:
+            job_palette.save(job, colours, "job override")
+        elif action == "unlock":
+            job_palette.clear(job)
+        elif action != "get":
+            raise ValueError("Use get, set with colours, or unlock")
+        return job_palette.current(job, resolve(job.read_meta()["inputs"].get("profile"))) or {}
 
     @mcp.tool()
     def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,

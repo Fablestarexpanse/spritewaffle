@@ -7,8 +7,9 @@ against a 16-colour profile.
 
 Where the palette comes from, first match wins:
 1. the profile's own locked palette (a hex list in the profile JSON);
-2. `04_pixel/palette.json`, once it exists: set from a file (.gpl/.hex/.txt/.png), or
-3. built from the anchor + every facing still (all sides of the character, so colours only seen
+2. `04_pixel/palette.json`, once it exists: set from a file (.gpl/.hex/.txt/.png) or fitted;
+3. the project palette captured in job.json when this job was created;
+4. built from the anchor + every facing still (all sides of the character, so colours only seen
    from the back are in it), or, for a job with no stills, locked from its first pixelized clip.
 """
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from . import fsutil
 from .job import Job
 
 MAX_COLOURS = 256
@@ -31,22 +33,32 @@ def path(job: Job) -> Path:
 
 def get(job: Job) -> dict | None:
     p = path(job)
-    return json.loads(p.read_text()) if p.exists() else None
+    try:
+        return json.loads(fsutil.read_text(p))
+    except FileNotFoundError:
+        return None
 
 
 def _hex(rgb) -> list[str]:
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in np.asarray(rgb).reshape(-1, 3).tolist()]
 
 
-def save(job: Job, colours: list[str], source: str) -> dict:
+def clean_colours(colours: list[str]) -> list[str]:
+    if not isinstance(colours, list) or any(not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in colours):
+        raise ValueError("Provide an array of colours in #RRGGBB format")
     colours = list(dict.fromkeys(c.lower() for c in colours))
     if not colours:
         raise ValueError("palette is empty")
     if len(colours) > MAX_COLOURS:
         raise ValueError(f"palette has {len(colours)} colours; the limit is {MAX_COLOURS}")
+    return colours
+
+
+def save(job: Job, colours: list[str], source: str) -> dict:
+    colours = clean_colours(colours)
     data = {"colours": colours, "source": source}
     path(job).parent.mkdir(parents=True, exist_ok=True)
-    path(job).write_text(json.dumps(data, indent=2))
+    fsutil.write_text(path(job), json.dumps(data, indent=2))
     job.log_provenance("04_pixel/palette.json", method="job palette", source=source, colours=len(colours))
     return data
 
@@ -106,18 +118,33 @@ def from_stills(job: Job, profile) -> list[str] | None:
     return _hex(res.palette)
 
 
+def rebuild(job: Job, profile) -> dict:
+    colours = from_stills(job, profile)
+    if not colours:
+        raise FileNotFoundError("no anchor or facing stills to build from")
+    return save(job, colours, f"anchor + facings ({len(stills(job))} stills)")
+
+
+def current(job: Job, profile) -> dict | None:
+    """Return the effective fixed palette without fitting or writing any artwork."""
+    if profile.locked_palette is not None:
+        return {"colours": profile.locked_palette, "origin": "profile", "source": f"game profile {profile.name}"}
+    if have := get(job):
+        return have | {"origin": "job"}
+    if colours := job.read_meta()["inputs"].get("project_palette"):
+        return {"colours": colours, "origin": "project", "source": "project snapshot"}
+    return None
+
+
 def resolve(job: Job, profile) -> tuple[list[str] | int, bool]:
     """(palette for PixelParams, locked_now). A list = fixed palette; an int = fit per clip, and the
     caller locks the result with `lock_from_clip` (job with no stills)."""
-    if isinstance(profile.palette, list):
-        return profile.palette, False
-    have = get(job)
+    have = current(job, profile)
     if have:
         return have["colours"], False
     built = from_stills(job, profile)
     if built:
-        save(job, built, f"anchor + facings ({len(stills(job))} stills)")
-        return built, True
+        return save(job, built, f"anchor + facings ({len(stills(job))} stills)")["colours"], True
     return profile.palette_size, False
 
 

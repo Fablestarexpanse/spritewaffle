@@ -1,5 +1,7 @@
 # SpriteWaffle
 
+<img src="spritewaffle/ui/static/brand/horizontal-logo.png" width="420" alt="SpriteWaffle creator badge and wordmark">
+
 Local tool that turns AI-generated images and video into game-ready pixel-art sprites:
 **character → 8 facings → animations → one `.aseprite` for Unity**, and **prop → sprite stack**.
 Generation runs on your own ComfyUI (MiniMax H3 video + H3 Image); everything else — chroma key,
@@ -61,6 +63,7 @@ Open **Settings** for Midnight, Slate, Forest, Light, OLED, or the system theme.
 change the accent color, interface scale, spacing, transitions, and the background behind
 transparent previews. These choices are stored in this browser for this local address.
 Use **Jobs** to collapse or show the job browser. Press **/** to open it and focus search.
+**Settings → About** shows the installed version, official badge, and software license link.
 
 Open **Settings → Project style** to set an art style and game profile for new jobs. Add the
 target engine and any art direction notes you want to carry with each asset. In **New job**,
@@ -69,6 +72,13 @@ Open **Saved style guide** on a job to see the project choices at creation. The 
 appears in that asset's manifest. Art direction and target engine are recorded as guidance.
 Project settings live in the jobs folder. The CLI uses `spritewaffle project-style`
 with optional `--set FILE` or `--clear`. HTTP uses `/api/project/style` and MCP uses `project_style`.
+
+Open **Settings → Project palette** to enter up to 256 `#RRGGBB` colours, one per line.
+New jobs save a copy for pixel-art processing. A fixed game profile palette takes priority,
+followed by a job palette you import or rebuild in **Animations**. Use **Use saved project
+palette** to clear that job override. Choose **Apply** to reprocess affected clips from their
+existing frames. To import palette files, use `spritewaffle project-palette --import FILE`.
+The HTTP API uses `/api/project/palette` and MCP uses `project_palette` and `palette`.
 
 Open **Settings → Project references** to build a visual reference library. Add a PNG, JPEG,
 or WebP still up to 16 MiB and 16,777,216 pixels. Set a collection and add notes, then use the

@@ -19,7 +19,7 @@ from .core.profile import GameProfile, resolve
 FACINGS = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
 OVERVIEW = """\
-setup         doctor, profile, project-style, project-references, comfy
+setup         doctor, profile, project-style, project-palette, project-references, comfy
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
@@ -140,6 +140,18 @@ def cmd_project_references(a):
             _print(refs.update(base, a.reference_id, fields))
 
 
+def cmd_project_palette(a):
+    from .core import job_palette, project
+    base = paths.jobs()
+    if a.import_file:
+        colours = project.set_palette(base, job_palette.load_file(a.import_file))
+    elif a.clear:
+        colours = project.set_palette(base, None)
+    else:
+        colours = project.palette(base)
+    _print({"colours": colours})
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient
@@ -226,29 +238,22 @@ def cmd_palette(a):
     if a.file:
         job_palette.save(job, job_palette.load_file(a.file), f"file {Path(a.file).name}")
     elif a.rebuild:
-        job_palette.clear(job)
-        cols = job_palette.from_stills(job, prof)
-        if not cols:
-            raise FileNotFoundError("no anchor or facing stills to build from")
-        job_palette.save(job, cols, f"anchor + facings ({len(job_palette.stills(job))} stills)")
+        job_palette.rebuild(job, prof)
     elif a.unlock:
         job_palette.clear(job)
-        print("unlocked: the next pixelize builds it again from the anchor + facings")
     from .prompts import styles
     if styles.get(styles.of_job(job))["post"] != "pixel":
         print(f"style '{styles.of_job(job)}' is full colour: no palette is used (--apply still re-lays out every clip)")
-    cur = job_palette.get(job)
-    if isinstance(prof.palette, list):
-        print(f"profile '{prof.name}' locks its own {len(prof.palette)}-colour palette (it wins over the job's)")
+    cur = job_palette.current(job, prof)
     if cur:
         print(f"job palette: {len(cur['colours'])} colours from {cur['source']}")
         print(" ".join(cur["colours"]))
-    elif not a.unlock:
+    else:
         print("no job palette yet: the next pixelize builds it from the anchor + facings")
     stale = [c for c in job_palette.clips(job) if cur and c["colours"] and c["colours"] != len(cur["colours"])]
     if a.apply:
         from .core.queue import Queue
-        ts = Queue(paths.jobs()).submit_reprocess(job.root, a.profile)
+        ts = Queue(paths.jobs()).submit_reprocess(job.root, a.profile or job.read_meta()["inputs"].get("profile"))
         print(f"queued {len(ts)} tasks: every clip re-pixelized with this palette, then QA + export")
     elif stale or (cur and (a.file or a.rebuild)):
         print("clips made before this palette keep their old colours: add --apply to re-process them (no rendering)")
@@ -617,6 +622,11 @@ def build() -> argparse.ArgumentParser:
     changes = ps.add_mutually_exclusive_group()
     changes.add_argument("--set", type=Path, metavar="FILE", help="patch fields from a UTF-8 JSON file")
     changes.add_argument("--clear", action="store_true", help="clear the project style guide")
+    pp = sub.add_parser("project-palette", help="show or change the project palette for new jobs")
+    pp.set_defaults(fn=cmd_project_palette)
+    pp_changes = pp.add_mutually_exclusive_group()
+    pp_changes.add_argument("--import", dest="import_file", type=Path, metavar="FILE", help="read a .gpl, .hex, or image palette")
+    pp_changes.add_argument("--clear", action="store_true", help="clear the palette default for future jobs")
     pr = sub.add_parser("project-references", help="manage the project's local image references")
     pr.set_defaults(fn=cmd_project_references)
     refs = pr.add_subparsers(dest="sub", required=True)

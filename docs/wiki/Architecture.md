@@ -136,7 +136,7 @@ jobs/<character>/<job_id>/
   05_qa/…                  report.json per set
   06_export/               character/ (aseprite + atlas), item/, stack/, showcase/
   takes/                   every replaced render ("earlier takes")
-jobs/project.json          project id, camera profile, style guide, and reference index (optional)
+jobs/project.json          project id, camera, style guide, master palette, and reference index (optional)
 jobs/_references/          local reference image copies and thumbnails by ID (optional)
 jobs/_queue/               queue tasks
 jobs/_archive/             archived jobs (move back to restore)

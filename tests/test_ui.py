@@ -1,3 +1,5 @@
+from io import BytesIO
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -39,6 +41,24 @@ def test_appearance_assets_are_served_by_the_app(client):
     assert "javascript" in script.headers["content-type"]
     assert "sw.appearance.v1" in script.text
     assert c.get("/static/..%2Fserver.py").status_code == 404
+
+
+def test_official_brand_assets_are_served_by_the_app(client):
+    c, _ = client
+    page = c.get("/").text
+    assert 'href="/static/brand/favicon.ico"' in page
+    assert 'src="/static/brand/app-icon-64.png"' in page
+    assert 'src="/static/brand/badge.png"' in page
+    assert 'src="/static/brand/horizontal-logo.png"' in page
+    for filename, size in (("badge.png", (512, 512)), ("horizontal-logo.png", (650, 220)),
+                           ("app-icon-64.png", (64, 64)), ("app-icon-128.png", (128, 128))):
+        result = c.get(f"/static/brand/{filename}")
+        assert result.status_code == 200 and result.headers["content-type"] == "image/png"
+        with Image.open(BytesIO(result.content)) as image:
+            assert image.size == size and image.mode == "RGBA"
+    for filename in ("favicon.ico", "SpriteWaffle.ico"):
+        with Image.open(BytesIO(c.get(f"/static/brand/{filename}").content)) as icon:
+            assert icon.format == "ICO" and {(16, 16), (32, 32), (256, 256)} <= icon.ico.sizes()
 
 
 def test_export_freshness_agrees_across_http_cli_and_mcp(tmp_path, monkeypatch, capsys):

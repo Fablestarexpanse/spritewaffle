@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Integrated the official SpriteWaffle artwork into the app header, welcome screen, About dialog, browser favicon, and README. Package the supplied Windows icon and keep the repository social preview artwork outside the app wheel.
+- Added project master palettes for new jobs. Pixel-art processing uses the saved project palette when the game profile or job has no fixed colours. Existing assets keep their saved colours when the project palette changes.
 - Added a project reference library for local PNG, JPEG, and WebP images. Group references into collections, preview the full image, edit titles and notes, or archive and restore entries. Original copies and previews move with the jobs folder.
 - Added project style settings for the default art style, game profile, target engine, and art direction. New jobs can inherit the defaults or override them individually. The job and asset manifest retain the guide saved at creation.
 - Camera and project style edits preserve one another and refuse to overwrite a newer project schema. MCP and CLI queue submissions carry the job's game profile into the worker.

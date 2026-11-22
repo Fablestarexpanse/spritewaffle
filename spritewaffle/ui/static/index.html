@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>SpriteWaffle</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
 <script src="/static/appearance.js"></script>
 <script src="/static/timeline.js" defer></script>
 <script src="/static/pixel_editor.js" defer></script>
@@ -14,7 +15,8 @@
     color-scheme: dark;
     font-size: 87.5%;
     --bg: #130d1e; --panel: #1d1429; --panel2: #281c37; --line: #493956; --text: #fbf4ff; --muted: #c1b2cc;
-    --accent: #ffcb42; --accent-ink: #22102e; --link: #dbb4ff; --brand: #ffcb42;
+    --accent: #ffcb42; --accent-ink: #22102e; --link: #dbb4ff;
+    --brand-deep: #280b39; --brand-purple: #542073; --brand-gold: #ffcb42; --brand-cream: #fff1d0;
     --ok: #73d997; --bad: #ff938b; --warn: #ffd077; --run: #92c7ff;
     --radius: 8px; --shadow: 0 8px 30px #0006;
     --space: 1rem; --control-pad: .43em; --sidebar-width: clamp(14rem, 23vw, 19rem);
@@ -32,7 +34,7 @@
   :root[data-theme="light"] {
     color-scheme: light;
     --bg: #f3eff6; --panel: #fff; --panel2: #f6f2fa; --line: #c9bdd1; --text: #22102e; --muted: #625469;
-    --accent: #682e86; --accent-ink: #fff; --link: #682e86; --brand: #542073;
+    --accent: #682e86; --accent-ink: #fff; --link: #682e86;
     --ok: #1c6940; --bad: #a12635; --warn: #835012; --run: #245c96; --shadow: 0 8px 30px #22102e24;
   }
   :root[data-theme="oled"] {
@@ -52,7 +54,13 @@
   :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
   input { accent-color: var(--link); }
   header { grid-area: top; display: flex; align-items: center; flex-wrap: wrap; gap: .55rem .8rem; padding: .6rem var(--space); border-bottom: 1px solid var(--line); background: var(--panel); }
-  header h1 { font-size: 1.25rem; margin: 0; letter-spacing: .2px; } header h1 b { color: var(--brand); }
+  .wordmark { display: inline-flex; align-items: center; gap: .42em; width: fit-content; font-size: 1.25rem; line-height: 1.3; font-weight: 750;
+    margin: 0; padding: .25em .54em .25em .25em; border-radius: 6px; border: 1px solid var(--brand-purple);
+    color: var(--brand-cream); background: var(--brand-deep); }
+  .wordmark b { color: var(--brand-gold); }
+  .wordmark img { display: block; width: 2rem; height: 2rem; }
+  .welcome-logo { display: block; width: min(26rem, 100%); height: auto; margin: 0 auto; }
+  .about-badge { display: block; width: min(10rem, 100%); height: auto; margin: 0 auto var(--space); }
   header .ver { color: var(--muted); font-size: .85rem; margin-right: auto; }
   aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: var(--space); background: var(--panel); }
   #search { flex: 1; min-width: 7rem; }
@@ -237,12 +245,16 @@
   #viewer { width: auto; max-width: 96vw; max-height: 94vh; padding: 12px; text-align: center; }
   #viewer img { display: block; max-width: calc(96vw - 24px); max-height: calc(94vh - 70px); margin: 0 auto;
     image-rendering: pixelated; border-radius: 6px; }
-  #appearanceSettings, #projectStyleDialog { width: min(38rem, 94vw); }
+  #appearanceSettings, #projectStyleDialog, #projectPaletteDialog, #aboutDialog { width: min(38rem, 94vw); }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
   #appearanceFields input:disabled { opacity: .6; }
   #appearanceSettings footer { margin-top: calc(var(--space) * 1.5); }
+  #appearanceSettings .settings-links { margin-top: var(--space); padding-top: var(--space); border-top: 1px solid var(--line); }
+  #projectPaletteForm .field { align-items: stretch; }
+  #projectPaletteColours { min-height: 10rem; font-family: ui-monospace, Consolas, monospace; }
+  #projectPaletteSwatches { margin-top: var(--space); max-height: 6rem; overflow: auto; }
   .project-style-fields .wide { grid-column: 1 / -1; }
   .project-style-fields :is(input, select, textarea) { width: 100%; min-width: 0; }
   .project-style-fields textarea { resize: vertical; }
@@ -307,7 +319,7 @@
 </head>
 <body>
 <header>
-  <h1><b>Sprite</b>Waffle</h1><span class="ver" id="ver"></span>
+  <h1 class="wordmark"><img src="/static/brand/app-icon-64.png" srcset="/static/brand/app-icon-64.png 2x, /static/brand/app-icon-128.png 4x" width="32" height="32" alt=""><span><b>Sprite</b>Waffle</span></h1><span class="ver" id="ver"></span>
   <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
   <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
   <button class="pill" id="pQueue" aria-controls="queue" aria-expanded="false">Queue</button>
@@ -383,13 +395,42 @@
     </label>
     <label><input name="motion" type="checkbox"> Animate interface transitions</label>
   </form>
+  <nav class="row settings-links" aria-label="More settings">
+    <button id="btnProjectStyle" type="button" aria-haspopup="dialog">Project style…</button>
+    <button id="btnProjectPalette" type="button" aria-haspopup="dialog">Project palette…</button>
+    <button id="btnProjectReferences" type="button" aria-haspopup="dialog">Project references…</button>
+    <button id="btnAbout" type="button" aria-haspopup="dialog">About</button>
+  </nav>
   <footer class="row">
     <button id="appearanceReset" type="button">Reset appearance</button>
-    <button id="btnProjectStyle" type="button" aria-haspopup="dialog">Project style…</button>
-    <button id="btnProjectReferences" type="button" aria-haspopup="dialog">Project references…</button>
     <span class="spacer"></span>
     <form method="dialog"><button class="primary">Done</button></form>
   </footer>
+</dialog>
+<dialog id="aboutDialog" aria-labelledby="aboutTitle">
+  <img class="about-badge" src="/static/brand/badge.png" width="512" height="512" alt="" loading="lazy">
+  <h2 id="aboutTitle">About SpriteWaffle</h2>
+  <p id="aboutVersion" class="muted"></p>
+  <p>Local 2D game asset studio for creating, editing, animating, and exporting sprites.</p>
+  <p><a href="https://github.com/Fablestarexpanse/spritewaffle" target="_blank" rel="noopener">Source repository</a>
+    · <a href="https://github.com/Fablestarexpanse/spritewaffle/blob/main/LICENSE.md" target="_blank" rel="noopener">Software license</a></p>
+  <form method="dialog"><button class="primary">Close</button></form>
+</dialog>
+<dialog id="projectPaletteDialog" aria-labelledby="projectPaletteTitle">
+  <h2 id="projectPaletteTitle">Project palette</h2>
+  <p class="muted">New jobs save a copy of this palette for pixel art. A game profile with fixed colours or an imported job palette takes priority.</p>
+  <form id="projectPaletteForm">
+    <label class="field">Hex colours, one per line
+      <textarea id="projectPaletteColours" spellcheck="false" autofocus></textarea>
+    </label>
+    <div id="projectPaletteSwatches" class="swatches" aria-hidden="true"></div>
+    <p id="projectPaletteError" role="alert" hidden></p>
+    <footer class="row">
+      <button type="button" id="projectPaletteCancel">Cancel</button>
+      <span class="spacer"></span>
+      <button type="submit" class="primary" id="projectPaletteSave">Save project palette</button>
+    </footer>
+  </form>
 </dialog>
 <dialog id="projectStyleDialog" aria-labelledby="projectStyleTitle">
   <h2 id="projectStyleTitle">Project style</h2>
@@ -743,6 +784,38 @@ async function loadStatus() {
 const projectStylePath = "/api/project/style";
 const artOptions = entries => entries.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
 const profileOptions = names => names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+
+async function showProjectPalette() {
+  const route = "/api/project/palette";
+  const state = await api(route);
+  const dialog = $("#projectPaletteDialog"), input = $("#projectPaletteColours");
+  if (dialog.open || !$("#appearanceSettings").open) return;
+  const error = $("#projectPaletteError"), save = $("#projectPaletteSave");
+  const colours = () => input.value.split(/\s+/).filter(Boolean);
+  const preview = () => {
+    const valid = [...new Set(colours().map(c => c.toLowerCase()))].filter(c => /^#[a-f0-9]{6}$/.test(c));
+    $("#projectPaletteSwatches").innerHTML = valid.slice(0, 256).map(c => `<span title="${c}" style="background:${c}"></span>`).join("");
+  };
+  input.value = (state.colours || []).join("\n");
+  error.hidden = true;
+  input.oninput = () => { error.hidden = true; preview(); };
+  preview();
+  $("#projectPaletteCancel").onclick = () => dialog.close();
+  $("#projectPaletteForm").onsubmit = async event => {
+    event.preventDefault();
+    const values = colours();
+    save.disabled = true;
+    try {
+      await api(route, {colours: values.length ? values : null});
+      dialog.close();
+      toast(values.length ? "Project palette saved" : "Project palette cleared");
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+    } finally { save.disabled = false; }
+  };
+  dialog.showModal();
+}
 
 async function showProjectStyle() {
   const state = await api(projectStylePath);
@@ -1310,9 +1383,10 @@ function paneAnimations(j, st) {
         <p class="muted" style="margin:6px 0">${j.palette.colours.length} colours · from ${esc(j.palette.source)}</p>
         ${j.palette.stale.length ? `<p class="warn">${j.palette.stale.length} clip${j.palette.stale.length === 1 ? " uses" : "s use"} other colours: ${esc(j.palette.stale.slice(0, 6).join(", "))}${j.palette.stale.length > 6 ? "…" : ""}</p>` : ""}`
       : `<p class="muted">Not set yet: the first pixelize builds it from the anchor + every facing, so colours only seen from the back are in it.</p>`}
-      <div class="row"><button id="palRebuild">Rebuild from facings</button>
+      ${j.palette?.origin === "profile" ? '<p class="hint">The selected game profile locks these colours.</p>' : `<div class="row"><button id="palRebuild">Rebuild from facings</button>
         <input id="palFile" placeholder="…or load a palette: full path to .gpl / .hex / .png" style="flex:1;min-width:200px"><button id="palLoad">Load</button>
-        ${j.palette?.stale.length ? `<button class="primary" id="palApply">Apply to ${j.palette.stale.length} clip${j.palette.stale.length === 1 ? "" : "s"}</button>` : ""}</div>
+        ${j.inputs.project_palette && j.palette?.origin === "job" ? '<button id="palUnlock">Use saved project palette</button>' : ""}</div>`}
+      ${j.palette?.stale.length ? `<div class="row"><button class="primary" id="palApply">Apply to ${j.palette.stale.length} clip${j.palette.stale.length === 1 ? "" : "s"}</button></div>` : ""}
       <p class="hint">Applying re-pixelizes clips from their frames: no rendering. A loaded palette is matched by nearest colour, so pick one that suits the character.</p>
     </section>` : ""}`;
   $$("[data-f]").forEach(c => c.onchange = () => { c.checked ? form.facings.add(c.dataset.f) : form.facings.delete(c.dataset.f); renderJob(); });
@@ -1336,6 +1410,7 @@ function paneAnimations(j, st) {
   const pal = async body => { try { await api(jobPath() + "/palette", body); toast("Palette updated"); } finally { lastSig = ""; refreshAll(); } };
   if ($("#palRebuild")) $("#palRebuild").onclick = () => pal({op: "rebuild"});
   if ($("#palLoad")) $("#palLoad").onclick = () => { const f = $("#palFile").value.trim(); if (!f) return toast("Give the path to a .gpl, .hex or .png", true); pal({op: "file", file: f}); };
+  if ($("#palUnlock")) $("#palUnlock").onclick = () => pal({op: "unlock"});
   if ($("#palApply")) $("#palApply").onclick = () => run("reprocess", {}, "Clips queued for the new palette");
 }
 
@@ -1710,7 +1785,7 @@ function renderHome() {
   const signature = JSON.stringify([kinds, status.comfy]);
   if ($("#workspaceHome") && renderHome.signature === signature) return;
   renderHome.signature = signature;
-  $("#main").innerHTML = `<div class="empty" id="workspaceHome"><h2>SpriteWaffle workspace</h2>
+  $("#main").innerHTML = `<div class="empty" id="workspaceHome"><h2><img class="welcome-logo" src="/static/brand/horizontal-logo.png" width="650" height="220" alt="SpriteWaffle"></h2>
     <p>Open a job from the job browser, or start a new asset.</p>
     <div class="row" style="justify-content:center;margin:14px 0">${kinds.map((t, i) =>
       `<button ${i === 0 ? 'class="primary"' : ""} data-new="${t}" title="${esc(TYPES[t]?.help || "")}">New ${esc(typeLabel(t))}</button>`).join("")}</div>
@@ -1795,6 +1870,11 @@ $("#jfNeeds").onchange = e => { jf.needs = e.target.checked; saveJf(); };
 $("#jfGroup").onchange = e => { jf.group = e.target.checked; saveJf(); };
 $("#btnNew").onclick = () => showNew();
 $("#btnProjectStyle").onclick = () => showProjectStyle();
+$("#btnProjectPalette").onclick = () => showProjectPalette();
+$("#btnAbout").onclick = () => {
+  $("#aboutVersion").textContent = status.version ? `Version ${status.version}` : "";
+  $("#aboutDialog").showModal();
+};
 $$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
 $("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };
 window.addEventListener("hashchange", () => { fromHash(); poll([refreshAll]); });
