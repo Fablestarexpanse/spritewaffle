@@ -48,7 +48,9 @@ def _sets(root: Path, frame_set: str):
     if not _valid_set(frame_set):
         raise ValueError("Frame set must be a name such as 12f or 24f.")
     for directory in sorted((root / "04_pixel").glob(f"*/*/{frame_set}")):
-        yield directory, directory.parent.parent.name, directory.parent.name
+        active = processing.active_sets(directory.parent)
+        if active is None or frame_set in active:
+            yield directory, directory.parent.parent.name, directory.parent.name
 
 
 def _qa_problem(path: Path, clip: timeline.Clip) -> str | None:

@@ -20,9 +20,10 @@ from .job import Job
 NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def library(base: str | Path | None = None) -> Path:
+def library(base: str | Path | None = None, *, create: bool = True) -> Path:
     d = (Path(base) if base else paths.jobs()) / "_library" / "motions"
-    d.mkdir(parents=True, exist_ok=True)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -50,11 +51,17 @@ def add(name: str, job: Job, facing: str, action: str, base: str | Path | None =
 
 
 def get(name: str, base: str | Path | None = None) -> dict:
-    p = library(base) / name / "motion.json"
+    if not isinstance(name, str) or not NAME.fullmatch(name):
+        raise ValueError("motion name: letters, digits, _ and - only")
+    root = library(base, create=False)
+    p = root / name / "motion.json"
+    clip = p.with_name("clip.mp4")
+    if not all(path.resolve().is_relative_to(root.resolve()) for path in (p, clip)):
+        raise ValueError("Motion files must stay inside the library.")
     if not p.exists():
         raise KeyError(f"no motion '{name}' in the library")
-    meta = json.loads(p.read_text())
-    meta["clip"] = str(p.parent / "clip.mp4")
+    meta = json.loads(p.read_text(encoding="utf-8"))
+    meta["clip"] = str(clip)
     return meta
 
 

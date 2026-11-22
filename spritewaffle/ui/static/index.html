@@ -1580,7 +1580,7 @@ function showAnim(a) {
       </div>` : `<p class="muted">No effects yet: make one with <b>New effect</b> on the home page, then attach it here.</p>`}` : ""}
     <div class="row">
       <button id="dRegen" ${job.stages.facings?.status === "approved" ? "" : "disabled"}>Re-render clip</button>
-      <button id="dReproc" ${a.has_clip ? "" : "disabled"}>Re-process frames</button>
+      <button id="dReproc" ${a.has_clip || ["mirror", "flow"].includes(r.mode_used) ? "" : "disabled"}>Re-process frames</button>
       <span class="spacer"></span>
       <input id="dLibName" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
       <button id="dLib" ${a.has_clip ? "" : "disabled"} title="Reuse this clip's motion for other characters">Add to motion library</button>
@@ -1610,9 +1610,13 @@ function showAnim(a) {
       }));
       if (["stale", "incomplete"].includes(processing.status)) {
         const warning = document.createElement("div");
-        const reason = processing.step === "extract" ? "The saved clip changed or is missing."
-          : processing.settings_changed?.includes("palette") ? "The processing palette changed."
-          : "Processed frames need updating.";
+        const reasons = {extract: "The saved clip changed or is missing.",
+                         mirror: processing.source_needs_processing
+                           ? `Re-process ${processing.source_facing}/${a.action} before rebuilding this mirror.`
+                           : `The mirrored source ${processing.source_facing}/${a.action} changed or is missing.`,
+                         flow: "The motion guide, facing, or processing settings changed or are unavailable."};
+        const reason = reasons[processing.step] || (processing.settings_changed?.includes("palette")
+          ? "The processing palette changed." : "Processed frames need updating.");
         warning.className = "warn";
         warning.textContent = `${reason} Use Re-process frames before exporting.`;
         note.prepend(warning);

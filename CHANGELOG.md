@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Mirror and optical-flow export checks now report changes to their source frames or guide. Palette-only rebuilds retain manual frame selections. QA and export use the latest processed frame sets.
+- Added the Windows checkout launcher for an installed `.venv`.
 - Action and character exports detect stale processed frames after changes to a tracked clip, selection, or palette. Re-process frames can decode a replaced saved clip locally, and stale exports stay intact until they can be rebuilt.
 - Fixed standalone Item generation so a library or approved hero reference supplies colour swatches without uploading the subject image. Browser, CLI, and MCP generation preserve the saved Item type when no override is given. Character fitting stays available through Make a variant.
 - Added freshness checks for item and effect bundles. A check reports changed inputs, missing or changed outputs, and interrupted writes. Existing bundles can be tracked by exporting the item again or reprocessing the saved effect clip.

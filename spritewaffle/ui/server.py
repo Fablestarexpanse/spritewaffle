@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, job_palette, project, project_references, timeline
+from ..core import generate, job_palette, processing, project, project_references, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -268,10 +268,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 continue
             facing, action = d.parent.name, d.name
             sets = {}
+            pixel_dir = j.root / "04_pixel" / facing / action
+            active = processing.active_sets(pixel_dir)
             for n in ("12f", "24f"):
+                if active is not None and n not in active:
+                    sets[n] = {"preview": None, "qa": None, "has_frames": False, "frames": []}
+                    continue
                 report = checks.read(j.root / "05_qa" / facing / action / n / "report.json")
                 qa = checks.review(report) if report else None
-                folder = j.root / "04_pixel" / facing / action / n / "frames"
+                folder = pixel_dir / n / "frames"
                 frames = colour_frames(folder)
                 sets[n] = {"preview": url(j.root / "06_export" / facing / action / n / f"{action}_{facing}_{n}_preview.gif"),
                            "qa": qa, "has_frames": bool(frames)}

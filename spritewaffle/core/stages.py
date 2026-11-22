@@ -152,7 +152,7 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     report_path = out / "pixel_report.json"
     if "processing" in info:
         out.mkdir(parents=True, exist_ok=True)
-        fsutil.write_text(report_path, json.dumps({**info, "processing": {"version": 1, "incomplete": True}}))
+        fsutil.write_text(report_path, json.dumps({**info, "processing": {**info["processing"], "incomplete": True}}))
     for n, (art, sources) in sets.items():
         cells, places = layout.preserve_canvas(list(art), (cell, cell))
         for w in (x.replace(" in this clip", "").replace(" (a ", f" in the {n}f frames (a ", 1)
@@ -294,7 +294,11 @@ def _clip_path(job: Job, stage: str, facing: str, action: str) -> Path:
 
 
 def _action_sets(pdir: Path) -> list[Path]:
-    return sorted(p for p in pdir.iterdir() if p.is_dir() and p.name.rstrip("f").isdecimal()) if pdir.is_dir() else []
+    if not pdir.is_dir():
+        return []
+    active = processing.active_sets(pdir)
+    return sorted(p for p in pdir.iterdir() if p.is_dir() and p.name.rstrip("f").isdecimal()
+                  and (active is None or p.name in active))
 
 
 def _action_receipt(out: Path, fmt: str) -> Path:
@@ -456,7 +460,8 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     art, so palette and identity are exactly the facing's. Writes the same 04_pixel layout as
     `pixel`, so qa/export run unchanged."""
     from ..frames import flowtransfer
-    from . import motion
+    from . import job_palette, motion
+    d = _clip_path(job, "03_actions", facing, action)
     job.require_approved("facings")
     from ..prompts import styles
     if styles.get(styles.of_job(job))["post"] != "pixel":
@@ -468,6 +473,10 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     face = job.root / "02_facings" / f"{facing}.png"
     if not face.exists():
         raise FileNotFoundError(f"facing {facing} not generated")
+    pal = job_palette.resolve(job, profile)[0]
+    loop = action in CYCLIC if loop is None else loop
+    tracked = {"version": 1, "profile_palette": profile.locked_palette is not None,
+               "counts": list(counts), "loop": loop, "inputs": processing.flow_snapshot(job, profile, facing, m, pal)}
 
     # 1. target art: the facing, pixelized once at the PROFILE's sprite height (same scale as H3
     #    actions). Grid detection on stills can lock onto a coarse grid (measured: 29 px -> a 19 px
@@ -476,12 +485,11 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     from ..pixel import chroma as _chroma
     ys = np.where((_chroma.key(rgb)[..., 3] > 0).any(1))[0]
     size = profile.pixel_size or max(1, round((ys[-1] - ys[0] + 1) / profile.sprite_height_px))
-    from . import job_palette
-    pal = job_palette.resolve(job, profile)[0]
     params = PixelParams(palette=pal, pixel_size=size, outline=profile.outline, despill=profile.despill)
     res = pixelize([rgb], params)
     if not isinstance(pal, list):
         job_palette.lock_from_clip(job, res.palette, f"{facing}/{action} (flow)")
+        tracked["inputs"]["settings"]["palette"] = [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in res.palette.tolist()]
     target = res.rgba(0)
 
     # 2. driving clip -> warped art frames
@@ -490,22 +498,23 @@ def flow_transfer(job: Job, profile: GameProfile, facing: str, action: str, moti
     frames = flowtransfer.warp(target, clip, masks=masks)
 
     # 3. frame selection on the driving clip (same rules as H3 actions)
-    d = job.action_dir(facing, action)
-    loop = action in CYCLIC if loop is None else loop
+    d.mkdir(parents=True, exist_ok=True)
     sel = picker.select(picker.analyse(clip), counts=counts, loop=loop)
     report = {"start": sel["start"], "end": sel["end"], "loop": loop, "loop_seam": sel.get("loop_seam"),
               "keys": [{"source": k, "reason": r} for k, r in sel["keys"]],
               "dropped": {str(k): v for k, v in sel["dropped"].items()}, "warnings": sel["warnings"],
               "sets": {str(n): s.as_report() for n, s in sel["sets"].items()},
               "source": {"method": "flow", "motion": motion_name}}
-    (d / "selection_report.json").write_text(json.dumps(report, indent=2))
+    fsutil.write_text(d / "selection_report.json", json.dumps(report, indent=2))
     contact.write(clip, d / "contact_sheet.png")
 
     # 4. layout + 04_pixel output (same files as `pixel`)
     info = _write_pixel_sets(job, profile, facing, action,
                              {n: ([frames[i] for i in s.indices], s.indices) for n, s in sel["sets"].items()},
                              res.palette, {"grid": {"size": res.grid.size, "source": res.grid.source,
-                                                    "resample": res.resample}, "method": "flow", "motion": motion_name})
+                                                    "resample": res.resample}, "method": "flow", "motion": motion_name,
+                                           "processing": tracked})
+    processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
     (d / "action_report.json").write_text(json.dumps({"experimental": True, "mode_used": "flow", "motion": motion_name,
                                                        "facing": facing, "action": action, "frames": len(frames)}, indent=2))
     job.set_stage(f"action:{facing}/{action}", "review", mode="flow", motion=motion_name)
@@ -524,17 +533,18 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
     source = source or MIRROR_OF.get(facing)
     if not source:
         raise ValueError(f"facing {facing} has no mirror partner")
-    src = job.root / "04_pixel" / source / action
-    rep = json.loads((src / "pixel_report.json").read_text()) if (src / "pixel_report.json").exists() else None
-    if rep is None:
-        raise FileNotFoundError(f"{action} {source} is not pixelized yet; it is the source for {facing}")
+    d = _clip_path(job, "03_actions", facing, action)
+    processing.validate_mirror(job, facing, action, source)
+    processing.require_current(processing.status(job, profile, source, action), f"{source}/{action}")
+    before, frame_paths, sel = processing.mirror_inputs(job, source, action)
+    rep = before["settings"]
     palette = (np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in rep["palette"]], np.uint8)
                if rep["palette"] else None)                          # None: full-colour style
     sets = {}
-    for n, info in rep["sets"].items():
-        frames = video.load(video.colour_frames(src / f"{n}f" / "frames"))
+    for n, paths in frame_paths.items():
+        frames = video.load(paths)
         frames = [f if f.shape[2] == 4 else np.dstack([f, np.full(f.shape[:2], 255, np.uint8)]) for f in frames]
-        sets[n] = ([np.ascontiguousarray(f[:, ::-1]) for f in frames], info["sources"])
+        sets[n] = ([np.ascontiguousarray(f[:, ::-1]) for f in frames], rep["sources"][n])
     warnings = []
     anchor = job.root / "01_anchor" / "anchor.png"
     if anchor.exists():
@@ -542,13 +552,14 @@ def mirror_action(job: Job, profile: GameProfile, facing: str, action: str, sour
         asym = layout.asymmetry(_chroma.key(np.array(Image.open(anchor).convert("RGB"))))
         if asym["asymmetric"]:
             warnings.append("anchor is asymmetric: details swap sides in the mirrored facing")
-    d = job.action_dir(facing, action)
-    sel = job.root / "03_actions" / source / action / "selection_report.json"
+    d.mkdir(parents=True, exist_ok=True)
     if sel.exists():
         shutil.copyfile(sel, d / "selection_report.json")
     out = _write_pixel_sets(job, profile, facing, action, sets, palette,
-                            {"grid": rep.get("grid"), "style": rep.get("style"), "method": "mirror", "source": source},
+                            {"grid": rep["grid"], "style": rep["style"], "method": "mirror", "source": source,
+                             "processing": {"version": 1, "inputs": before}},
                             cell=rep.get("cell"))
+    processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
     (d / "action_report.json").write_text(json.dumps({"mode_used": "mirror", "source": source, "facing": facing,
                                                        "action": action, "warnings": warnings}, indent=2))
     job.set_stage(f"action:{facing}/{action}", "review", mode="mirror", source=source, warnings=warnings)

@@ -3,13 +3,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from spritewaffle.core import job_palette, stages
+from spritewaffle.core import job_palette, motion, stages
 from spritewaffle.core.job import Job
 from spritewaffle.core.profile import resolve
 from spritewaffle.core.queue import Queue, Worker
 from spritewaffle.export import character
 from spritewaffle.frames import video
-from synth import write_clip
+from synth import draw_sprite, render, write_clip
 
 
 @pytest.fixture
@@ -119,3 +119,82 @@ def test_explicit_per_clip_palette_and_interrupted_extraction(processed, monkeyp
     stages.select(job, "E", "walk")
     stages.pixel(job, prof, "E", "walk", palette=4)
     assert stages.export_status(job, prof)["processing"] == {"status": "current"}
+
+
+def test_mirror_tracks_source_processing_and_source_frames(processed, tmp_path):
+    job, prof = processed
+    stages.mirror_action(job, prof, "W", "walk", source="E")
+    stages.mirror_action(job, prof, "NW", "walk", source="W")
+    stages.export(job, prof, "NW", "walk")
+    assert stages.export_status(job, prof, "NW", "walk")["processing"] == {"status": "current"}
+    job_palette.save(job, ["#151517", "#2d6472", "#dd7622"], "replacement")
+    result = stages.export_status(job, prof, "NW", "walk")["processing"]
+    assert result["step"] == "mirror" and result["source_facing"] == "W"
+    with pytest.raises(RuntimeError, match="W/walk"):
+        stages.export(job, prof, "NW", "walk")
+    with pytest.raises(ValueError, match="cycle"):
+        stages.mirror_action(job, prof, "E", "walk", source="NW")
+
+    q = Queue(tmp_path)
+    tasks = q.submit_reprocess(job.root)
+    mirrors = [t for t in tasks if t["stage"] == "mirror"]
+    assert [t["args"]["facing"] for t in mirrors] == ["W", "NW"]
+    assert mirrors[1]["after"] == [mirrors[0]["id"]]
+    for task in tasks:
+        Worker(q)._execute(task)
+        assert q.get(task["id"])["status"] == "done", q.get(task["id"])["error"]
+
+    frame = job.root / "04_pixel/W/walk/12f/frames/000.png"
+    with Image.open(frame) as image:
+        updated = image.copy()
+    updated.putpixel((0, 0), (10, 20, 30, 255))
+    updated.save(frame)
+    result = stages.export_status(job, prof, "NW", "walk")["processing"]
+    assert result["changed_inputs"] == ["04_pixel/W/walk/12f/frames/000.png"]
+
+
+def test_optical_flow_tracks_guide_and_facing_and_queues_local_recovery(processed, tmp_path):
+    job, prof = processed
+    motion.add("guide", job, "E", "walk", tmp_path)
+    motion.approve("guide", tmp_path)
+    job.set_stage("facings", "approved")
+    face = job.root / "02_facings/S.png"
+    Image.fromarray(render(draw_sprite())).save(face)
+    stages.flow_transfer(job, prof, "S", "idle", "guide", counts=(12,), loop=False)
+    stages.export(job, prof, "S", "idle")
+    assert stages.export_status(job, prof, "S", "idle")["processing"] == {"status": "current"}
+    guide = Path(motion.get("guide", tmp_path)["clip"])
+    write_clip(guide, frames=20, scale=7)
+    Image.fromarray(render(draw_sprite(1))).save(face)
+    result = stages.export_status(job, prof, "S", "idle")["processing"]
+    assert result["step"] == "flow"
+    assert "02_facings/S.png" in result["changed_inputs"]
+    assert any(path.endswith("_library/motions/guide/clip.mp4") for path in result["changed_inputs"])
+    q = Queue(tmp_path)
+    tasks = q.submit_action_pipeline(job.root, "S", "idle", generate=False)
+    assert [t["stage"] for t in tasks] == ["flow", "qa", "export"]
+    assert tasks[0]["args"]["counts"] == [12] and tasks[0]["args"]["loop"] is False
+    for task in tasks:
+        Worker(q)._execute(task)
+        assert q.get(task["id"])["status"] == "done", q.get(task["id"])["error"]
+    assert stages.export_status(job, prof, "S", "idle")["processing"] == {"status": "current"}
+
+
+def test_palette_only_rebuild_keeps_manual_selection_bytes(processed, tmp_path):
+    job, prof = processed
+    stages.select(job, "E", "walk", indices="0,2,4,6,8,10,12,14,16,18,20,22", loop=False)
+    stages.pixel(job, prof, "E", "walk")
+    report = job.root / "03_actions/E/walk/selection_report.json"
+    before = report.read_bytes()
+    job_palette.save(job, ["#151517", "#2d6472", "#dd7622"], "replacement")
+    q = Queue(tmp_path)
+    tasks = q.submit_action_pipeline(job.root, "E", "walk", generate=False)
+    assert [t["stage"] for t in tasks] == ["pixelize", "qa", "export"]
+    for task in tasks:
+        Worker(q)._execute(task)
+        assert q.get(task["id"])["status"] == "done", q.get(task["id"])["error"]
+    assert report.read_bytes() == before
+    assert set(q.get(tasks[-1]["id"])["result"]) == {"12f"}
+    assert (job.root / "04_pixel/E/walk/24f/frames/000.png").exists()
+    with pytest.raises(RuntimeError, match="no pixelized animations"):
+        character.export(job.root, tmp_path / "old-set", "hero", prof.fps, "24f", require_pass=False)

@@ -10,7 +10,10 @@ Pixel processing adds a versioned section to `pixel_report.json` with the select
 source frames, the clip fingerprint, and effective palette settings. Action and character
 exports check that section before writing. An interrupted decode or pixel write leaves
 an incomplete marker. Older reports without fingerprints remain usable and gain evidence
-when reprocessed. Mirroring and optical-flow transfer have their own processing paths.
+when reprocessed. Mirrors fingerprint the source facing's processed frames and check its
+upstream freshness. Optical flow fingerprints the facing and the approved library guide.
+The latest completed report lists the active frame sets. Earlier folders and timeline edits
+stay on disk. A palette-only rebuild starts at pixel processing and keeps the saved selection.
 
 Action exports reuse the receipt format and bundle lock. Each facing and action has a
 receipt for PNG and one for Aseprite beside its export directory. PNG includes the

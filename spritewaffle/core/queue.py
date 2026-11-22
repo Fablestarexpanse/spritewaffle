@@ -13,6 +13,7 @@ import threading
 import time
 import traceback
 import uuid
+from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Callable
 
@@ -102,7 +103,8 @@ def _stages():
 
     def flow(job, prof, a):
         need(a, "facing", "action", "motion")
-        return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"], loop=a.get("loop"))
+        return stages.flow_transfer(job, prof, a["facing"], a["action"], a["motion"],
+                                    counts=a.get("counts", (12, 24)), loop=a.get("loop"))
 
     def align(job, prof, a):
         return stages.align(job, prof, a.get("facing"), a.get("action"))
@@ -227,26 +229,43 @@ class Queue:
                                **action_args) -> list[dict]:
         """action or transfer (gpu) -> select -> pixelize -> qa -> export (cpu), chained with `after`.
         motion=<library name> renders through the experimental TARA transfer instead of H3 I2V."""
-        tasks, prev = [], []
+        tasks, prev, post = [], [], POST_ACTION
         base = {"facing": facing, "action": action}
         if motion and method == "flow":            # pixel-exact: selection + pixelize happen inside 'flow'
-            tasks.append(self.submit(job, "flow", {**base, "motion": motion}, profile))
-            for st in ("qa", "export"):
-                tasks.append(self.submit(job, st, dict(base), profile, after=[tasks[-1]["id"]]))
-            return tasks
-        if generate:
+            options = {key: action_args[key] for key in ("counts", "loop") if key in action_args}
+            tasks.append(self.submit(job, "flow", {**base, "motion": motion, **options}, profile))
+            post = ("qa", "export")
+        elif generate:
             stage = "transfer" if motion else "action"
             extra = {"motion": motion} if motion else {}
             tasks.append(self.submit(job, stage, {**base, **extra, **action_args}, profile))
-            prev = [tasks[-1]["id"]]
         else:
             from . import processing, stages
-            directory = stages._clip_path(Job.open(job), "03_actions", facing, action)
-            raw = processing.clip_to_decode(directory)
-            if raw and raw.is_file():
-                tasks.append(self.submit(job, "extract", {**base, "video": str(raw)}, profile))
-                prev = [tasks[-1]["id"]]
-        for st in POST_ACTION:
+            asset = Job.open(job)
+            directory = stages._clip_path(asset, "03_actions", facing, action)
+            report = processing.pixel_report(asset, facing, action)
+            if report.get("method") == "mirror":
+                source = report["source"]
+                processing.validate_mirror(asset, facing, action, source)
+                result = processing.status(asset, resolve(profile), source, action)
+                processing.require_current(result, f"{source}/{action}")
+                tasks.append(self.submit(job, "mirror", {**base, "source": source}, profile))
+                post = ("qa", "export")
+            elif report.get("method") == "flow":
+                saved = report.get("processing") or {}
+                options = {key: saved[key] for key in ("counts", "loop") if key in saved}
+                tasks.append(self.submit(job, "flow", {**base, "motion": report["motion"], **options}, profile))
+                post = ("qa", "export")
+            elif raw := processing.clip_to_decode(directory):
+                if raw.is_file():
+                    tasks.append(self.submit(job, "extract", {**base, "video": str(raw)}, profile))
+            else:
+                check = processing.status(asset, resolve(profile), facing, action)
+                if check.get("settings_changed") == ["palette"] and not check["changed_inputs"]:
+                    post = ("pixelize", "qa", "export")
+        if tasks:
+            prev = [tasks[-1]["id"]]
+        for st in post:
             tasks.append(self.submit(job, st, dict(base), profile, after=prev))
             prev = [tasks[-1]["id"]]
         return tasks
@@ -304,28 +323,33 @@ class Queue:
         palette changed: renders -> pixelize, flow -> flow, then qa + export; mirrored facings are
         flipped again after their source's pixelize."""
         from . import job_palette, processing
-        from .job import Job
-        clips = job_palette.clips(Job.open(Path(job)))
+        asset = Job.open(job)
+        clips = {(c["facing"], c["action"]): c for c in job_palette.clips(asset)}
+        sources = {key: (c["source"], c["action"]) for key, c in clips.items() if c["method"] == "mirror"}
+        graph = {key: [sources[key]] if key in sources and sources[key] in clips else [] for key in clips}
+        try:
+            order = list(TopologicalSorter(graph).static_order())
+        except CycleError as exc:
+            raise ValueError("Mirrored actions contain a cycle. Choose a different source before reprocessing.") from exc
         tasks, pix = [], {}
-        for c in [c for c in clips if c["method"] != "mirror"]:
-            base = {"facing": c["facing"], "action": c["action"]}
-            directory = Path(job) / "03_actions" / c["facing"] / c["action"]
-            if c["method"] == "render" and processing.clip_to_decode(directory):
+        for key in order:
+            c = clips[key]
+            facing, action = key
+            base = {"facing": facing, "action": action}
+            directory = asset.root / "03_actions" / facing / action
+            if c["method"] == "flow" or (c["method"] == "render" and processing.changed_clip(directory)):
                 chain = self.submit_action_pipeline(job, **base, profile=profile, generate=False)
-                pix[(c["facing"], c["action"])] = next(t["id"] for t in chain if t["stage"] == "pixelize")
+                pix[key] = next(t["id"] for t in chain if t["stage"] in ("pixelize", "flow"))
                 tasks.extend(chain)
                 continue
-            first = (self.submit(job, "flow", {**base, "motion": c["motion"]}, profile) if c["method"] == "flow"
-                     else self.submit(job, "pixelize", dict(base), profile))
-            pix[(c["facing"], c["action"])] = first["id"]
+            if c["method"] == "mirror":
+                after = [pix[sources[key]]] if sources[key] in pix else []
+                first = self.submit(job, "mirror", {**base, "source": c["source"]}, profile, after=after)
+            else:
+                first = self.submit(job, "pixelize", dict(base), profile)
+            pix[key] = first["id"]
             q = self.submit(job, "qa", dict(base), profile, after=[first["id"]])
             tasks += [first, q, self.submit(job, "export", dict(base), profile, after=[q["id"]])]
-        for c in [c for c in clips if c["method"] == "mirror"]:
-            base = {"facing": c["facing"], "action": c["action"]}
-            after = [pix[(c["source"], c["action"])]] if (c["source"], c["action"]) in pix else []
-            m = self.submit(job, "mirror", {**base, "source": c["source"]}, profile, after=after)
-            q = self.submit(job, "qa", dict(base), profile, after=[m["id"]])
-            tasks += [m, q, self.submit(job, "export", dict(base), profile, after=[q["id"]])]
         return tasks
 
     def submit_stack_pipeline(self, job, profile: str | None = None, views: bool = True, height: int = 24,

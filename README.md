@@ -57,7 +57,8 @@ ComfyUI), the queue worker and the motion library. Fix anything marked `[FAIL]` 
 
 Open <http://127.0.0.1:8765>. The header shows ComfyUI, the worker and the queue (click it to open
 the queue panel; it opens by itself when a task fails); the app runs its own queue worker, so
-nothing else needs to be running.
+nothing else needs to be running. On Windows, double-click `Launch_SpriteWaffle.bat` after
+installing into the repository's `.venv` to start the server and open the browser.
 
 Open **Settings** for Midnight, Slate, Forest, Light, OLED, or the system theme. You can
 change the accent color, interface scale, spacing, transitions, and the background behind
@@ -134,7 +135,9 @@ Use **Check action exports** to see freshness for PNG and Aseprite separately.
 After processing an action, the check tracks its saved clip, selected source frames, and effective
 palette. If one changes, use **Re-process frames** before exporting the action or character again.
 A changed saved clip is decoded and processed locally. **Re-export action** queues export from the
-existing processed frames. Older actions gain processing records when reprocessed.
+existing processed frames. Palette-only rebuilds keep manually selected frames. Mirrored actions
+follow their source facing. Optical-flow actions track their approved facing and library guide.
+Older actions gain processing records when reprocessed.
 The CLI equivalents are
 `qa-review` and `export-action-status`. Both accept `--job`, `--facing`, and `--action`.
 MCP exposes QA findings in `status`, export freshness in `action_export_status`,
