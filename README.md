@@ -62,6 +62,14 @@ change the accent color, interface scale, spacing, transitions, and the backgrou
 transparent previews. These choices are stored in this browser for this local address.
 Use **Jobs** to collapse or show the job browser. Press **/** to open it and focus search.
 
+Open **Settings → Project style** to set an art style and game profile for new jobs. Add the
+target engine and any art direction notes you want to carry with each asset. In **New job**,
+leave either field on **Project default** to inherit it, or select an explicit override.
+Open **Saved style guide** on a job to see the project choices at creation. The same guide
+appears in that asset's manifest. Art direction and target engine are recorded as guidance.
+Project settings live in the jobs folder. The CLI uses `spritewaffle project-style`
+with optional `--set FILE` or `--clear`. HTTP uses `/api/project/style` and MCP uses `project_style`.
+
 Under **Export**, use **Check freshness** to compare the latest character bundle with its
 processed frames, palette, QA inputs, timing, maps, and attachments. It also checks that
 exported files still match the receipt. Re-export an older bundle once to start tracking it.

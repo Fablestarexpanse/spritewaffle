@@ -100,7 +100,8 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
     root = base.root.parent / job_id
     if root.exists():
         raise FileExistsError(f"job {bm['character']}/{job_id} already exists")
-    keep = {k: v for k, v in bm["inputs"].items() if k in ("profile", "style", "asset_type", "prompt_writer", "facing_notes")}
+    keep = {k: v for k, v in bm["inputs"].items()
+            if k in ("profile", "style", "style_guide", "asset_type", "prompt_writer", "facing_notes")}
     desc = bm["inputs"].get("description") or ""
     job = Job.create(bm["character"], job_id, base=base.root.parent.parent, **keep,
                      description=f"{desc}; {instruction}" if desc else instruction,

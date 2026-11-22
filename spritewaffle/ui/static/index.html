@@ -237,12 +237,17 @@
   #viewer { width: auto; max-width: 96vw; max-height: 94vh; padding: 12px; text-align: center; }
   #viewer img { display: block; max-width: calc(96vw - 24px); max-height: calc(94vh - 70px); margin: 0 auto;
     image-rendering: pixelated; border-radius: 6px; }
-  #appearanceSettings { width: min(38rem, 94vw); }
-  #appearanceFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
-  #appearanceFields .field { align-items: stretch; min-width: 0; }
+  #appearanceSettings, #projectStyleDialog { width: min(38rem, 94vw); }
+  #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
+  #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
   #appearanceFields input:disabled { opacity: .6; }
   #appearanceSettings footer { margin-top: calc(var(--space) * 1.5); }
+  .project-style-fields .wide { grid-column: 1 / -1; }
+  .project-style-fields :is(input, select, textarea) { width: 100%; min-width: 0; }
+  .project-style-fields textarea { resize: vertical; }
+  .project-style-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #projectStyleForm footer { margin-top: var(--space); }
   @media (prefers-reduced-motion: no-preference) {
     :root[data-motion="true"] button, :root[data-motion="true"] .job {
       transition: background-color .14s, border-color .14s, color .14s;
@@ -369,9 +374,28 @@
   </form>
   <footer class="row">
     <button id="appearanceReset" type="button">Reset appearance</button>
+    <button id="btnProjectStyle" type="button" aria-haspopup="dialog">Project style…</button>
     <span class="spacer"></span>
     <form method="dialog"><button class="primary">Done</button></form>
   </footer>
+</dialog>
+<dialog id="projectStyleDialog" aria-labelledby="projectStyleTitle">
+  <h2 id="projectStyleTitle">Project style</h2>
+  <p id="projectStyleHelp" class="muted">New jobs use these defaults unless you choose another style or profile. Each job saves a copy of the guide.</p>
+  <form id="projectStyleForm" aria-describedby="projectStyleHelp">
+    <div class="project-style-fields">
+      <label class="field">Default art style <select name="default_style" autofocus></select></label>
+      <label class="field">Default game profile <select name="default_profile"></select></label>
+      <label class="field wide">Target engine <input name="target_engine"></label>
+      <label class="field wide">Art direction <textarea name="art_direction" rows="5"></textarea></label>
+    </div>
+    <p id="projectStyleError" class="muted" role="alert" hidden></p>
+    <footer class="row">
+      <button type="button" id="projectStyleCancel">Cancel</button>
+      <span class="spacer"></span>
+      <button type="submit" class="primary" id="projectStyleSave">Save project style</button>
+    </footer>
+  </form>
 </dialog>
 <div id="toasts"></div>
 
@@ -675,26 +699,82 @@ async function loadStatus() {
   loadStatus.failed = q.failed;
 }
 
+const projectStylePath = "/api/project/style";
+const artOptions = entries => entries.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("");
+const profileOptions = names => names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+
+async function showProjectStyle() {
+  const state = await api(projectStylePath);
+  const dialog = $("#projectStyleDialog"), form = $("#projectStyleForm"), fields = form.elements;
+  if (dialog.open || !$("#appearanceSettings").open) return;
+  const names = [...state.profiles];
+  const savedProfile = state.style.default_profile;
+  if (savedProfile === "default" && !names.includes("default")) names.push("default");
+  fields.default_style.innerHTML = '<option value="">Built-in style (Pixel art)</option>' + artOptions(state.styles);
+  fields.default_profile.innerHTML = '<option value="">Built-in sizes</option>' + profileOptions(names);
+  const unavailable = savedProfile && !names.includes(savedProfile);
+  if (unavailable) fields.default_profile.add(new Option(`${savedProfile} (unavailable)`, savedProfile));
+  for (const [key, value] of Object.entries(state.style)) fields[key].value = value ?? "";
+  const error = $("#projectStyleError"), save = $("#projectStyleSave");
+  error.textContent = unavailable ? `Choose a replacement for the unavailable profile ${savedProfile}.` : "";
+  error.hidden = !unavailable;
+  form.onsubmit = async event => {
+    event.preventDefault();
+    save.disabled = true;
+    try {
+      const style = Object.fromEntries(new FormData(form));
+      await api(projectStylePath, {style});
+      dialog.close();
+      toast("Project style saved");
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+    } finally { save.disabled = false; }
+  };
+  $("#projectStyleCancel").onclick = () => dialog.close();
+  // Keep Appearance beneath Project style so closing it returns focus to the launcher.
+  dialog.showModal();
+}
+
 // --- sidebar -----------------------------------------------------------------------------
-function showNew(type = "character") {
+async function showNew(type = "character") {
   const d = $("#dlg");
+  const {style: guide, styles: art, profiles} = await api(projectStylePath);
+  if (d.open) return;
+  const projectArt = art.find(s => s.name === (guide.default_style || "pixel"))?.label || "Pixel art";
+  const projectProfile = guide.default_profile || "Built-in sizes";
   const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop"].filter(t => status.asset_types.includes(t));
   d.innerHTML = `<h2>New job <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
     <div class="types">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
       <b>${esc(typeLabel(t))}</b><small>${esc(TYPES[t]?.help || "")}</small></label>`).join("")}</div>
     <div class="row" style="margin-top:14px">
       <label class="field" style="flex:1;min-width:200px"><span>Name</span><input id="nName" placeholder="e.g. knight, red_cape, human"></label>
-      <label class="field"><span>Style</span><select id="nStyle">${status.styles.map(s => `<option value="${esc(s.name)}">${esc(s.label)}</option>`).join("")}</select></label>
-      <label class="field"><span>Profile (sizes)</span><select id="nProfile"><option value="">default</option>${status.profiles.map(p => `<option>${esc(p)}</option>`).join("")}</select></label>
+      <label class="field" style="min-width:0"><span>Style</span><select id="nStyle"><option value="">Project default (${esc(projectArt)})</option>${artOptions(art)}</select></label>
+      <label class="field" style="min-width:0"><span>Profile (sizes)</span><select id="nProfile"><option value="">Project default (${esc(projectProfile)})</option><option value="__builtin">Built-in sizes</option>${profileOptions(profiles)}</select></label>
     </div>
+    <p id="nError" class="muted" role="alert" hidden></p>
     <div class="row" style="margin-top:14px"><button class="primary" id="nCreate">Create job</button></div>`;
   $("#nClose").onclick = () => d.close();
   const create = async () => {
     const name = $("#nName").value.trim(), t = $('input[name="nType"]:checked').value;
-    if (!name) return toast("Give the job a name", true);
-    const r = await api("/api/jobs", {character: name, asset_type: t, style: $("#nStyle").value, profile: $("#nProfile").value || null});
-    d.close();
-    location.hash = `${r.character}/${r.job_id}/${(STEPS[t] || STEPS.character)[0]}`;
+    const error = $("#nError");
+    if (!name) { error.textContent = "Give the job a name"; error.hidden = false; $("#nName").focus(); return; }
+    const style = $("#nStyle").value, profile = $("#nProfile").value;
+    const payload = {character: name, asset_type: t};
+    if (style) payload.style = style;
+    if (profile) payload.profile = profile === "__builtin" ? null : profile;
+    const button = $("#nCreate");
+    if (button.disabled) return;
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      const r = await api("/api/jobs", payload);
+      d.close();
+      location.hash = `${r.character}/${r.job_id}/${(STEPS[t] || STEPS.character)[0]}`;
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+    } finally { button.disabled = false; }
   };
   $("#nCreate").onclick = create;
   $("#nName").onkeydown = e => { if (e.key === "Enter") create(); };
@@ -939,6 +1019,7 @@ function renderJob() {
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
       <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
+      ${j.inputs.style_guide ? '<button class="ghost" id="jProjectStyle" aria-haspopup="dialog">Saved style guide…</button>' : ""}
     </div>
     <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
       <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
@@ -956,6 +1037,17 @@ function renderJob() {
   $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
   $("#jPrompts").onclick = () => showPrompts();
   $("#jCamera").onclick = () => showCamera(j);
+  if ($("#jProjectStyle")) $("#jProjectStyle").onclick = () => {
+    const d = $("#dlg"), guide = j.inputs.style_guide;
+    const style = status.styles.find(s => guide.default_style === s.name)?.label || "Pixel art";
+    d.innerHTML = `<h2>Saved style guide</h2>
+      <p class="muted">Project defaults when this asset was created.</p>
+      <dl><dt>Default art style</dt><dd>${esc(style)}</dd><dt>Default game profile</dt><dd>${esc(guide.default_profile || "Built-in sizes")}</dd>
+      ${guide.target_engine ? `<dt>Target engine</dt><dd>${esc(guide.target_engine)}</dd>` : ""}
+      ${guide.art_direction ? `<dt>Art direction</dt><dd class="project-style-notes">${esc(guide.art_direction)}</dd>` : ""}</dl>
+      <form method="dialog"><button>Close</button></form>`;
+    d.showModal();
+  };
   if ($("#jVariant")) $("#jVariant").onclick = () => showVariant(j);
   if ($("#jFit") && itemReady) $("#jFit").onclick = () => showFitOn(j);
   $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
@@ -1661,6 +1753,7 @@ $("#jfStyle").onchange = e => { jf.style = e.target.value; saveJf(); };
 $("#jfNeeds").onchange = e => { jf.needs = e.target.checked; saveJf(); };
 $("#jfGroup").onchange = e => { jf.group = e.target.checked; saveJf(); };
 $("#btnNew").onclick = () => showNew();
+$("#btnProjectStyle").onclick = () => showProjectStyle();
 $$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
 $("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };
 window.addEventListener("hashchange", () => { fromHash(); poll([refreshAll]); });

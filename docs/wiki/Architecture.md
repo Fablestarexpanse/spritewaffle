@@ -111,7 +111,7 @@ SpriteWaffle's own code.
 | | `queue.py` | File-backed queue (`jobs/_queue/*.json`), GPU/CPU pools, retry once on GPU failure, manifest refresh after stages |
 | | `variant.py`, `item.py` | One-change variants; equipment items + fitting |
 | | `effect.py`, `attach.py` | Effects; effect events on character animations |
-| | `profile.py`, `camera.py`, `angles.py`, `manifest.py` | Game profiles (sizes); camera profile; view angles; per-asset manifest |
+| | `profile.py`, `project.py`, `camera.py`, `angles.py`, `manifest.py` | Game profiles, project style defaults, camera profiles, view angles, and per-asset manifests |
 | | `job_palette.py`, `takes.py`, `motion.py`, `sheet_import.py`, `prompt_view.py` | Palette, earlier takes, motion library, sheet cutting (SAM 3), prompt previews |
 | `prompts/` | `builder.py`, `styles.py`, `writer.py`, `effects.py` | Prompt text (rules baked in), art styles, the Qwen3-VL prompt writer |
 | `frames/` | `video.py`, `picker.py`, `analysis.py`, `layout.py`, `contact.py`, `flowtransfer.py` | Frame I/O, picking 12/24 frame sets, canvas layout + foot points, contact sheets |
@@ -135,7 +135,7 @@ jobs/<character>/<job_id>/
   05_qa/…                  report.json per set
   06_export/               character/ (aseprite + atlas), item/, stack/, showcase/
   takes/                   every replaced render ("earlier takes")
-jobs/project.json          project id + camera profile (optional)
+jobs/project.json          project id, camera profile, and style guide (optional)
 jobs/_queue/               queue tasks
 jobs/_archive/             archived jobs (move back to restore)
 ```

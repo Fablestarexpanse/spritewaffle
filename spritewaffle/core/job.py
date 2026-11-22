@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import fsutil
+from . import fsutil, project
 from .. import paths
 
 STAGE_DIRS = ("01_anchor", "02_facings", "03_actions", "04_pixel", "05_qa", "06_export")
@@ -32,12 +32,15 @@ class Job:
     def create(cls, character: str, job_id: str | None = None, base: Path | None = None, **inputs) -> "Job":
         job_id = job_id or time.strftime("%Y%m%d_%H%M%S")
         base = Path(base) if base else paths.jobs()
-        root = base / character / job_id
-        for d in STAGE_DIRS:
-            (root / d).mkdir(parents=True, exist_ok=True)
-        job = cls(root)
-        if not job.meta_path.exists():
-            job.write_meta({"character": character, "job_id": job_id, "inputs": inputs, "stages": {}, "provenance": []})
+        job = cls(base / character / job_id)
+        with _lock_for(job.root):
+            exists = job.meta_path.exists()
+            if not exists:
+                inputs = project.creation_inputs(base, inputs)
+            for d in STAGE_DIRS:
+                (job.root / d).mkdir(parents=True, exist_ok=True)
+            if not exists:
+                job.write_meta({"character": character, "job_id": job_id, "inputs": inputs, "stages": {}, "provenance": []})
         return job
 
     @classmethod

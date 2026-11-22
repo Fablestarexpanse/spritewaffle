@@ -19,7 +19,7 @@ from .core.profile import GameProfile, resolve
 FACINGS = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
 OVERVIEW = """\
-setup         doctor, profile, comfy
+setup         doctor, profile, project-style, comfy
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
@@ -33,7 +33,7 @@ Typical start:  spritewaffle doctor   then   spritewaffle ui
 
 # --- helpers ----------------------------------------------------------------------------------
 
-def _job(path: str, create: bool = False) -> Job:
+def _job(path: str, create: bool = False, **inputs) -> Job:
     """A job folder; `<character>/<job_id>` is resolved under the jobs folder. Only commands that
     start a job pass create=True; everywhere else a typo is an error, not a new empty job."""
     p = Path(path)
@@ -42,7 +42,7 @@ def _job(path: str, create: bool = False) -> Job:
     if (p / "job.json").exists():
         return Job.open(p)
     if len(p.parts) >= 2 and create:
-        return Job.create(p.parent.name, p.name, base=p.parent.parent)
+        return Job.create(p.parent.name, p.name, base=p.parent.parent, **inputs)
     if len(p.parts) >= 2:
         import difflib
         known = [f"{d.parent.name}/{d.name}" for d in paths.jobs().glob("*/*") if (d / "job.json").exists()]
@@ -109,6 +109,20 @@ def cmd_profile(a):
         print(p.save(paths.profiles() / f"{a.name}.json"))
 
 
+def cmd_project_style(a):
+    from .core import project
+    base = paths.jobs()
+    if a.clear:
+        _print(project.set_style(base, None))
+    elif a.set:
+        value = json.loads(a.set.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("--set expects a JSON object. Use --clear to reset the guide.")
+        _print(project.set_style(base, value))
+    else:
+        _print(project.style(base))
+
+
 def cmd_comfy_check(a):
     from .comfy import templates
     from .comfy.client import ComfyClient
@@ -129,7 +143,7 @@ def cmd_comfy_check(a):
 
 def cmd_anchor(a):
     from .core import generate
-    job = _job(a.job, create=True)
+    job = _job(a.job, create=True, **({"profile": a.profile} if a.profile else {}))
     if a.profile:
         job.update_inputs(profile=a.profile)
     print(generate.anchor(job, _profile(a, job), description=a.describe, image=a.image, seed=a.seed,
@@ -322,7 +336,7 @@ def cmd_stack(a):
 # --- video -> pixel art -----------------------------------------------------------------------
 
 def cmd_run(a):
-    job = Job.create(a.character, a.job_id, profile=a.profile)
+    job = Job.create(a.character, a.job_id, **({"profile": a.profile} if a.profile else {}))
     prof = _profile(a, job)
     loop = True if a.loop else (False if a.no_loop else None)
     print(f"job: {job.root}")
@@ -332,7 +346,10 @@ def cmd_run(a):
     for w in stages.select(job, loop=loop)["warnings"]:
         print("warning:", w)
     px = stages.pixel(job, prof)
-    print(f"grid {px['grid']}  palette {len(px['palette'])} colours")
+    if "grid" in px:
+        print(f"grid {px['grid']}  palette {len(px['palette'])} colours")
+    else:
+        print(f"{px['style']}  scale {px['scale']}  {px['cell']} px canvas")
     q = stages.qa(job, prof)
     print(f"qa {q}")
     _print(stages.export(job, prof, fmt="both"))
@@ -488,9 +505,11 @@ def cmd_queue(a):
     from .core.queue import Queue
     q = Queue()
     if a.sub == "add":
-        print(_task_line(q.submit(_job(a.job).root, a.stage, _kv(a.arg), a.profile, _csv(a.after))))
+        job = _job(a.job)
+        print(_task_line(q.submit(job.root, a.stage, _kv(a.arg), a.profile or job.read_meta()["inputs"].get("profile"), _csv(a.after))))
     elif a.sub == "pipeline":
-        for t in q.submit_action_pipeline(_job(a.job).root, a.facing, a.action, a.profile, generate=not a.no_generate,
+        job = _job(a.job)
+        for t in q.submit_action_pipeline(job.root, a.facing, a.action, a.profile or job.read_meta()["inputs"].get("profile"), generate=not a.no_generate,
                                           motion=a.motion, method=a.method, **_kv(a.arg)):
             print(_task_line(t))
     elif a.sub == "list":
@@ -576,6 +595,11 @@ def build() -> argparse.ArgumentParser:
     pn.add_argument("--directions", type=int, default=8, choices=(4, 8))
     for spp in pp.choices.values():
         spp.set_defaults(fn=cmd_profile)
+    ps = sub.add_parser("project-style", help="read or edit art direction and defaults for the jobs folder")
+    ps.set_defaults(fn=cmd_project_style)
+    changes = ps.add_mutually_exclusive_group()
+    changes.add_argument("--set", type=Path, metavar="FILE", help="patch fields from a UTF-8 JSON file")
+    changes.add_argument("--clear", action="store_true", help="clear the project style guide")
     cp = sub.add_parser("comfy", help="ComfyUI connection and templates").add_subparsers(dest="sub", required=True)
     cc = cp.add_parser("check", help="connect and validate exported templates")
     cc.add_argument("--url", default=DEFAULT_URL)

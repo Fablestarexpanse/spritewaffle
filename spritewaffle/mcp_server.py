@@ -16,9 +16,11 @@ from pydantic import StrictInt
 
 from . import paths
 from .core import generate as gen
+from .core import project
 from .core.job import Job
+from .core.profile import resolve
 from .core.queue import Queue, Worker
-from .prompts import builder
+from .prompts import builder, styles
 
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
@@ -57,34 +59,34 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     def generate(character: str, stage: str = "anchor", description: str | None = None,
                  job_id: str | None = None, asset_type: str = "character", style_ref: str | None = None,
                  image: str | None = None, seed: int | None = None, only: list[str] | None = None,
-                 style: str | None = None) -> dict:
+                 style: str | None = None, profile: str | None = None) -> dict:
         """Queue a still-image stage.
 
         stage='anchor': creates the job when job_id is omitted. Needs `description` (or `image`, a path
         to import). asset_type: character | creature | prop. style_ref: an approved hero as
         'character/job_id' (or an image path) to draw this asset in the hero's style.
         stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
-        style (anchor): pixel (default), painted (hand-painted), anime (anime cel), comic (comic ink).
+        style (anchor and sheet): pixel, painted, anime, or comic. Omit style and profile to use the
+        project defaults on new assets. Pass profile='' for built-in sizes.
         stage='sheet': import the human's own character sheet: image=<path>, only=<facing of each figure
         left to right, e.g. ['S','SE','E','N']>, description=<what to cut out, e.g. 'hare character'>.
         Returns the job and queued task ids; call status(...) to follow progress."""
         if stage not in ("anchor", "facings", "sheet"):
             raise ValueError("stage must be 'anchor', 'facings' or 'sheet'")
+        inputs = {}
+        if stage != "facings" and style:
+            inputs["style"] = styles.get(style)["name"]
+        if stage != "facings" and profile is not None:
+            resolve(profile)
+            inputs["profile"] = profile or None
         if stage == "sheet":
             if not image or not only:
                 raise ValueError("sheet: pass image=<sheet path> and only=<facing of each figure, left to right>")
-            job = job_for(character, job_id) if job_id else Job.create(character, base=base, asset_type=asset_type)
-            if style:
-                from .prompts import styles
-                job.update_inputs(style=styles.get(style)["name"])
-            t = q.submit(job.root, "sheet", {"image": image, "views": only, "subject": description or "character"})
-            return {"character": character, "job_id": job.root.name, "tasks": [t["id"]]}
-        if stage == "anchor":
+            job = job_for(character, job_id) if job_id else Job.create(character, base=base, asset_type=asset_type, **inputs)
+            args = {"image": image, "views": only, "subject": description or "character"}
+        elif stage == "anchor":
             builder.asset(asset_type)
-            job = job_for(character, job_id) if job_id else Job.create(character, base=base)
-            if style:
-                from .prompts import styles
-                job.update_inputs(style=styles.get(style)["name"])
+            job = job_for(character, job_id) if job_id else Job.create(character, base=base, **inputs)
             args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type}
             if style_ref:
                 ref = base / style_ref if "/" in style_ref and not Path(style_ref).exists() else Path(style_ref)
@@ -94,7 +96,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 raise ValueError("facings needs job_id")
             job = job_for(character, job_id)
             args = {"seed": seed, "only": only}
-        t = q.submit(job.root, stage, {k: v for k, v in args.items() if v is not None})
+        if job_id and inputs:
+            with job.mutate() as meta:
+                meta["inputs"].update(inputs)
+        t = q.submit(job.root, stage, {k: v for k, v in args.items() if v is not None},
+                     profile=job.read_meta()["inputs"].get("profile"))
         return {"character": character, "job_id": job.root.name, "tasks": [t["id"]]}
 
     @mcp.tool()
@@ -126,7 +132,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             args = {"seconds": seconds, **({"seed": seed} if seed is not None else {})}
         if method not in ("tara", "flow"):
             raise ValueError("method must be 'tara' or 'flow'")
-        ts = q.submit_action_pipeline(job.root, facing, action, generate=not reprocess_only, motion=motion,
+        ts = q.submit_action_pipeline(job.root, facing, action, profile=job.read_meta()["inputs"].get("profile"),
+                                      generate=not reprocess_only, motion=motion,
                                       method=method, **args)
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
@@ -274,7 +281,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         job = job_for(character, job_id)
         if regenerate_views and job.read_meta()["stages"].get("anchor", {}).get("status") != "approved":
             raise ValueError("the anchor is not approved yet; show it to the human first")
-        ts = q.submit_stack_pipeline(job.root, views=regenerate_views, height=height, seed=seed)
+        ts = q.submit_stack_pipeline(job.root, profile=job.read_meta()["inputs"].get("profile"),
+                                     views=regenerate_views, height=height, seed=seed)
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()
@@ -292,9 +300,23 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 builder.action_spec(a)
         if job.read_meta()["stages"].get("facings", {}).get("status") != "approved":
             raise ValueError("facings are not approved yet; show them to the human first")
-        ts = q.submit_animate(job.root, facings, actions, mirror=mirror, seconds=seconds)
+        ts = q.submit_animate(job.root, facings, actions, profile=job.read_meta()["inputs"].get("profile"),
+                              mirror=mirror, seconds=seconds)
         return {"character": character, "job_id": job_id, "tasks": len(ts),
                 "mirrored": sorted({t["args"]["facing"] for t in ts if t["stage"] == "mirror"})}
+
+    @mcp.tool()
+    def project_style(action: str = "get", style: dict | None = None) -> dict:
+        """Get or patch the jobs folder's style guide. Actions are get, set, and clear.
+        Set accepts default_style, default_profile, target_engine, and art_direction.
+        New jobs inherit omitted defaults and save a snapshot alongside their asset metadata."""
+        if action == "get":
+            return project.style(base)
+        if action == "set" and style is not None:
+            return project.set_style(base, style)
+        if action == "clear":
+            return project.set_style(base, None)
+        raise ValueError("Use action='get', action='set' with a style object, or action='clear'")
 
     @mcp.tool()
     def camera_profile(action: str = "get", camera: dict | None = None, character: str | None = None,

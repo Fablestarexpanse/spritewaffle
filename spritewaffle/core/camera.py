@@ -8,13 +8,13 @@ don't change (plan R3, docs/PLAN_DIRECTIONAL.md).
 """
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from . import project as project_settings
 from .profile import GameProfile, resolve
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = project_settings.SCHEMA_VERSION
 PROJECTION_ELEVATION = {"side": 0.0, "topdown_34": 45.0, "iso_2to1": 30.0}
 # light_dir word -> (yaw, elevation): yaw in the unit convention (0 = from the camera's side,
 # clockwise seen from above), the direction the light comes FROM
@@ -64,28 +64,24 @@ def implied(profile: GameProfile) -> CameraProfile:
                          character_scale=int(profile.sprite_height_px), light_yaw=yaw, light_elevation=elev)
 
 
-def project_path(base: Path) -> Path:
-    return Path(base) / "project.json"
+project_path = project_settings.project_path
 
 
 def project(base: Path) -> dict:
     """{"schema_version", "id", "camera": {...} | None}. Missing file -> id = folder name."""
-    p = project_path(base)
-    d = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
-    return {"schema_version": d.get("schema_version", SCHEMA_VERSION), "id": d.get("id") or Path(base).resolve().name,
-            "camera": d.get("camera")}
+    d = project_settings.read(base)
+    return {"schema_version": d["schema_version"], "id": d["id"], "camera": d.get("camera")}
 
 
 def set_project(base: Path, camera: dict | None, project_id: str | None = None) -> dict:
     """Set (or with None clear) the project's camera profile. Fields are validated."""
-    cur = project(base)
     cam = clean(camera) if camera is not None else None
     if cam is not None:
         CameraProfile(**cam)                                   # validate the given values
-    d = {"schema_version": SCHEMA_VERSION, "id": project_id or cur["id"], "camera": cam}
-    project_path(base).parent.mkdir(parents=True, exist_ok=True)
-    project_path(base).write_text(json.dumps(d, indent=2), encoding="utf-8")
-    return d
+    with project_settings.edit(base) as record:
+        record["id"] = project_id or record["id"]
+        record["camera"] = cam
+        return {"schema_version": record["schema_version"], "id": record["id"], "camera": cam}
 
 
 def job_profile(job) -> GameProfile:

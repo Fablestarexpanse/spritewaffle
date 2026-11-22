@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added project style settings for the default art style, game profile, target engine, and art direction. New jobs can inherit the defaults or override them individually. The job and asset manifest retain the guide saved at creation.
+- Camera and project style edits preserve one another and refuse to overwrite a newer project schema. MCP and CLI queue submissions carry the job's game profile into the worker.
 - Added browser-local appearance settings with five themes, live system matching, custom
   accents, interface scaling, spacing, reduced-motion support, and transparent preview backgrounds.
 - Added a collapsible job browser, a search shortcut, and keyboard focus for job-stage

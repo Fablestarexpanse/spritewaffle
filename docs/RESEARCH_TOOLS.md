@@ -26,6 +26,14 @@ its own tag records, then uses the documented Aseprite fields for the range and 
 Keeping the original tag preserves the existing clip name. The facing prefix on additional
 tags keeps repeated labels distinct in a multi-action character document. [Aseprite Tags](https://aseprite.org/docs/tags/) and [Aseprite file format](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md#tags-chunk-0x2018).
 
+Krita can save reference sets and either embed the images or link to local files. Godot uses
+stable resource IDs to preserve links across renames and moves. For SpriteWaffle's first
+reference collection, use stable IDs and managed files in the jobs folder so the collection
+moves with the project. Keep the reference library independent of rendering and exports.
+Implement it locally with the existing filesystem and image libraries.
+[Krita Reference Images](https://docs.krita.org/en/reference_manual/tools/reference_images_tool.html)
+and [Godot ResourceUID](https://docs.godotengine.org/en/stable/classes/class_resourceuid.html).
+
 ## Community observations
 
 - In June 2026 a developer reported palette and detail drift across generated frames, plus video crops that clipped the character. In October 2026 another reported hand swaps on an asymmetric lantern sprite. Include clipping and asymmetric attachment fixtures in QA before widening generation. These reports give examples, with no measured incidence. [June thread](https://www.reddit.com/r/aigamedev/comments/1u363gx/what_is_the_best_method_to_generate_the_most/) and [October thread](https://www.reddit.com/r/aigamedev/comments/1wv3c0h/what_are_you_guys_using_to_make_consistent/)

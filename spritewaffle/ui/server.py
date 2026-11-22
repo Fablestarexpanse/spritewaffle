@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, timeline
+from ..core import generate, project, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -199,15 +199,16 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         if asset_type not in builder.ASSET_TYPES:
             raise HTTPException(400, f"unknown asset type {asset_type}")
         try:
-            if body.get("profile"):
-                resolve(body["profile"])                  # refuse unknown profiles early
-        except FileNotFoundError as e:
+            inputs = {"asset_type": asset_type}
+            if "profile" in body:
+                if body["profile"]:
+                    resolve(body["profile"])
+                inputs["profile"] = body["profile"] or None
+            if "style" in body:
+                inputs["style"] = styles.get(body["style"] or "pixel")["name"]
+            j = Job.create(char, jid, base=base, **inputs)
+        except (ValueError, TypeError, OSError) as e:
             bad(e)
-        try:
-            style = styles.get(body.get("style") or "pixel")["name"]
-        except ValueError as e:
-            bad(e)
-        j = Job.create(char, jid, base=base, asset_type=asset_type, profile=body.get("profile") or None, style=style)
         return {"character": char, "job_id": j.root.name}
 
     @app.post("/api/jobs/{char}/{jid}/settings")
@@ -702,6 +703,23 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, TypeError, OSError, RuntimeError) as e:
             bad(e)
 
+    @app.get("/api/project/style")
+    def project_style():
+        try:
+            return project.style(base) | {"profiles": list_profiles(),
+                "styles": [{"name": k, "label": v["label"]} for k, v in styles.STYLES.items()]}
+        except (ValueError, OSError) as e:
+            bad(e)
+
+    @app.post("/api/project/style")
+    def set_project_style(body: dict = Body(...)):
+        try:
+            if "style" not in body:
+                raise ValueError("Pass a style object, or null to reset the guide")
+            return project.set_style(base, body["style"])
+        except (ValueError, TypeError, OSError, RuntimeError) as e:
+            bad(e)
+
     # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------
     @app.get("/api/project/camera")
     def project_camera():
@@ -715,7 +733,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         from ..core import camera
         try:
             return camera.set_project(base, body.get("camera"), body.get("id"))
-        except ValueError as e:
+        except (ValueError, OSError, RuntimeError) as e:
             bad(e)
 
     @app.get("/api/jobs/{char}/{jid}/camera")
