@@ -1,6 +1,6 @@
 import io
 import json
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from spritewaffle import cli
-from spritewaffle.core import attach, manifest, stages, timeline
+from spritewaffle.core import attach, job_palette, manifest, stages, timeline
 from spritewaffle.core.job import Job
 from spritewaffle.core.profile import resolve
 from spritewaffle.export import aseprite, character
@@ -37,6 +37,103 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     data = io.BytesIO()
     sprite.save(data, format="PNG")
     return data.getvalue()
+
+
+def test_pixel_save_edits_only_changed_rgba_on_selected_copy(clip):
+    job, directory = clip
+    profile = resolve(None)
+    timeline.update(job.root, directory, "001.png", "replace", _image(color=(170, 30, 200, 1)))
+    copy = timeline.update(job.root, directory, "001.png", "duplicate")
+    timeline.update(job.root, directory, copy, "duration", 320)
+    stages.qa(job, profile)
+    stages.export(job, profile)
+    original, source_copy = timeline.frames(job.root, directory)[1:3]
+    source = original.source.read_bytes()
+    job_palette.save(job, ["#b25648"], "test palette")
+
+    view = timeline.describe_pixels(job.root, directory, copy)
+    assert (view["width"], view["height"], view["palette"]) == (16, 16, ["#b25648"])
+    pixel = (5 * 16 + 5) * 4
+    assert b64decode(view["rgba"])[pixel:pixel + 4] == bytes((170, 30, 200, 1))
+    patch = {"fingerprint": view["fingerprint"], "pixels": [[4, 4, 15, 20, 25, 100], [6, 6, 0, 0, 0, 0]]}
+    assert timeline.update(job.root, directory, copy, "paint", patch) == copy
+    kept, painted = timeline.frames(job.root, directory)[1:3]
+    assert kept == original and painted.duration_ms == 320 and painted.image != source_copy.image
+    with Image.open(source_copy.image) as result:
+        expected = result.convert("RGBA")
+    expected.putpixel((4, 4), (15, 20, 25, 100))
+    expected.putpixel((6, 6), (0, 0, 0, 0))
+    with Image.open(painted.image) as result:
+        assert result.tobytes() == expected.tobytes()
+    state = timeline.describe(job.root, directory, profile.fps("walk"))
+    assert state["qa_needs_review"] and len(state["frames"][2]["history"]) == 2
+    assert stages.export_status(job, profile)["formats"]["png"]["status"] == "stale"
+    stages.qa(job, profile)
+    out = aseprite.read(stages.export(job, profile)["12f"]["aseprite"])
+    assert np.array_equal(out.frames[2], np.asarray(expected))
+    timeline.update(job.root, directory, copy, "activate", 1)
+    assert timeline.frames(job.root, directory)[2] == source_copy
+    assert original.source.read_bytes() == source
+
+
+def test_pixel_save_rejects_stale_and_malformed_patches_without_mutation(clip):
+    job, directory = clip
+    frame = "001.png"
+    timeline.update(job.root, directory, frame, "replace", _image())
+    view = timeline.describe_pixels(job.root, directory, frame)
+    folder = timeline._edit_directory(job.root, directory)
+    state = (folder / "timeline.json").read_bytes()
+    saved = set((folder / "replacements").iterdir())
+    valid = [4, 4, 40, 22, 30, 90]
+    for invalid in ([16, 4, 0, 0, 0, 0], [4, 3, False, 0, 0, 0], [4, 4, 0, 0, 0, 0], [1, 1, 0, 0, 0, 256]):
+        with pytest.raises(ValueError, match="pixel"):
+            timeline.update(job.root, directory, frame, "paint", {"fingerprint": view["fingerprint"], "pixels": [valid, invalid]})
+    assert (folder / "timeline.json").read_bytes() == state
+    assert set((folder / "replacements").iterdir()) == saved
+    timeline.update(job.root, directory, frame, "paint", {"fingerprint": view["fingerprint"], "pixels": [[4, 4, 190, 60, 104, 128]]})
+    assert (folder / "timeline.json").read_bytes() == state
+    assert set((folder / "replacements").iterdir()) == saved
+
+    for change in ("restore", "source"):
+        if change == "restore":
+            timeline.update(job.root, directory, frame, "restore")
+        else:
+            (directory / "frames" / frame).write_bytes(_image(color=(3, 4, 5, 255)))
+        with pytest.raises(RuntimeError, match="changed.*reopen"):
+            timeline.update(job.root, directory, frame, "paint", {"fingerprint": view["fingerprint"], "pixels": [valid]})
+        view = timeline.describe_pixels(job.root, directory, frame)
+    assert set((folder / "replacements").iterdir()) == saved
+
+
+def test_pixels_are_shared_by_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    job, directory = clip
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    route = "/api/jobs/hero/j/timeline"
+    query = "?facing=S&action=walk"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk", "--frame", "001.png"]
+    with TestClient(create_app(worker=False)) as client:
+        view = client.get(route + "/pixels" + query + "&frame=001.png").json()
+        assert view["width"] == 16
+        assert cli.main([*args, "--pixels"]) == 0
+        assert view == json.loads(capsys.readouterr().out)
+        mcp_args = dict(character="hero", job_id="j", facing="S", action="walk", frame="001.png")
+        mcp, _ = build(tmp_path)
+        mcp_view = text(call(mcp, "timeline_pixels", **mcp_args))
+        assert "rgba" not in mcp_view and mcp_view["fingerprint"] == view["fingerprint"]
+        patch = {"fingerprint": view["fingerprint"], "pixels": [[5, 5, 20, 30, 40, 50]]}
+        resp = client.post(route + query, json={"operation": "paint", "frame": "001.png", **patch})
+        assert resp.status_code == 200 and resp.json()["frames"][1]["replaced"]
+        assert client.post(route + query, json={"operation": "paint", "frame": "001.png", **patch}).status_code == 400
+        patch["fingerprint"] = client.get(route + "/pixels" + query + "&frame=001.png").json()["fingerprint"]
+        patch["pixels"][0][-1] = 51
+        path = tmp_path / "patch.json"
+        path.write_text(json.dumps(patch), encoding="utf-8")
+        assert cli.main([*args, "--paint", str(path)]) == 0
+        assert len(json.loads(capsys.readouterr().out)["frames"][1]["history"]) == 2
+        patch["fingerprint"] = timeline.describe_pixels(job.root, directory, "001.png")["fingerprint"]
+        patch["pixels"][0][-1] = 52
+        edited = text(call(mcp, "edit_timeline_frame", **mcp_args, operation="paint", **patch))
+        assert len(edited["frames"][1]["history"]) == 3
 
 
 def test_timeline_keeps_sources_and_disables_conflicting_replacements(clip):

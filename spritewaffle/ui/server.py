@@ -639,6 +639,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError) as e:
             bad(e)
 
+    @app.get("/api/jobs/{char}/{jid}/timeline/pixels")
+    def get_timeline_pixels(char: str, jid: str, facing: str, action: str, frame: str, frame_set: str = "12f"):
+        try:
+            j = job_or_404(char, jid)
+            directory = timeline.directory(j.root, facing, action, frame_set)
+            return timeline.describe_pixels(j.root, directory, frame)
+        except (ValueError, OSError, RuntimeError) as e:
+            bad(e)
+
     @app.post("/api/jobs/{char}/{jid}/timeline")
     def edit_timeline(char: str, jid: str, facing: str, action: str, frame_set: str = "12f", body: dict = Body(...)):
         j = job_or_404(char, jid)
@@ -655,6 +664,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 value = body.get("version")
             elif operation == "move":
                 value = body.get("position")
+            elif operation == "paint":
+                value = body
             selected = timeline.update(j.root, directory, body.get("frame"), operation, value)
             return timeline_view(j, facing, action, frame_set) | {"selected_frame": selected}
         except (ValueError, TypeError, OSError, RuntimeError) as e:

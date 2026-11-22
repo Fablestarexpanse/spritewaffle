@@ -28,6 +28,13 @@ an earlier version verifies the file hash and cell size, then records its use ag
 current source. Only the active artwork and saved duration affect QA, manifests, and
 exports. Onion skins use the effective frame URLs in the browser preview.
 
+The pixel editor reads exact RGBA bytes and keeps draft strokes in browser memory. The
+shared timeline operation accepts sparse RGBA changes against a fingerprint of both the
+processed source and effective image. The timeline's existing write lock covers validation
+and persistence. Saving writes one replacement version. Invalid and stale patches leave the
+active version intact. QA, export receipts, and the manifest use the resulting replacement
+through the existing timeline path.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA

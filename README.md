@@ -86,7 +86,7 @@ or play it with its saved timing. **Save duration** overrides one frame in milli
 same cell size. **Restore source** brings back the processed image and keeps the saved timing.
 A replacement becomes inactive if its processed source changes.
 
-Open **Replacement history** to preview and reuse an earlier upload. **Restore source**
+Open **Replacement history** to preview and reuse an earlier upload or pixel edit. **Restore source**
 keeps the saved versions. An earlier version can be explicitly applied to a changed source
 if the PNG still fits the cell. Existing active replacements appear as the first version.
 Older PNG files whose frame assignments were cleared remain under
@@ -102,10 +102,17 @@ then be edited independently. **Undo order** and **Redo order** apply to duplica
 moves. Timing and artwork edits stay with their frame IDs. A saved effect attachment
 follows its original source frame through the sequence.
 
+Choose **Edit pixels** on the selected frame or copy. Pencil, Eraser, and Pick color work
+on the effective image. Choose an RGBA color or use a swatch from the job palette. Zoom
+in to use the pixel grid. With the canvas focused, move with the arrow keys and apply the
+tool with Enter or Space. **Undo stroke** and **Redo stroke** work inside the open draft.
+**Save pixel edit** stores a replacement version, preserving the processed PNG. If the
+underlying frame changes while you edit, reopen the editor to start from the current image.
+
 Run **QA** after replacing or restoring artwork, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
 the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
-existing aligned copies for untouched frames. A replacement uses the uploaded pixel position
+existing aligned copies for untouched frames. A replacement uses the saved pixel position
 and its old depth and normal maps are omitted. GIF preview timing uses 10 ms ticks.
 
 Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
@@ -117,6 +124,15 @@ Copies have IDs such as `copy-1`. Move positions count from zero. Use `--undo-or
 `GET` or `POST /api/jobs/{character}/{job}/timeline`. Use operation `activate` with a
 one-based `version` to reuse history. The order operations are `duplicate`, `move`
 with a zero-based `position`, `undo`, and `redo`.
+
+For pixel edits, use `--frame 001.png --pixels` to get the current `fingerprint`, cell dimensions,
+job palette, and base64-encoded row-major `rgba` bytes. Use `--paint patch.json` on the same frame
+with a JSON object containing `fingerprint` and `pixels`. Each `pixels` entry contains six integers
+`[x, y, r, g, b, a]` for one changed pixel. Coordinates start at zero in the top-left corner, and
+channels range from 0 to 255. HTTP reads the snapshot from `GET /api/jobs/{character}/{job}/timeline/pixels`
+with the same query parameters and a `frame` ID. POST the patch to the timeline with `operation: "paint"`
+and `frame`. MCP exposes `timeline_pixels` with optional `include_pixels` and `edit_timeline_frame`
+with the same `paint` operation.
 
 ## Workflows
 

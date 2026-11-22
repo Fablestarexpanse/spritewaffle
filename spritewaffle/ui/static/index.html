@@ -7,6 +7,7 @@
 <title>SpriteWaffle</title>
 <script src="/static/appearance.js"></script>
 <script src="/static/timeline.js" defer></script>
+<script src="/static/pixel_editor.js" defer></script>
 <style>
   :root {
     color-scheme: dark;
@@ -175,6 +176,25 @@
   #tlStrip button[aria-pressed="true"] { border-color: var(--link); color: var(--link); }
   #tlStrip img { width: 100%; height: 3.5rem; object-fit: contain; margin-bottom: .25rem; }
   #tlRange { flex: 1; min-width: 5rem; }
+  #pixelEditor { width: min(43rem, 94vw); }
+  #pxControls { border: 0; padding: 0; margin: 0; min-width: 0; }
+  #pxTools [aria-pressed="true"] { border-color: var(--link); color: var(--link); }
+  #pxColor { width: 3rem; padding: .2rem; }
+  #pxAlpha { width: 5rem; }
+  #pxPalette { max-height: 5rem; overflow: auto; padding: .25rem; }
+  #pxPalette button { width: 1.6rem; height: 1.6rem; padding: 0; }
+  #pxViewport { overflow: auto; max-height: 42vh; border: 1px solid var(--line);
+    border-radius: var(--radius); margin-block-start: .6rem; padding: .4rem; background: var(--panel2); }
+  #pxStage { display: block; position: relative; width: max-content; margin-inline: auto;
+    background: var(--preview-color) var(--preview-pattern) 0 0 / 16px 16px; }
+  #pxCanvas { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+  #pxGrid, #pxCursor { position: absolute; pointer-events: none; }
+  #pxGrid { inset: 0; opacity: .52; background-size: var(--px-step) var(--px-step);
+    background-image: linear-gradient(to right, var(--ink-contrast, #808080) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--ink-contrast, #808080) 1px, transparent 1px); }
+  #pxCursor { width: var(--px-step); height: var(--px-step); outline: 1px solid white;
+    box-shadow: inset 0 0 0 1px black; }
+  #pxStage:not(:focus-within) #pxCursor { display: none; }
   @media (max-width: 620px) { .tl-workspace { grid-template-columns: minmax(0, 1fr); } }
   .drift-ok { color: var(--ok); } .drift-warn { color: var(--warn); } .drift-bad { color: var(--bad); }
   table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: .93rem; }
@@ -281,6 +301,7 @@
 <dialog id="dlg"></dialog>
 <dialog id="viewer" aria-label="Image viewer"></dialog>
 <dialog id="timelineDialog" aria-labelledby="tlTitle"></dialog>
+<dialog id="pixelEditor" aria-labelledby="pxTitle"></dialog>
 <dialog id="appearanceSettings" aria-labelledby="settingsTitle">
   <h2 id="settingsTitle">Appearance</h2>
   <form id="appearanceFields" method="dialog">

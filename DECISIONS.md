@@ -1,6 +1,9 @@
-NEXT: Frame duplication, reordering, and order undo/redo verified. Next build a focused pixel editor with reversible saves. The official media kit is pending.
+NEXT: Focused pixel editor verified. Next add bounded fill and rectangular selection to its draft history, then frame range and loop controls. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Baseline at `d08597f` passed 247 tests in 61.78 s. The editor will load exact RGBA and send only changed pixels with a fingerprint of the source and effective frame. Saving will reuse replacement history and its existing QA and export checks.
+- 2026-11-21 Chromium exercised the new editor at 1440, 800, and 390 px, including 150% text size at 390 px. It verified pointer and keyboard edits, picking color and alpha, stroke undo and redo, draft discard, and a rejected save after the underlying frame changed. A disposable copy of `hare/courier S/walk` exported frame `002.png` at 384 × 384 px with one changed pixel at `(179, 292)`, from `[163, 109, 78, 255]` to `[164, 109, 78, 249]`. Every other pixel matched. Restoring the source and exporting again reproduced all 46 baseline files byte for byte. The final suite passed 250 tests in 63.60 s with the existing Starlette deprecation warning.
 
 - 2026-11-21 Structural timeline edits keep the original filename as its frame ID and assign a new ID to every copy. A copy starts with the selected frame's timing and art edits. Undo and redo change the sequence and retain edits tied to each ID.
 - 2026-11-21 Attachment events follow the original slot. New attachments record the source filename and older attachments resolve their original index from the numbered source order. QA records the effective sequence alongside replacement hashes and links saved findings to their frame IDs.

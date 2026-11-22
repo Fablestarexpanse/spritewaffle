@@ -45,6 +45,7 @@ function showTimeline(action) {
         </div>
         <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
+          <div class="row"><button id="tlPixels" type="button">Edit pixels</button></div>
           <form id="tlTiming">
             <label>Duration (ms) <input id="tlDuration" type="number" min="1" step="1" required></label>
             <div class="row">
@@ -258,6 +259,19 @@ function showTimeline(action) {
   };
   find("#tlTiming").onsubmit = event => { event.preventDefault(); save("duration", duration.valueAsNumber); };
   find("#tlReset").onclick = () => save("duration", null);
+  find("#tlPixels").onclick = () => {
+    stop();
+    const frame = clip.frames[selected];
+    const label = find("#tlFrameLabel").textContent;
+    const saveUrl = endpoint + query();
+    const readUrl = endpoint + "/pixels" + query() + "&frame=" + encodeURIComponent(frame.id);
+    showPixelEditor(readUrl, saveUrl, frame.id, label, data => {
+      if (!open()) return;
+      const index = data.frames.findIndex(item => item.id === frame.id);
+      display(data, index >= 0 ? index : selected);
+      message("Pixel edit saved to replacement history.");
+    });
+  };
   upload.onchange = () => { replace.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };
   find("#tlRestore").onclick = () => save("restore");

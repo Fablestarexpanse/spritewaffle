@@ -12,6 +12,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP, Image
 from PIL import Image as PILImage
+from pydantic import StrictInt
 
 from . import paths
 from .core import generate as gen
@@ -177,11 +178,21 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return timeline.describe(job.root, directory, resolve(job.read_meta()["inputs"].get("profile")).fps(action))
 
     @mcp.tool()
+    def timeline_pixels(character: str, job_id: str, facing: str, action: str, frame: str,
+                        frame_set: str = "12f", include_pixels: bool = False) -> dict:
+        """Read the frame fingerprint, cell size, palette, and optionally base64 row-major RGBA bytes."""
+        from .core import timeline
+        job = job_for(character, job_id)
+        directory = timeline.directory(job.root, facing, action, frame_set)
+        return timeline.describe_pixels(job.root, directory, frame, include_pixels=include_pixels)
+
+    @mcp.tool()
     def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, operation: str,
                             frame: str | None = None, frame_set: str = "12f",
                             duration_ms: int | None = None, png_path: str | None = None,
-                            version: int | None = None, position: int | None = None) -> dict:
-        """Edit a frame's duration, artwork, or order. Move takes a zero-based position. Undo and redo change order only."""
+                            version: int | None = None, position: int | None = None,
+                            fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None) -> dict:
+        """Paint takes a current fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position. Undo and redo change order only."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -195,6 +206,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = version
         elif operation == "move":
             value = position
+        elif operation == "paint":
+            value = {"fingerprint": fingerprint, "pixels": pixels}
         selected = timeline.update(job.root, directory, frame, operation, value)
         return animation_timeline(character, job_id, facing, action, frame_set) | {"selected_frame": selected}
 

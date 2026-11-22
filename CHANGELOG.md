@@ -21,6 +21,9 @@
   Onion skinning shows the previous and next frames while paused and follows the clip's loop mode.
 - Added frame duplication, reordering, and order undo/redo. Copies keep independent timing and
   artwork edits, and attachment events follow their original frames when the order changes.
+- Added a frame pixel editor with pencil, eraser, color picker, job palette swatches, zoom,
+  pixel grid, keyboard editing, and draft undo and redo. Saves preserve unedited RGBA pixels
+  and appear in replacement history. A draft whose frame has changed is refused.
 
 ## 2026-11-21: directional sprite readiness
 

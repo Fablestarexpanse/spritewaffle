@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import re
+from base64 import b64encode
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ from . import fsutil
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_DURATION_MS = 65_535                  # Aseprite stores frame durations as unsigned 16-bit integers.
 ORDER_OPERATIONS = ("duplicate", "move", "undo", "redo")
+STALE_PIXELS = "The frame changed after the editor opened. Close and reopen the editor to load the current frame."
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,24 @@ def _order(sources: list[Path], state: dict) -> list[str]:
     return [*saved, *(p.name for p in sources if p.name not in known)]
 
 
+def _active_path(root: Path, frame_set: Path, replacement: dict | None, source_digest: str) -> Path | None:
+    if replacement and replacement["source"] == source_digest:
+        path = replacement_path(root, frame_set, replacement["digest"])
+        if path and path.is_file() and _digest(path) == replacement["digest"]:
+            return path
+    return None
+
+
+def _source_for(sources: list[Path], state: dict, name: str | None) -> Path:
+    if name not in _order(sources, state):
+        raise FileNotFoundError(f"Frame {name or '(unspecified)'} is unavailable in this timeline.")
+    source_name = (state.get("copies") or {}).get(name, name)
+    for source in sources:
+        if source.name == source_name:
+            return source
+    raise FileNotFoundError(f"Frame {name} is unavailable in this timeline.")
+
+
 def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> list[Frame]:
     by_name = {p.name: p for p in sources}
     copies = state.get("copies") or {}
@@ -93,12 +113,8 @@ def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> li
             continue
         edit = state["frames"].get(frame_id, {})
         replacement = edit.get("replacement")
-        image = source
-        if replacement:
-            path = replacement_path(root, frame_set, replacement["digest"])
-            if path and path.is_file() and _digest(source) == replacement["source"] and _digest(path) == replacement["digest"]:
-                image = path
-        result.append(Frame(frame_id, source, image, edit.get("duration_ms"), bool(replacement) and image == source))
+        active = _active_path(root, frame_set, replacement, _digest(source)) if replacement else None
+        result.append(Frame(frame_id, source, active or source, edit.get("duration_ms"), bool(replacement) and active is None))
     return result
 
 
@@ -161,6 +177,15 @@ def _png(data: bytes, source: Path) -> bytes:
     return buffer.getvalue()
 
 
+def _store_png(root: Path, frame_set: Path, png: bytes) -> str:
+    digest = hashlib.sha256(png).hexdigest()
+    path = replacement_path(root, frame_set, digest)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.is_file() or _digest(path) != digest:
+        fsutil.write_bytes(path, png)
+    return digest
+
+
 def _select_replacement(root: Path, frame_set: Path, source: Path, history: list[dict], operation: str, value) -> dict:
     source_digest = _digest(source)
     if operation == "activate":
@@ -173,14 +198,74 @@ def _select_replacement(root: Path, frame_set: Path, source: Path, history: list
         with Image.open(path, formats=["PNG"]) as image:
             _check_png(image, source)
     else:
-        png = _png(value, source)
-        digest = hashlib.sha256(png).hexdigest()
-        path = replacement_path(root, frame_set, digest)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if not path.is_file() or _digest(path) != digest:
-            fsutil.write_bytes(path, png)
+        digest = _store_png(root, frame_set, _png(value, source))
     if _digest(source) != source_digest:
         raise RuntimeError("The processed frame changed during the save. Open it and try again.")
+    return {"digest": digest, "source": source_digest}
+
+
+def _pixel_snapshot(root: Path, frame_set: Path, source: Path, edit: dict) -> tuple[Image.Image, str, str]:
+    source_bytes = source.read_bytes()
+    source_digest = hashlib.sha256(source_bytes).hexdigest()
+    replacement = edit.get("replacement")
+    active = _active_path(root, frame_set, replacement, source_digest)
+    data = active.read_bytes() if active else source_bytes
+    image_digest = hashlib.sha256(data).hexdigest() if active else source_digest
+    if active and image_digest != replacement["digest"]:
+        raise RuntimeError(STALE_PIXELS)
+    fingerprint = hashlib.sha256(bytes.fromhex(source_digest + image_digest)).hexdigest()
+    with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
+        return image.convert("RGBA"), source_digest, fingerprint
+
+
+def describe_pixels(root: Path, frame_set: Path, frame: str, *, include_pixels: bool = True) -> dict:
+    """Read a draft source and the fingerprint required to save changes to it."""
+    from . import job_palette
+    from .job import Job
+
+    state = _state(_edit_directory(root, frame_set) / "timeline.json")
+    source = _source_for(colour_frames(frame_set / "frames"), state, frame)
+    image, _, fingerprint = _pixel_snapshot(root, frame_set, source, state["frames"].get(frame, {}))
+    palette = (job_palette.get(Job(root)) or {}).get("colours", [])
+    view = {"width": image.width, "height": image.height, "fingerprint": fingerprint, "palette": palette}
+    if include_pixels:
+        view["rgba"] = b64encode(image.tobytes()).decode("ascii")
+    return view
+
+
+def _paint(root: Path, frame_set: Path, source: Path, edit: dict, patch) -> dict | None:
+    if not isinstance(patch, dict) or not isinstance(patch.get("fingerprint"), str):
+        raise ValueError("Load the frame fingerprint before saving pixels.")
+    image, source_digest, fingerprint = _pixel_snapshot(root, frame_set, source, edit)
+    if patch["fingerprint"] != fingerprint:
+        raise RuntimeError(STALE_PIXELS)
+    changes = patch.get("pixels")
+    if not isinstance(changes, list) or not 0 < len(changes) <= image.width * image.height:
+        raise ValueError("Provide one change per edited pixel.")
+    seen = set()
+    changed = False
+    for row in changes:
+        if not isinstance(row, list) or len(row) != 6 or any(type(n) is not int for n in row):
+            raise ValueError("Each pixel must be six integers [x, y, r, g, b, a].")
+        x, y, *channels = row
+        if not (0 <= x < image.width and 0 <= y < image.height and all(0 <= n <= 255 for n in channels)):
+            raise ValueError("Each pixel must be inside the frame with RGBA channels from 0 to 255.")
+        position = (x, y)
+        if position in seen:
+            raise ValueError("Each pixel must appear only once in a save.")
+        seen.add(position)
+        if image.getpixel(position) != tuple(channels):
+            image.putpixel(position, tuple(channels))
+            changed = True
+    if not changed:
+        return None
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    if _digest(source) != source_digest:
+        raise RuntimeError(STALE_PIXELS)
+    digest = _store_png(root, frame_set, buffer.getvalue())
+    if _digest(source) != source_digest:
+        raise RuntimeError(STALE_PIXELS)
     return {"digest": digest, "source": source_digest}
 
 
@@ -224,12 +309,8 @@ def _edit_order(state: dict, sources: list[Path], name: str | None, operation: s
     return name
 
 
-def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], name: str | None, operation: str, value) -> None:
-    names = {p.name: p for p in sources}
-    copies = state.get("copies") or {}
-    source = names.get(copies.get(name, name))
-    if source is None or name not in _order(sources, state):
-        raise FileNotFoundError(f"Frame {name or '(unspecified)'} is unavailable in this timeline.")
+def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], name: str | None, operation: str, value) -> bool:
+    source = _source_for(sources, state, name)
     edits = state["frames"]
     edit = edits.get(name, {})
     history = _history(edit)
@@ -243,7 +324,10 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
     elif operation == "restore":
         edit.pop("replacement", None)
     else:
-        active = _select_replacement(root, frame_set, source, history, operation, value)
+        active = (_paint(root, frame_set, source, edit, value) if operation == "paint" else
+                  _select_replacement(root, frame_set, source, history, operation, value))
+        if active is None:
+            return False
         edit["replacement"] = active
         if active not in history:
             history.append(active)
@@ -253,13 +337,14 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
         edits[name] = edit
     else:
         edits.pop(name, None)
+    return True
 
 
 def update(root: Path, frame_set: Path, name: str | None, operation: str, value=None) -> str | None:
     from . import manifest
     from .job import Job
 
-    if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate"):
+    if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate", "paint"):
         raise ValueError("Unknown timeline operation.")
     if operation not in ("undo", "redo") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|copy-[1-9][0-9]*)", name) is None
@@ -274,8 +359,8 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
         selected = name
         if operation in ORDER_OPERATIONS:
             selected = _edit_order(state, sources, name, operation, value)
-        else:
-            _edit_frame(root, frame_set, state, sources, name, operation, value)
+        elif not _edit_frame(root, frame_set, state, sources, name, operation, value):
+            return selected
         fsutil.write_text(record, json.dumps(state, indent=2))
         manifest.refresh(Job(root))
         return selected
