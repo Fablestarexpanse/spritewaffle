@@ -15,6 +15,11 @@ upstream freshness. Optical flow fingerprints the facing and the approved librar
 The latest completed report lists the active frame sets. Earlier folders and timeline edits
 stay on disk. A palette-only rebuild starts at pixel processing and keeps the saved selection.
 
+Foot alignment saves its applied frame offsets and clip pivot next to the aligned colour and
+auxiliary images. The character exporter reads the maps next to each effective colour frame and
+uses the applied offset for its attachment event. The atlas shares a trimmed tile only when the
+colour and all sampled auxiliary pixels match.
+
 Action exports reuse the receipt format and bundle lock. Each facing and action has a
 receipt for PNG and one for Aseprite beside its export directory. PNG includes the
 strip, previews, JSON, and individual exported frames. Aseprite also fingerprints

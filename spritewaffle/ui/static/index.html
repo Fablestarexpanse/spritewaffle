@@ -1705,7 +1705,7 @@ function paneExport(j) {
       <label><input type="checkbox" id="eFailed" ${form.includeFailed ? "checked" : ""}> include QA failures</label>
       <label title="Largest atlas PNG. Unity's default import limit is 2048, its maximum 8192; many phones 4096">Page limit
         <select id="eMax">${[2048, 4096, 8192].map(v => `<option ${v === form.maxSize ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label title="Leave W/NW/SW out of the atlas when they are exact mirrors of E/NE/SE; your engine flips them (halves the atlas)">
+      <label title="Leave exact colour-only mirrors of E/NE/SE out of the atlas. Facings with depth or normal maps are packed separately.">
         <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
       <button class="primary" id="eGo">Export character</button>
       <button id="eCheck">Check freshness</button>

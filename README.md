@@ -117,7 +117,8 @@ This check is also available through `spritewaffle export-character-status --job
 HTTP `GET /api/jobs/{character}/{job}/export_character`, and MCP `character_export_status`.
 If you exported with a CLI profile override, use the same `--profile` when checking in the CLI.
 If aligned frames are stale, use **Re-align feet** and export again. The check tracks the original
-processed frames, the camera's canvas border, and the aligned copies. The CLI command is
+processed frames and maps, the camera's canvas border, and the aligned copies. Rebuilding also
+updates the character pivot and moves effect spawn points with the aligned frame. The CLI command is
 `spritewaffle align-feet --job hero/job`. MCP exposes `align_feet` for the same rebuild.
 
 Use **Check freshness** on an item's **Export** tab or on an **Effect** tab to check that
@@ -318,7 +319,8 @@ set to `reposition` with the fingerprint and the same inputs. MCP exposes
    Aseprite Importer makes one clip each, plus an Animator Controller) and atlas pages for other
    engines: trimmed frames packed into PNGs no bigger than the page limit (default 4096), each with
    a TexturePacker JSON (Phaser, PixiJS, Godot importers) plus one SpriteWaffle JSON with fps, loop
-   and pivot per animation. *Engine flips W/NW/SW* leaves exact mirrors out of the atlas.
+   and pivot per animation. *Engine flips W/NW/SW* leaves exact colour-only mirrors out of the atlas.
+   Facings with depth or normal maps have their own atlas entries.
    Every file is downloadable from the same tab.
 
 ### Palette and pivot (pixel art)

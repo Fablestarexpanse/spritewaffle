@@ -37,12 +37,13 @@ def _key(a: np.ndarray) -> str:
 
 
 def flips(anims: list[dict]) -> dict[str, str]:
-    """{W-side animation name: its E-side partner} for animations that are exact mirrors."""
+    """{W-side animation name: its E-side partner} for exact mirrors without auxiliary maps."""
     by = {(a["facing"], a["action"]): a for a in anims}
     out = {}
     for a in anims:
         src = by.get((MIRROR_OF.get(a["facing"]), a["action"]))
-        if src is not None and len(src["cells"]) == len(a["cells"]) and np.array_equal(src["cells"][:, :, ::-1], a["cells"]):
+        if (src is not None and not (src.get("maps") or a.get("maps")) and len(src["cells"]) == len(a["cells"])
+                and np.array_equal(src["cells"][:, :, ::-1], a["cells"])):
             out[a["name"]] = src["name"]
     return out
 
@@ -59,9 +60,14 @@ def pack(anims: list[dict], max_size: int = 4096, mirror: str = "pack") -> tuple
         if a["name"] in flipped:
             continue
         keys = []
-        for cell in a["cells"]:
+        maps = sorted((a.get("maps") or {}).items())
+        for index, cell in enumerate(a["cells"]):
             img, ox, oy = _trim(cell)
             k = _key(img) + f":{ox},{oy}"
+            for kind, cells in maps:
+                auxiliary = cells[index, oy:oy + img.shape[0], ox:ox + img.shape[1]]
+                if auxiliary.any():
+                    k += f":{kind}:{_key(auxiliary)}"
             uniq.setdefault(k, {"img": img, "ox": ox, "oy": oy})
             keys.append(k)
         refs[a["name"]] = keys

@@ -464,10 +464,10 @@ def test_named_tags_share_state_between_http_cli_and_mcp(clip, tmp_path, monkeyp
 def test_inserted_frames_export_with_exact_rgba_and_can_be_undone(clip):
     job, directory = clip
     profile = resolve(None)
+    (directory / "frames/003_depth.png").write_bytes(_image())
     stages.align(job, profile)
     processed = {p.name: p.read_bytes() for p in colour_frames(directory / "frames")}
     aligned = (directory / "frames_aligned/003.png").read_bytes()
-    (directory / "frames/003_depth.png").write_bytes(_image())
     stages.export(job, profile)
     output = job.root / "06_export/S/walk"
     before = {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()}
@@ -884,11 +884,11 @@ def test_timeline_edits_feed_qa_and_both_exporters(clip):
 
 def test_aligned_character_keeps_other_frames_and_omits_replaced_map(clip):
     job, directory = clip
-    stages.align(job, resolve(None))
     source = directory / "frames" / "001.png"
     with Image.open(source) as frame:
         frame.save(source.with_name("001_depth.png"))
         frame.save(source.with_name("000_depth.png"))
+    stages.align(job, resolve(None))
     orig_aligned = (directory / "frames_aligned" / "000.png").read_bytes()
     timeline.update(job.root, directory, "001.png", "replace", _image())
     anim = character.collect(job.root, require_pass=False)[0][0]

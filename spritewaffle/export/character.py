@@ -21,9 +21,6 @@ from . import aseprite, receipt
 from .sheet import feet_pivot
 
 
-MAPS = ("depth", "normal")       # reserved per-frame maps: <frame>_depth.png, <frame>_normal.png
-
-
 def _receipt(out_dir: Path) -> Path:
     return out_dir.with_name(f".{out_dir.name}.receipt")
 
@@ -36,6 +33,11 @@ def _images(sd: Path, aligned: bool, clip: timeline.Clip) -> list[Path]:
     sources = clip.sources
     aligned_by_source = dict(zip(sources, alignment.frames(sd, sources))) if aligned else {}
     return [item.image if item.replaced else aligned_by_source.get(item.source, item.source) for item in clip.items]
+
+
+def _map_files(items: list[timeline.Frame], images: list[Path], kind: str) -> list[Path | None]:
+    return [None if item.replaced or item.inserted else alignment.map_path(image, kind)
+            for item, image in zip(items, images)]
 
 
 def _sets(root: Path, frame_set: str):
@@ -76,19 +78,24 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
         if not items:
             skipped.append(f"{action}_{facing}: no colour frames")
             continue
-        cells = timeline.pixels(_images(sd, aligned, clip))
+        images = _images(sd, aligned, clip)
+        cells = timeline.pixels(images)
+        aligned_dir = sd / "frames_aligned"
+        transform = alignment.metadata(sd) if any(image.parent == aligned_dir for image in images) else {}
+        offsets = [transform.get("offsets", {}).get(image.name) if image.parent == aligned_dir else None for image in images]
         maps = {}
-        for kind in MAPS:
-            mp = [None if f.replaced or f.inserted else sd / "frames" / f"{f.source.stem}_{kind}.png" for f in items]
+        for kind in alignment.MAP_KINDS:
+            mp = _map_files(items, images, kind)
             if any(m and m.exists() for m in mp):
                 maps[kind] = np.stack([np.array(Image.open(m).convert("RGBA")) if m and m.exists() else np.zeros_like(cells[0])
                                        for m in mp])
         pl = sd / "placements.json"
         places = json.loads(pl.read_text()) if pl.exists() else []
-        pivot = places[0].get("pivot") if places else None
+        pivot = transform.get("pivot") or (places[0].get("pivot") if places else None)
         anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells,
                       "loop": playback.loop, "playback": playback,
-                      "pivot": pivot or feet_pivot(cells), "maps": maps, "timeline": items, "clip": clip})
+                      "pivot": pivot or feet_pivot(cells), "maps": maps, "timeline": items, "clip": clip,
+                      "alignment_offsets": offsets})
     return anims, skipped
 
 
@@ -138,9 +145,13 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool, pro
             if check["status"] in ("stale", "incomplete"):
                 settings.setdefault("alignment", {})[f"{facing}/{action}/{frame_set}"] = check
         settings["fps"][action] = fps_for(action)
-        files.extend(_images(directory, use_aligned, clip))
-        files.extend(directory / "frames" / f"{f.source.stem}_{kind}.png" for f in items
-                     if not (f.replaced or f.inserted) for kind in MAPS)
+        images = _images(directory, use_aligned, clip)
+        files.extend(images)
+        aligned_dir = directory / "frames_aligned"
+        if any(image.parent == aligned_dir for image in images):
+            files.append(aligned_dir / alignment.METADATA_NAME)
+        for kind in alignment.MAP_KINDS:
+            files.extend(path for path in _map_files(items, images, kind) if path is not None)
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[f"{facing}/{action}"] = edits
         if markers := timeline.pose_markers(items):
@@ -267,6 +278,11 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
             att = attach.for_timeline(att, anim["clip"])
             if att is None:
                 continue
+            frame = att["frame"]
+            offsets = anim["alignment_offsets"]
+            if 0 <= frame < len(offsets) and offsets[frame] is not None:
+                point = [value + delta for value, delta in zip(att["point"], offsets[frame])]
+                att = {**att, "point": point}
             try:
                 _, fxmeta, fxdir = attach.effect_files(Path(job_root).parent.parent / att["effect_job"])
             except FileNotFoundError:
@@ -305,7 +321,7 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     tp_files = atlasmod.write_texturepacker(out_dir, base, pages, layout, (w, h),
                                             {m["name"]: m["pivot"] for m in meta_anims})
     map_pages = {}                                               # depth/normal: same rectangles as the colour pages
-    for kind in MAPS:
+    for kind in alignment.MAP_KINDS:
         for old in out_dir.glob(f"{base}_{kind}_*.png"):
             old.unlink()
         if any(kind in a.get("maps", {}) for a in anims):

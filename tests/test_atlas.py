@@ -54,6 +54,14 @@ def test_flip_only_for_exact_mirrors():
     assert packed["walk_W"]["flip_x_of"] is None
 
 
+def test_flip_keeps_distinct_auxiliary_maps():
+    east = _anim("idle_E", "E", "idle", n=1)
+    west = dict(east, name="idle_W", facing="W", cells=np.ascontiguousarray(east["cells"][:, :, ::-1]))
+    west["maps"] = {"normal": west["cells"].copy()}
+    _, layout = atlas.pack([east, west], mirror="flip")
+    assert layout["idle_W"]["flip_x_of"] is None
+
+
 def test_frame_larger_than_page_is_refused():
     with pytest.raises(ValueError, match="page limit"):
         atlas.pack([_anim("x_S", "S", "x", size=64)], max_size=32)

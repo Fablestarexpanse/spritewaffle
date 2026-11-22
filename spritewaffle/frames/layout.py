@@ -100,16 +100,38 @@ def align_feet(cells: list[np.ndarray], border: int = 2) -> tuple[np.ndarray, li
     """Move every frame so its foot point sits on the set's median foot point (whole pixels, no
     resampling), keeping a `border` px transparent margin. A frame that can't move all the way
     without crossing the border moves as far as it can and is reported."""
+    aligned, points, warnings, _ = align_feet_with_offsets(cells, border)
+    return aligned, points, warnings
+
+
+def translate_rgba(cell: np.ndarray, dx: int, dy: int) -> np.ndarray:
+    """Move visible pixels by a whole-pixel offset inside the same RGBA canvas."""
+    height, width = cell.shape[:2]
+    out = np.zeros_like(cell)
+    ys, xs = np.nonzero(cell[..., 3] > 0)
+    ny, nx = ys + dy, xs + dx
+    keep = (ny >= 0) & (ny < height) & (nx >= 0) & (nx < width)
+    out[ny[keep], nx[keep]] = cell[ys[keep], xs[keep]]
+    return out
+
+
+def align_feet_with_offsets(
+    cells: list[np.ndarray], border: int = 2,
+) -> tuple[np.ndarray, list[list[float] | None], list[str], list[tuple[int, int]]]:
+    """Also return the applied (dx, dy) for each source frame, including border clamps."""
     pts = [foot_point(c) for c in cells]
     have = [p for p in pts if p]
     if not have:
-        return np.stack(cells), pts, []
+        return np.stack(cells), pts, [], [(0, 0)] * len(cells)
     tx, ty = float(np.median([p[0] for p in have])), float(np.median([p[1] for p in have]))
     ch, cw = cells[0].shape[:2]
-    out, warns, new_pts = [], [], []
+    out, warns, new_pts, offsets = [], [], [], []
     for k, (c, p) in enumerate(zip(cells, pts)):
         if not p:
-            out.append(c); new_pts.append(None); continue
+            out.append(c)
+            new_pts.append(None)
+            offsets.append((0, 0))
+            continue
         bb = _bbox(c[..., 3] > 0)
         dx, dy = round(tx - p[0]), round(ty - p[1])
         lo_x, hi_x = border - bb[0], cw - border - (bb[0] + bb[2])
@@ -117,14 +139,10 @@ def align_feet(cells: list[np.ndarray], border: int = 2) -> tuple[np.ndarray, li
         cx, cy = min(max(dx, lo_x), hi_x) if lo_x <= hi_x else dx, min(max(dy, lo_y), hi_y) if lo_y <= hi_y else dy
         if (cx, cy) != (dx, dy):
             warns.append(f"frame {k}: kept {border}px border, foot point off by {dx - cx},{dy - cy}px")
-        m = np.zeros_like(c)
-        ys, xs = np.nonzero(c[..., 3] > 0)
-        ny, nx = ys + cy, xs + cx
-        ok = (ny >= 0) & (ny < ch) & (nx >= 0) & (nx < cw)
-        m[ny[ok], nx[ok]] = c[ys[ok], xs[ok]]
-        out.append(m)
+        out.append(translate_rgba(c, cx, cy))
         new_pts.append([p[0] + cx, p[1] + cy])
-    return np.stack(out), new_pts, warns
+        offsets.append((cx, cy))
+    return np.stack(out), new_pts, warns, offsets
 
 
 def foot_anchor(sprites: list[np.ndarray], cell: tuple[int, int], foot_y: int | None = None,

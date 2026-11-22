@@ -51,8 +51,7 @@ def _rel(job: Job, p: Path | None) -> str | None:
 
 def _maps(job: Job, color: Path) -> dict:
     """Reserved slots next to a colour frame: <frame>_depth.png, <frame>_normal.png (null if absent)."""
-    return {"depth": _rel(job, color.with_name(color.stem + "_depth.png")),
-            "normal": _rel(job, color.with_name(color.stem + "_normal.png"))}
+    return {kind: _rel(job, alignment.map_path(color, kind)) for kind in alignment.MAP_KINDS}
 
 
 def _footpoints(folder: Path, frames: list[Path]) -> list:
@@ -105,6 +104,7 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         return [], clip
     aligned = alignment.frames(sd, frames) if align else []
     use = aligned or frames
+    offsets = alignment.metadata(sd).get("offsets", {}) if aligned else {}
     reordered = bool(clip.order)
     source_indices = {frame: index for index, frame in enumerate(frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
@@ -127,7 +127,8 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         if edit.replaced or edit.inserted:
             foot = layout.foot_point(timeline.pixels([edit.image])[0])
         elif k is not None:
-            maps = _maps(job, frames[k])
+            maps = _maps(job, f)
+        offset = offsets.get(f.name) if not (edit.replaced or edit.inserted) else None
         mirrored = bool(src_facing and not (edit.replaced or edit.inserted))
         downscale = None
         if k is not None:
@@ -145,6 +146,7 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
                     "foot_point": foot,
                     "color": _rel(job, edit.image if edit.replaced else f),
                     "color_unaligned": _rel(job, frames[k]) if k is not None and use is aligned and not edit.replaced else None,
+                    **({"alignment_offset": offset} if offset is not None else {}),
                     **maps,
                     **({"duration_ms": edit.duration_ms} if edit.duration_ms is not None else {}),
                     **({"color_source": _rel(job, f)} if edit.replaced else {}),

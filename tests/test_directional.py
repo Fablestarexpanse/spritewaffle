@@ -10,11 +10,11 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from spritewaffle.core import camera, generate, manifest, stages
+from spritewaffle.core import attach, camera, generate, manifest, stages
 from spritewaffle.core.job import Job
 from spritewaffle.core.profile import GameProfile
 from spritewaffle.core.queue import Queue
-from spritewaffle.export import character
+from spritewaffle.export import aseprite, character
 from spritewaffle.mcp_server import build
 from spritewaffle.ui.server import create_app
 from synth import draw_sprite, render
@@ -232,6 +232,64 @@ def test_alignment_rejects_border_change_during_write(tmp_path, monkeypatch):
     assert stale["alignment"] == {"E/walk/12f": {"status": "incomplete"}}
     stages.align(job, prof, "E", "walk")
     assert "alignment" not in character.export_status(job.root, bundle, prof.fps, profile=prof)
+
+
+def test_aligned_bundle_moves_maps_events_and_pivot_with_colour(tmp_path):
+    from test_attach import _character, _effect
+
+    job = _character(tmp_path)
+    profile = GameProfile(name="p")
+    directory = job.root / "04_pixel/E/cast"
+    (directory / "pixel_report.json").write_text(json.dumps({"cell": 16, "palette": [],
+        "sets": {"12": {"sources": list(range(6)), "frames": 6}}}), encoding="utf-8")
+    originals = directory / "12f/frames"
+    shifted = np.zeros((16, 16, 4), np.uint8)
+    shifted[5:16, 7:11] = (30, 60, 200, 255)
+    Image.fromarray(shifted).save(originals / "001.png")
+    for index, colour in enumerate(((70, 70, 70), (190, 190, 190))):
+        with Image.open(originals / f"{index:03d}.png") as image:
+            pixels = np.array(image)
+        pixels[pixels[:, :, 3] > 0, :3] = colour
+        Image.fromarray(pixels).save(originals / f"{index:03d}_depth.png")
+        if index == 1:
+            pixels[pixels[:, :, 3] > 0, :3] = (170, 100, 250)
+            Image.fromarray(pixels).save(originals / "001_normal.png")
+    before = {p: p.read_bytes() for p in originals.iterdir()}
+    saved_attachment = attach.set_attachment(job, "E", "cast", _effect(tmp_path), 1, 9, 9)
+
+    stages.align(job, profile, "E", "cast")
+    out = tmp_path / "packed"
+    bundle = character.export(job.root, out, "hero", profile.fps, require_pass=False, profile=profile)
+    meta = json.loads(Path(bundle["json"]).read_text(encoding="utf-8"))
+    anim = meta["animations"][0]
+    assert anim["events"][0]["point"] == [8, 7]
+    assert attach.get(job, "E", "cast") == saved_attachment
+    assert meta["pivot"] == anim["pivot"] == [8, 14]
+    assert aseprite.read(bundle["aseprite"]).slices["pivot"] == [(0, 0, 0, 16, 16, 8, 14)]
+    frame = manifest.build(job)["animations"][0]["frames"][1]
+    assert frame["alignment_offset"] == [-1, -2]
+    assert frame["depth"].endswith("frames_aligned/001_depth.png")
+    assert frame["normal"].endswith("frames_aligned/001_normal.png")
+    texturepacker = json.loads(Path(bundle["engine_json"][0]).read_text(encoding="utf-8"))
+    assert texturepacker["frames"]["cast_E_001"]["pivot"] == {"x": 0.5, "y": 0.875}
+    for kind, colours in (("depth", [(70, 70, 70, 255), (190, 190, 190, 255), (0, 0, 0, 0)]),
+                          ("normal", [(0, 0, 0, 0), (170, 100, 250, 255), (0, 0, 0, 0)])):
+        for packed, colour in zip(anim["frames_atlas"], colours):
+            with Image.open(out / bundle["map_pages"][kind][packed["page"]]) as page:
+                rect = page.crop((packed["x"], packed["y"], packed["x"] + packed["w"], packed["y"] + packed["h"]))
+                assert set(rect.getdata()) == {colour}
+    assert all(path.read_bytes() == content for path, content in before.items())
+
+    (originals / "001_depth.png").unlink()
+    status = character.export_status(job.root, out, profile.fps, profile=profile)
+    assert status["alignment"]["E/cast/12f"]["changed_inputs"] == ["04_pixel/E/cast/12f/frames/001_depth.png"]
+    stages.align(job, profile, "E", "cast")
+    assert not (directory / "12f/frames_aligned/001_depth.png").exists()
+    old_aligned = (directory / "12f/frames_aligned/001.png").read_bytes()
+    Image.new("RGBA", (8, 8)).save(originals / "001_depth.png")
+    with pytest.raises(ValueError, match="001_depth.png must match the dimensions of 001.png"):
+        stages.align(job, profile, "E", "cast")
+    assert (directory / "12f/frames_aligned/001.png").read_bytes() == old_aligned
 
 
 def test_export_unchanged_without_maps_and_packs_maps_when_present(tmp_path):

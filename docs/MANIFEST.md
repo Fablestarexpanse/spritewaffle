@@ -75,6 +75,7 @@ positions. An unresolved range carries `error` and has null positions until it i
 | `foot_point` | [x, y]\|null | where the character touches the ground, in cell px: x = centre of the lowest opaque band, y = bottom edge of the lowest opaque row (a pixel boundary) |
 | `color` | path | the effective frame. This can be a processed frame, its aligned copy, or a saved replacement. |
 | `color_unaligned` | path\|null | the original frame when `color` is the aligned copy |
+| `alignment_offset` | optional `[dx, dy]` | whole-pixel translation from the processed original to the aligned copy, with right and down positive |
 | `color_source` | optional path | the processed or aligned image behind an active timeline replacement |
 | `duration_ms` | optional int | saved timeline duration for this frame |
 | `pose_markers` | optional list | saved identifiers such as `contact`, `passing`, or `loop_transition` |
@@ -138,6 +139,12 @@ median foot point, keeping `canvas_border_px`. It writes `frames_aligned/` next 
 originals stay. It sets `align_feet`, after which the manifest and the character export use the
 aligned frames. A frame that can't move all the way without crossing the border is reported.
 New alignments record the original and aligned files and the canvas border for each frame set.
+Depth and normal images must match the dimensions of their processed colour frame. Alignment
+copies them alongside the shifted colour frame using the same whole-pixel translation.
+Re-align older sets once to record the offsets. A character bundle uses the rounded median
+of the aligned foot points for its clip pivot. Effect spawn points move with their effective
+frame. Saved attachment coordinates and per-action exports retain the original coordinates.
+A timeline replacement or insertion has its own coordinates and carries no generated maps.
 A manifest rebuild uses the processed originals for stale or incomplete alignments and adds an
 `alignment_by_view` object to that animation. Its keys are string view indices and its values are
 `stale` or `incomplete`. A character export checks alignment directly and asks for a rebuild.
