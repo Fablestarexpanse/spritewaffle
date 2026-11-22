@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Character exports detect stale foot alignment after processed frames, aligned copies, or the camera border change. The export check offers a local rebuild before replacing the existing bundle.
 - Mirror and optical-flow export checks now report changes to their source frames or guide. Palette-only rebuilds retain manual frame selections. QA and export use the latest processed frame sets.
 - Added the Windows checkout launcher for an installed `.venv`.
 - Action and character exports detect stale processed frames after changes to a tracked clip, selection, or palette. Re-process frames can decode a replaced saved clip locally, and stale exports stay intact until they can be rebuilt.

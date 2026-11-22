@@ -15,7 +15,7 @@ from PIL import Image
 
 from ..frames import layout
 from ..frames.video import colour_frames
-from . import angles, camera, timeline
+from . import alignment, angles, camera, timeline
 from .job import Job
 from .profile import GameProfile, resolve
 
@@ -103,8 +103,8 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
     clip = timeline.read_clip(job.root, sd, frames, source_loop=source_loop)
     if not clip.items:
         return [], clip
-    aligned = colour_frames(sd / "frames_aligned") if align else []
-    use = aligned if len(aligned) == len(frames) else frames
+    aligned = alignment.frames(sd, frames) if align else []
+    use = aligned or frames
     reordered = bool(clip.order)
     source_indices = {frame: index for index, frame in enumerate(frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
@@ -183,10 +183,15 @@ def build(job: Job) -> dict:
         for n in sorted(rep.get("sets") or {}, key=int):
             a = anims.setdefault((action, f"{n}f"), {"action": action, "frame_set": f"{n}f", "fps": profile.fps(action),
                                                      "loop": bool(loop), "frames": []})
-            frames, clip = _frame_set(job, facing, action, n, rep, vc, elev, profile,
-                                      bool(inputs.get("align_feet")), bool(loop))
-            a["frames"] += frames
             view = str(angles.view_index(angles.yaw_of(facing), vc))
+            align = bool(inputs.get("align_feet"))
+            if align:
+                check = alignment.status(job.root, rp.parent / f"{n}f", cam["canvas_border_px"])
+                if check["status"] in ("stale", "incomplete"):
+                    a.setdefault("alignment_by_view", {})[view] = check["status"]
+                    align = False
+            frames, clip = _frame_set(job, facing, action, n, rep, vc, elev, profile, align, bool(loop))
+            a["frames"] += frames
             if saved := clip.playback.signature():
                 a.setdefault("playback_by_view", {})[view] = saved
             if clip.unavailable:

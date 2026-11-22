@@ -423,6 +423,14 @@ def cmd_pixelize(a):
     _print({"grid": r["grid"], "palette": r["palette"]})
 
 
+def cmd_align_feet(a):
+    from .core import manifest
+    job = _job(a.job)
+    result = stages.align(job, _profile(a, job), a.facing, a.action)
+    manifest.refresh(job)
+    _print(result)
+
+
 def cmd_qa(a):
     job = _job(a.job)
     r = stages.qa(job, _profile(a, job), a.facing, a.action)
@@ -763,6 +771,7 @@ def build() -> argparse.ArgumentParser:
         (("--loop",), {"action": "store_true"}), (("--no-loop",), {"action": "store_true"}))
     cmd("pixelize", cmd_pixelize, "turn the selected frames into pixel art (one palette)", JOB, PROFILE,
         OPT_FACING, OPT_ACTION, (("--palette",), {"type": int, "help": "override max colours"}))
+    cmd("align-feet", cmd_align_feet, "build foot-aligned copies of the processed frames", JOB, PROFILE, OPT_FACING, OPT_ACTION)
     cmd("qa", cmd_qa, "check the pixel art and write report.json", JOB, PROFILE, OPT_FACING, OPT_ACTION)
     cmd("qa-review", cmd_qa_review, "read the saved QA findings for one action", JOB, OPT_FACING, OPT_ACTION)
     cmd("export", cmd_export, "PNG strip, sheet.json, GIF and .aseprite for one action", JOB, PROFILE, OPT_FACING,

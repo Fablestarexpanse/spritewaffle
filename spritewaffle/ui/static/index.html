@@ -1466,7 +1466,7 @@ function paneAnimations(j, st) {
         <div class="row" style="margin:0"><button class="ghost" id="ttAnims" ${j.actions.length ? "" : "disabled"}>Turntable…</button>
           <button class="ghost" id="alignFeet" ${j.actions.length ? "" : "disabled"}
             title="Keep each frame's foot point on the same pixel, with the camera profile's border. Writes aligned copies; the originals stay">${j.inputs.align_feet ? "Re-align feet" : "Align feet"}</button>
-          ${j.inputs.align_feet ? `<span class="chip" title="exports and the manifest use the aligned frames">feet aligned</span>` : ""}</div>
+          ${j.inputs.align_feet ? `<span class="chip" title="Character exports check alignment freshness">Alignment enabled</span>` : ""}</div>
       </div>
     </div></section>
     ${Object.keys(byAction).sort().map(action => `<section>
@@ -1638,7 +1638,7 @@ function showAnim(a) {
 }
 
 function bindBundleCheck(path, kind, rebuild) {
-  const button = $("#eCheck"), note = $("#exportStatus"), indicator = $("#exportFreshnessBadge");
+  const button = $("#eCheck"), note = $("#exportStatus"), indicator = $("#exportFreshnessBadge"), realign = $("#eRealign");
   button.onclick = async () => {
     button.disabled = true;
     note.hidden = false;
@@ -1646,6 +1646,9 @@ function bindBundleCheck(path, kind, rebuild) {
     note.textContent = "Checking export files…";
     try {
       const result = await api(jobPath() + path);
+      const clips = Object.keys(result.processing || {});
+      const alignments = Object.keys(result.alignment || {});
+      if (realign) realign.hidden = !alignments.length || Boolean(clips.length);
       const labels = {current: "Current", missing: "Missing", untracked: "Untracked", incomplete: "Incomplete", stale: "Stale"};
       indicator.textContent = labels[result.status];
       indicator.className = result.status === "current" ? "badge pass" : result.status === "missing" ? "badge" : "badge warn";
@@ -1657,13 +1660,16 @@ function bindBundleCheck(path, kind, rebuild) {
         incomplete: `The ${kind} export is in progress or stopped before completion. Check again or rebuild it.`
       };
       if (result.status === "stale") {
-        const clips = Object.keys(result.processing || {});
-        const changes = [...result.settings_changed.filter(key => key !== "processing"), ...result.changed_inputs, ...result.changed_outputs];
+        const changes = [...result.settings_changed.filter(key => !["processing", "alignment"].includes(key)),
+                         ...result.changed_inputs, ...result.changed_outputs];
         const extra = changes.length > 4 ? ` and ${changes.length - 4} more` : "";
         note.className = "warn";
-        note.textContent = clips.length
-          ? `Export is stale. Re-process ${clips.slice(0, 4).join(", ")}${clips.length > 4 ? ` and ${clips.length - 4} more` : ""} from Actions. ${rebuild}`
-          : `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. ${rebuild}`;
+        const list = entries => entries.slice(0, 4).join(", ") + (entries.length > 4 ? ` and ${entries.length - 4} more` : "");
+        const steps = [];
+        if (clips.length) steps.push(`Re-process ${list(clips)} from Animations.`);
+        if (alignments.length) steps.push(`Re-align feet for ${list(alignments)}.`);
+        if (!steps.length) steps.push(`Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}.`);
+        note.textContent = `Export is stale. ${steps.join(" ")} ${rebuild}`;
       } else note.textContent = reasons[result.status];
     } catch {
       note.textContent = "The export check failed. See the error message for details.";
@@ -1703,6 +1709,7 @@ function paneExport(j) {
         <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
       <button class="primary" id="eGo">Export character</button>
       <button id="eCheck">Check freshness</button>
+      <button id="eRealign" hidden>Re-align feet</button>
     </div>
     <p id="exportStatus" class="muted" role="status" hidden></p>
     ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})${ch.pages ? `, ${ch.pages} atlas page${ch.pages === 1 ? "" : "s"}${ch.mirror === "flip" ? ", mirrors flipped by the engine" : ""}` : ""}
@@ -1728,6 +1735,7 @@ function paneExport(j) {
   };
   if ($("#eGo")) {
     bindBundleCheck("/export_character", "character", "Export the character again.");
+    $("#eRealign").onclick = () => run("align", {}, "Foot alignment queued");
     $("#eSet").onchange = e => form.set = e.target.value;
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
     $("#eMax").onchange = e => form.maxSize = +e.target.value;

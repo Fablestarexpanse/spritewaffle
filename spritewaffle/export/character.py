@@ -13,10 +13,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..core import attach, processing, timeline
+from ..core import alignment, attach, camera, processing, timeline
 from ..core.job import Job
 from ..core.profile import GameProfile, resolve
-from ..frames.video import colour_frames
 from ..qa import checks
 from . import aseprite, receipt
 from .sheet import feet_pivot
@@ -33,14 +32,9 @@ def _valid_set(frame_set) -> bool:
     return isinstance(frame_set, str) and re.fullmatch(r"[a-zA-Z0-9_-]+", frame_set) is not None
 
 
-def _aligned_frames(sd: Path, aligned: bool, count: int) -> list[Path]:
-    files = colour_frames(sd / "frames_aligned") if aligned else []
-    return files if len(files) == count else []
-
-
 def _images(sd: Path, aligned: bool, clip: timeline.Clip) -> list[Path]:
     sources = clip.sources
-    aligned_by_source = dict(zip(sources, _aligned_frames(sd, aligned, len(sources))))
+    aligned_by_source = dict(zip(sources, alignment.frames(sd, sources))) if aligned else {}
     return [item.image if item.replaced else aligned_by_source.get(item.source, item.source) for item in clip.items]
 
 
@@ -112,6 +106,7 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool, pro
     if profile is None and inputs.get("profile"):
         profile = resolve(inputs["profile"])
     aligned = bool(inputs.get("align_feet"))
+    border = camera.effective(job, profile)[0].canvas_border_px if aligned else None
     attachments = inputs.get("attachments") or {}
     jobs_root = root.parent.parent.resolve()
     files = [root / "04_pixel" / "palette.json"]
@@ -137,8 +132,13 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool, pro
         check = processing.status(job, profile, facing, action)
         if check["status"] in ("stale", "incomplete"):
             settings.setdefault("processing", {})[f"{facing}/{action}"] = check
+        use_aligned = aligned and any(not (item.replaced or item.inserted) for item in items)
+        if use_aligned:
+            check = alignment.status(root, directory, border)
+            if check["status"] in ("stale", "incomplete"):
+                settings.setdefault("alignment", {})[f"{facing}/{action}/{frame_set}"] = check
         settings["fps"][action] = fps_for(action)
-        files.extend(_images(directory, aligned, clip))
+        files.extend(_images(directory, use_aligned, clip))
         files.extend(directory / "frames" / f"{f.source.stem}_{kind}.png" for f in items
                      if not (f.replaced or f.inserted) for kind in MAPS)
         if edits := timeline.export_settings(items):
@@ -182,8 +182,9 @@ def export_status(job_root: Path, out_dir: Path, fps_for, *, profile: GameProfil
         return {"status": "untracked"}
     current = _input_snapshot(Path(job_root), fps_for, frame_set, require_pass, profile)
     result = {"frame_set": frame_set, **receipt.compare(record, out_dir, current)}
-    if stale := current["settings"].get("processing"):
-        result["processing"] = stale
+    for key in ("processing", "alignment"):
+        if stale := current["settings"].get(key):
+            result[key] = stale
     return result
 
 
@@ -198,6 +199,8 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
         snapshot = _input_snapshot(job_root, fps_for, frame_set, require_pass, profile)
         for clip, result in snapshot["settings"].get("processing", {}).items():
             processing.require_current(result, clip)
+        if stale := snapshot["settings"].get("alignment"):
+            raise RuntimeError(f"Re-align feet for {', '.join(stale)} before exporting the character.")
         result, files = _write_bundle(job_root, out_dir, character, fps_for, frame_set, require_pass, max_size, mirror)
         if snapshot != _input_snapshot(job_root, fps_for, frame_set, require_pass, profile):
             raise RuntimeError("Character export inputs changed during export. Wait for processing to finish, then export again.")

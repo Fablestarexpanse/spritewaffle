@@ -116,6 +116,9 @@ exported files still match the receipt. Re-export an older bundle once to start 
 This check is also available through `spritewaffle export-character-status --job hero/job`,
 HTTP `GET /api/jobs/{character}/{job}/export_character`, and MCP `character_export_status`.
 If you exported with a CLI profile override, use the same `--profile` when checking in the CLI.
+If aligned frames are stale, use **Re-align feet** and export again. The check tracks the original
+processed frames, the camera's canvas border, and the aligned copies. The CLI command is
+`spritewaffle align-feet --job hero/job`. MCP exposes `align_feet` for the same rebuild.
 
 Use **Check freshness** on an item's **Export** tab or on an **Effect** tab to check that
 bundle. Item checks cover front and back views, approval, sprite-file settings, and the fit

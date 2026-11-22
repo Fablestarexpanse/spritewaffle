@@ -1,6 +1,9 @@
-NEXT: Track aligned-frame freshness after source frames or the camera's canvas border change.
+NEXT: Verify that gameplay pivots and optional depth and normal maps stay registered to aligned colour frames.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 Baseline at `6c4b1f7` passed 311 Python tests in 106.15 s. The browser, manifest, and character export already support optional aligned copies. Character export silently accepted old aligned frames if the source count remained the same. Two regression tests reproduced the missing checks for border changes and modified source frames. Record alignment next to each frame set and reuse the freshness workflow. Keep legacy alignments usable until rebuilt.
+- 2026-11-22 Chromium verified stale alignment, the local recovery button, and the rebuilt character export at 1440, 800 and 390 px on a disposable copy of `knight/p2_002 E/walk`. The camera border changed from 2 to 4 px. Re-alignment rebuilt 36 frames in 0.24 s. The original source clip and 12 processed frames retained their bytes. An interrupted rebuild left its receipt incomplete and the next rebuild repaired it. The focused suite passed 79 tests, the full suite passed 315 Python tests in 100.48 s with the existing Starlette warning, and all six Node tests passed.
 
 - 2026-11-22 Baseline at `e550aad` passed 308 Python tests in 95.51 s. Three new checks reproduced missing mirror and optical-flow fingerprints and a palette-only rebuild that replaced a manual selection. Mirroring will depend on the source facing's processed pixels and input freshness. Optical flow will depend on the approved facing, approved library clip and palette. TARA already stores its generated clip, which remains the input to local processing. `origin/main` at `ba6eb0b` is an ancestor of the development branch.
 - 2026-11-22 A manual 12-frame selection followed by a palette change left an older 24-frame set on disk. The queued Aseprite export tried to read that old set with the new palette and refused indexed pixels. QA and export will use the frame sets named in a completed processing report. Files and edits from earlier sets can stay on disk.

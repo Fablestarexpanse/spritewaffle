@@ -42,7 +42,7 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | `mirror_map` | object\|null | custom only: `{"<view_index>": <source view_index>}` |
 | `view_count` | int | views in the set |
 | `canvas` | [w, h] | one cell size for every frame of the asset |
-| `align_feet` | bool | true after Align feet. Untouched frames use their aligned copies when available. |
+| `align_feet` | bool | true after Align feet. Untouched frames use matching aligned copies when available and current. |
 | `base_job` | str\|null | a variant's base job (fitted item, one-change variant) |
 | `views` | list | one per view: `view_index`, `yaw_degrees`, `label`, `facing_image` (the still, or null), `mirrored`, `source_view_index` |
 | `animations` | list | one per action × frame set with `action`, `frame_set` (`12f`/`24f`), `fps`, `loop`, `views` (indices present), `frames`, and optional `playback_by_view` |
@@ -137,6 +137,11 @@ The `align` stage moves each frame (whole pixels, no resampling) so its foot poi
 median foot point, keeping `canvas_border_px`. It writes `frames_aligned/` next to `frames/`; the
 originals stay. It sets `align_feet`, after which the manifest and the character export use the
 aligned frames. A frame that can't move all the way without crossing the border is reported.
+New alignments record the original and aligned files and the canvas border for each frame set.
+A manifest rebuild uses the processed originals for stale or incomplete alignments and adds an
+`alignment_by_view` object to that animation. Its keys are string view indices and its values are
+`stale` or `incomplete`. A character export checks alignment directly and asks for a rebuild.
+Run **Re-align feet** to refresh the copies and the stored manifest.
 
 ## Export
 
@@ -156,5 +161,5 @@ Re-pixelizing a clip clears its `frames/` folder, maps included, because they wo
 | project camera | Camera… → Save for the whole project | `GET/POST /api/project/camera` `{"camera": {...}\|null}` | `camera_profile(action="get"\|"set", camera={...})` | |
 | asset camera | Camera… → Save for this asset only | `GET/POST /api/jobs/{c}/{j}/camera` `{"camera": {...}\|null}` | `camera_profile(action, camera, character, job_id)` | |
 | mirror policy | Facings / Animations → Mirror policy | `POST /api/jobs/{c}/{j}/mirror_policy` `{"policy", "mirror_map"}` | `mirror_policy(character, job_id, policy, mirror_map)` | |
-| align feet | Animations → Align feet | `POST /api/jobs/{c}/{j}/run` `{"stage": "align"}` | | |
+| align feet | Animations → Align feet or Export → Re-align feet | `POST /api/jobs/{c}/{j}/run` `{"stage": "align"}` | `align-feet` | `align_feet` |
 | turntable | Facings / Animations → Turntable… (read-only) | | | |

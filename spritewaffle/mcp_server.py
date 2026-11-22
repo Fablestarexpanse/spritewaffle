@@ -164,12 +164,20 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
 
     @mcp.tool()
     def character_export_status(character: str, job_id: str) -> dict:
-        """Check the latest character bundle for changed inputs and missing or modified files."""
+        """Check the latest character bundle for changed processing, alignment, or export files."""
         from .core.profile import resolve
         from .export import character as char_export
         job = job_for(character, job_id)
         profile = resolve(job.read_meta()["inputs"].get("profile"))
         return char_export.export_status(job.root, job.root / "06_export" / "character", profile.fps, profile=profile)
+
+    @mcp.tool()
+    def align_feet(character: str, job_id: str, facing: str | None = None, action: str | None = None) -> dict:
+        """Queue a local rebuild of foot-aligned copies. Omit facing and action to align the whole job."""
+        job = job_for(character, job_id)
+        args = {key: value for key, value in (("facing", facing), ("action", action)) if value is not None}
+        task = q.submit(job.root, "align", args, profile=job.read_meta()["inputs"].get("profile"))
+        return {"tasks": [task["id"]]}
 
     @mcp.tool()
     def export_action(character: str, job_id: str, facing: str, action: str, format: str = "both") -> dict:

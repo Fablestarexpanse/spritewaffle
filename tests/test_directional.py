@@ -142,6 +142,98 @@ def test_align_stage_keeps_originals_and_feeds_export(tmp_path):
     assert "frames_aligned" in f["color"] and f["color_unaligned"].endswith("/frames/000.png")
 
 
+def test_character_export_refuses_alignment_from_an_older_camera_border(tmp_path):
+    j, prof = _pixel_job(tmp_path, mirror=False)
+    stages.align(j, prof, "E", "walk")
+    bundle = tmp_path / "character"
+    result = character.export(j.root, bundle, "knight", prof.fps, require_pass=False, profile=prof)
+    exported = Path(result["aseprite"])
+    before = exported.read_bytes()
+
+    camera.set_project(tmp_path, {"canvas_border_px": 4})
+    status = character.export_status(j.root, bundle, prof.fps, profile=prof)
+    assert status["status"] == "stale"
+    assert status["alignment"]["E/walk/12f"]["settings_changed"] == ["canvas_border_px"]
+    with pytest.raises(RuntimeError, match="Re-align feet.*E/walk/12f"):
+        character.export(j.root, bundle, "knight", prof.fps, require_pass=False, profile=prof)
+    assert exported.read_bytes() == before
+    anim = next(a for a in manifest.build(j)["animations"] if a["action"] == "walk")
+    east = next(frame for frame in anim["frames"] if frame["yaw_degrees"] == 270)
+    assert anim["alignment_by_view"] == {str(east["view_index"]): "stale"}
+    assert all("/frames/" in frame["color"] for frame in anim["frames"])
+
+    assert stages.align(j, prof, "E", "walk")["border"] == 4
+    character.export(j.root, bundle, "knight", prof.fps, require_pass=False, profile=prof)
+    assert character.export_status(j.root, bundle, prof.fps, profile=prof)["status"] == "current"
+
+
+def test_alignment_checks_source_and_output_images_without_changing_action_exports(tmp_path):
+    j, prof = _pixel_job(tmp_path, mirror=False)
+    stages.align(j, prof, "E", "walk")
+    bundle = tmp_path / "character"
+    character.export(j.root, bundle, "knight", prof.fps, require_pass=False, profile=prof)
+    frame = j.root / "04_pixel/E/walk/12f/frames/000.png"
+    with Image.open(frame) as source:
+        image = source.copy()
+    image.putpixel((5, 5), (250, 100, 30, 255))
+    image.save(frame)
+    aligned = frame.parent.with_name("frames_aligned")
+    shutil.copyfile(aligned / "000.png", aligned / "999.png")
+    (aligned / "001.png").unlink()
+
+    check = character.export_status(j.root, bundle, prof.fps, profile=prof)["alignment"]["E/walk/12f"]
+    assert check["changed_inputs"] == ["04_pixel/E/walk/12f/frames/000.png"]
+    assert check["changed_outputs"] == ["001.png", "999.png"]
+    stages.export(j, prof, "E", "walk", fmt="png")
+    assert stages.export_status(j, prof, "E", "walk")["formats"]["png"]["status"] == "current"
+    changed = frame.read_bytes()
+    stages.align(j, prof, "E", "walk")
+    assert frame.read_bytes() == changed and not (aligned / "999.png").exists()
+
+
+def test_alignment_rebuild_is_available_from_cli_and_mcp(tmp_path, monkeypatch, capsys):
+    from spritewaffle import cli
+    from spritewaffle.core.queue import Worker
+    from test_mcp import call, text
+
+    job, _ = _pixel_job(tmp_path, mirror=False)
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    assert cli.main(["align-feet", "--job", "knight/k1", "--facing", "E", "--action", "walk"]) == 0
+    assert set(json.loads(capsys.readouterr().out)["sets"]) == {"E/walk/12f"}
+    assert manifest.path(job).is_file()
+    mcp, queue = build(tmp_path)
+    result = text(call(mcp, "align_feet", character="knight", job_id="k1", facing="S", action="walk"))
+    task = queue.get(result["tasks"][0])
+    assert task["stage"] == "align" and task["resource"] == "cpu"
+    Worker(queue)._execute(task)
+    assert queue.get(task["id"])["status"] == "done"
+    assert set(queue.get(task["id"])["result"]["sets"]) == {"S/walk/12f"}
+
+
+def test_alignment_rejects_border_change_during_write(tmp_path, monkeypatch):
+    from spritewaffle.core import alignment
+
+    job, prof = _pixel_job(tmp_path, mirror=False)
+    stages.align(job, prof, "E", "walk")
+    bundle = tmp_path / "character"
+    character.export(job.root, bundle, "knight", prof.fps, require_pass=False, profile=prof)
+    write = alignment.fsutil.write_bytes
+
+    def change_border_on_write(path, data):
+        write(path, data)
+        if path.name == "000.png" and path.parent.name == "frames_aligned":
+            camera.set_asset(job, {"canvas_border_px": 3})
+
+    with monkeypatch.context() as patch:
+        patch.setattr(alignment.fsutil, "write_bytes", change_border_on_write)
+        with pytest.raises(RuntimeError, match="Alignment inputs changed"):
+            stages.align(job, prof, "E", "walk")
+    stale = character.export_status(job.root, bundle, prof.fps, profile=prof)
+    assert stale["alignment"] == {"E/walk/12f": {"status": "incomplete"}}
+    stages.align(job, prof, "E", "walk")
+    assert "alignment" not in character.export_status(job.root, bundle, prof.fps, profile=prof)
+
+
 def test_export_unchanged_without_maps_and_packs_maps_when_present(tmp_path):
     job = Job.create("hero", "j", base=tmp_path)
     _anim(job, "S", "walk", [(200, 0, 0), (0, 0, 200)])

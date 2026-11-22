@@ -571,23 +571,23 @@ def align(job: Job, profile: GameProfile, facing: str | None = None, action: str
     transparent border (default 2 px). Writes <n>f/frames_aligned/ next to frames/ (the originals
     stay) and turns on the asset's align_feet, so the manifest and the character export use the
     aligned frames. Whole-pixel moves only; no resampling."""
-    from . import camera
+    from . import alignment, camera
     border = int(camera.effective(job, profile)[0].canvas_border_px)
     root = job.root / "04_pixel"
-    sets = sorted(root.glob(f"{facing or '*'}/{action or '*'}/*f"))
-    sets = [sd for sd in sets if (sd / "frames").is_dir()]
+    sets = []
+    for clip in sorted(root.glob("*/*")):
+        f, a = clip.parent.name, clip.name
+        if (facing is not None and f != facing) or (action is not None and a != action):
+            continue
+        active = [sd for sd in _action_sets(clip) if video.colour_frames(sd / "frames")]
+        if active:
+            processing.require_current(processing.status(job, profile, f, a), f"{f}/{a}")
+            sets.extend(active)
     if not sets:
-        raise FileNotFoundError("nothing pixelized to align" + (f" for {facing} {action}" if facing or action else ""))
-    report = {"border": border, "sets": {}}
-    for sd in sets:
-        files = sorted((sd / "frames").glob("[0-9][0-9][0-9].png"))
-        cells = [np.array(Image.open(f).convert("RGBA")) for f in files]
-        out, pts, warns = layout.align_feet(cells, border=border)
-        _save_pngs(list(out), sd / "frames_aligned", [f.stem for f in files])
-        (sd / "frames_aligned" / "footpoints.json").write_text(json.dumps(pts))
-        key = f"{sd.parent.parent.name}/{sd.parent.name}/{sd.name}"
-        report["sets"][key] = {"frames": len(files), "foot_point": pts[0] if pts else None, "warnings": warns}
-    (root / "align_report.json").write_text(json.dumps(report, indent=2))
+        raise FileNotFoundError("No processed frame sets to align.")
+    report = {"border": border, "sets": {sd.relative_to(root).as_posix(): alignment.rebuild(job, profile, sd, border)
+                                         for sd in sets}}
+    fsutil.write_text(root / "align_report.json", json.dumps(report, indent=2))
     job.update_inputs(align_feet=True)
     job.set_stage("align", "done", border=border, sets=len(sets),
                   warnings=sum(len(v["warnings"]) for v in report["sets"].values()))
