@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image
 
 from ..comfy.client import ComfyClient
+from ..export import receipt
 from ..frames import video
 from ..pixel import chroma
 from ..prompts import effects as fx
@@ -153,15 +155,69 @@ def _union_box(rgba: list[np.ndarray]) -> tuple[int, int, int, int]:
     return int(xs.min()), int(ys.min()), int(xs.max() + 1), int(ys.max() + 1)
 
 
+def output_name(name: str) -> str:
+    name = name.replace(" ", "_")
+    if not name or name.endswith(".") or any(c in name for c in '/\\:\x00<>"|?*'):
+        raise ValueError("The effect name must be a plain filename.")
+    return name
+
+
+def export_directory(job: Job, name: str) -> Path:
+    """Path of the latest completed bundle, or the expected path of a legacy bundle."""
+    saved = job.read_meta()["stages"].get("effect:export", {}).get("bundle")
+    return job.root / "06_export" / "effect" / output_name(saved or name)
+
+
+def _export_inputs(job: Job, s: dict, style: dict) -> dict:
+    settings = {field: s[field] for field in ("loop", "bg", "size", "frames", "fps")}
+    settings.update(name=output_name(s["name"]), processing_style=style["post"], scale=style.get("scale", 1))
+    if style["post"] == "pixel":
+        settings["colours"] = s["colours"]
+    return receipt.snapshot(job.root, [job.root / "03_actions" / "S" / "effect" / "raw.mp4"], settings)
+
+
+def export_status(job: Job) -> dict:
+    """Check the last completed effect package against the saved clip and processing settings."""
+    if job.read_meta()["inputs"].get("asset_type") != "effect":
+        raise ValueError(f"{job.root.name} is not an effect job")
+    root = job.root / "06_export" / "effect"
+    path = root.with_name(".effect.receipt")
+    record = receipt.load(path)
+    if record is None:
+        legacy = path.exists() or any(root.glob("*/*.json")) or any(root.glob("*/*.png"))
+        return {"status": "untracked" if legacy else "missing"}
+    if record.get("incomplete"):
+        return {"status": "incomplete"}
+    return receipt.compare(record, root, _export_inputs(job, spec(job), styles.get(styles.of_job(job))))
+
+
 def process(job: Job, profile=None) -> dict:
-    """Clip -> keyed, picked, scaled frames -> 06_export/effect/<name>/."""
-    styles.use(styles.of_job(job))
-    st = styles.get(styles.of_job(job))
-    pixel = st["post"] == "pixel"
-    s = spec(job)
-    clip = job.action_dir("S", "effect") / "raw.mp4"
-    if not clip.exists():
+    """Clip -> keyed, picked, scaled frames -> a tracked effect bundle."""
+    clip = job.root / "03_actions" / "S" / "effect" / "raw.mp4"
+    if not clip.is_file():
         raise FileNotFoundError("render the effect first")
+    root = job.root / "06_export" / "effect"
+    root.parent.mkdir(parents=True, exist_ok=True)
+    path = root.with_name(".effect.receipt")
+    with receipt.locked(root):
+        s = spec(job)
+        st = styles.get(styles.of_job(job))
+        pixel = st["post"] == "pixel"
+        inputs = _export_inputs(job, s, st)
+        frames, info, palette, bg = _process_frames(clip, s, st, pixel)
+        receipt.incomplete(path)
+        result = export(job, s | {"bg": bg}, frames, info, pixel, palette)
+        if inputs != _export_inputs(job, spec(job), styles.get(styles.of_job(job))):
+            raise RuntimeError("Effect export inputs changed during export. Wait for processing to finish, then export again.")
+        out, name = Path(result["dir"]), result["name"]
+        files = [out / f"{name}{suffix}" for suffix in (".png", "_sheet.png", ".aseprite", "_preview.gif", ".json")]
+        files.extend(out / "frames" / f"{name}_{i:03d}.png" for i in range(result["frames"]))
+        receipt.save(path, root, inputs, files)
+        job.set_stage("effect:export", "done", frames=result["frames"], cell=result["cell"], loop=result["loop"], bundle=name)
+    return result
+
+
+def _process_frames(clip: Path, s: dict, st: dict, pixel: bool) -> tuple[list[np.ndarray], dict, list[str], str]:
     frames = video.read_frames(clip)
     bg = detect_bg(frames[0])                                    # key what was drawn, not what was asked
     rgba = key_frames(frames, bg, soft=not pixel)
@@ -190,14 +246,12 @@ def process(job: Job, profile=None) -> dict:
             col = np.where(al > 0, pm[..., :3] / np.maximum(al, 1e-6), 0)
             out_frames.append(np.dstack([np.clip(col, 0, 255), np.clip(pm[..., 3:], 0, 255)]).astype(np.uint8))
         palette = []
-    s = s | {"bg": bg}
-    return export(job, s, out_frames, info | {"source_frames": [int(i) for i in idx], "background_detected": bg,
-                                              "background_asked": spec(job)["bg"]}, pixel, palette)
+    return out_frames, info | {"source_frames": [int(i) for i in idx], "background_detected": bg, "background_asked": s["bg"]}, palette, bg
 
 
 def export(job: Job, s: dict, frames: list[np.ndarray], info: dict, pixel: bool, palette: list[str]) -> dict:
     from ..export import aseprite
-    name = s["name"].replace(" ", "_")
+    name = output_name(s["name"])
     out = job.stage_dir("06_export") / "effect" / name
     (out / "frames").mkdir(parents=True, exist_ok=True)
     for old in (out / "frames").glob("*.png"):
@@ -229,6 +283,5 @@ def export(job: Job, s: dict, frames: list[np.ndarray], info: dict, pixel: bool,
             "strip": f"{name}.png", "background": s["bg"],
             "blend": "alpha or additive" if s["bg"] == "black" else "alpha",
             "palette": palette, "pick": info}
-    (out / f"{name}.json").write_text(json.dumps(meta, indent=2))
-    job.set_stage("effect:export", "done", frames=len(frames), cell=[w, h], loop=s["loop"])
+    (out / f"{name}.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return meta | {"dir": str(out)}

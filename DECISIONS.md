@@ -1,6 +1,10 @@
-NEXT: Single-reference anchor generation is verified. Extend export freshness checks to item and effect bundles next.
+NEXT: Item and effect export freshness is verified. Track upstream palette and source changes through processing next.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 Baseline at `92f5f65` passed 296 tests in 77.60 s. Item receipts track both approved views and the settings and fit list used by the exporter. Effect receipts track the saved clip, the processing settings used by the exporter, and the latest completed bundle. Render prompts do not affect processing of an existing clip.
+- 2026-11-22 Chromium verified legacy, current, and stale states and local rebuilds using disposable copies of `red_cape/c1` and `magic_circle/m1`. The three item files and 17 effect files matched the `92f5f65` writers byte for byte on the same current inputs. The older cape JSON had two fits instead of the four in the job, and the older magic-circle JSON lacked the background-detection fields. Rebuilds updated only that legacy metadata. The source images and clip were byte-preserved. The checks fit at 1440, 800, and 390 px, including Light at 150% interface scale.
+- 2026-11-22 The final suite passed 300 Python tests in 78.10 s with the existing Starlette warning, plus six Node tests. A forced effect setting change during export left the receipt incomplete. The UI, CLI, HTTP API, and MCP use the same receipt data.
 
 - 2026-11-22 Baseline at `f4920d0` passed 292 tests in 79.73 s. ComfyUI 0.46.0 is available on localhost, and diagnostics verified the image-edit template and model names. Use one explicitly selected reference through that template. Preserve the existing hero workflow and record the chosen project reference ID with the anchor.
 - 2026-11-22 Measured two queued MiniMax H3 anchor generations at seed 417 using the `knight/p2_002` anchor as a project reference. PNG took 22.41 s and lossless WebP took 22.96 s. Both produced 2048 × 2048 teal courier anchors and left them in human review. The flattened images contained 182,116 and 182,411 foreground pixels respectively. The output pixels differed in these two runs. The source art and job metadata were byte-preserved. The generated take and manifest both carried the selected library ID.

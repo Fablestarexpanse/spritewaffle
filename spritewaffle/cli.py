@@ -334,6 +334,17 @@ def cmd_archive(a):
     print(f"archived to {_job(a.job).archive()}")
 
 
+def cmd_item_export_status(a):
+    from .core import item
+    job = _job(a.job)
+    _print(item.export_status(job, _profile(a, job)))
+
+
+def cmd_effect_export_status(a):
+    from .core import effect
+    _print(effect.export_status(_job(a.job)))
+
+
 def cmd_style_check(a):
     from .qa import style_check
     _print(style_check.inspect(_job(a.job)))
@@ -722,6 +733,8 @@ def build() -> argparse.ArgumentParser:
         (("--set",), {"default": "12f", "choices": ("12f", "24f")}))
     cmd("export-character-status", cmd_character_export_status,
         "check the last character bundle for changed inputs or files", JOB, PROFILE)
+    cmd("export-item-status", cmd_item_export_status, "check the last item bundle for changed inputs or files", JOB, PROFILE)
+    cmd("export-effect-status", cmd_effect_export_status, "check the last effect bundle for changed inputs or files", JOB)
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
     cmd("style-check", cmd_style_check, "compare one asset and its processed clips with the project style", JOB)
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",

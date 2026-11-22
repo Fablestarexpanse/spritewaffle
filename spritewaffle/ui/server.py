@@ -94,13 +94,16 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         from ..core import effect
         from ..prompts import effects as fx
         s = effect.spec(j)
-        d = j.root / "06_export" / "effect" / s["name"].replace(" ", "_")
-        meta = read_json(d / f"{s['name'].replace(' ', '_')}.json")
+        try:
+            d = effect.export_directory(j, s["name"])
+            meta = read_json(d / f"{d.name}.json")
+        except ValueError:
+            meta = None
         return {"spec": s, "presets": {k: {kk: v.get(kk) for kk in ("still", "motion", "loop")} for k, v in fx.PRESETS.items()},
                 "still": url(j.root / "01_anchor" / "anchor.png"),
                 "clip": url(j.root / "03_actions" / "S" / "effect" / "raw.mp4"),
-                "preview": url(d / f"{s['name'].replace(' ', '_')}_preview.gif") if meta else None,
-                "sheet": url(d / f"{s['name'].replace(' ', '_')}_sheet.png") if meta else None,
+                "preview": url(d / f"{d.name}_preview.gif") if meta else None,
+                "sheet": url(d / f"{d.name}_sheet.png") if meta else None,
                 "meta": meta}
 
     def effect_jobs() -> list[str]:
@@ -525,6 +528,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             for k in ("still", "motion", "sound", "effect_name"):
                 if k in body:
                     f[k] = str(body[k] or "").strip()
+            if f.get("effect_name"):
+                effect.output_name(f["effect_name"])
             if "loop" in body:
                 f["loop"] = bool(body["loop"])
             if "bg" in body:
@@ -843,13 +848,30 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         manifest.write(j)
         return manifest.read(j)
 
+    @app.get("/api/jobs/{char}/{jid}/export_effect")
+    def effect_export_status(char: str, jid: str):
+        from ..core import effect
+        try:
+            return effect.export_status(job_or_404(char, jid))
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.get("/api/jobs/{char}/{jid}/export_item")
+    def item_export_status(char: str, jid: str):
+        from ..core import item
+        j = job_or_404(char, jid)
+        try:
+            return item.export_status(j, resolve(job_profile(j)))
+        except (ValueError, OSError) as error:
+            bad(error)
+
     @app.post("/api/jobs/{char}/{jid}/export_item")
     def export_item(char: str, jid: str):
         from ..core import item
         j = job_or_404(char, jid)
         try:
             return item.export(j, resolve(job_profile(j)))
-        except (RuntimeError, ValueError, FileNotFoundError) as e:
+        except (RuntimeError, ValueError, OSError) as e:
             bad(e)
 
     @app.post("/api/jobs/{char}/{jid}/showcase")

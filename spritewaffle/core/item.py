@@ -10,10 +10,12 @@ original. Any number of bases (races, bodies) can wear the same item; the item j
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from PIL import Image
 
 from ..comfy.client import ComfyClient
+from ..export import receipt
 from ..prompts import builder, styles
 from .job import Job
 from .profile import GameProfile
@@ -69,19 +71,60 @@ def fit(item_job: Job, base: Job, how: str = "wearing this", job_id: str | None 
     return v
 
 
+def _export_inputs(job: Job, profile: GameProfile) -> dict:
+    meta = job.read_meta()
+    inputs = meta["inputs"]
+    if inputs.get("asset_type") != "item":
+        raise ValueError(f"{job.root.name} is not an item job")
+    style = styles.get(inputs.get("style") or "pixel")
+    settings = {"name": meta["character"], "style": style["name"], "fits": inputs.get("fits") or [],
+                "facings_approved": meta["stages"].get("facings", {}).get("status") == "approved",
+                "despill": profile.despill}
+    if style["post"] == "pixel":
+        settings.update(palette=profile.palette, pixel_size=profile.pixel_size or None, outline=profile.outline)
+    if style["post"] == "smooth" or not profile.pixel_size:
+        settings["sprite_height_px"] = profile.sprite_height_px
+    return receipt.snapshot(job.root, (job.root / "02_facings" / f"{v}.png" for v in VIEWS), settings)
+
+
+def export_status(job: Job, profile: GameProfile) -> dict:
+    """Check the last completed item bundle against the current views and export settings."""
+    if not is_item(job):
+        raise ValueError(f"{job.root.name} is not an item job")
+    out = job.root / "06_export" / "item"
+    path = out.with_name(".item.receipt")
+    record = receipt.load(path)
+    if record is None:
+        return {"status": "untracked" if path.exists() or any(out.glob("*.png")) or any(out.glob("*_item.json")) else "missing"}
+    if record.get("incomplete"):
+        return {"status": "incomplete"}
+    return receipt.compare(record, out, _export_inputs(job, profile))
+
+
 def export(job: Job, profile: GameProfile) -> dict:
-    """The original item as game sprites: 06_export/item/<name>_front.png and _back.png, made like a
-    facing (pixel art at the profile's sprite height, one palette for both; smooth styles scaled)."""
+    """Export game-ready front and back sprites and the fit list as one tracked bundle."""
+    out = job.root / "06_export" / "item"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    path = out.with_name(".item.receipt")
+    with receipt.locked(out):
+        inputs = _export_inputs(job, profile)
+        job.require_approved("facings")
+        info, files = _write_export(job, profile, out, path, inputs["settings"])
+        if inputs != _export_inputs(job, profile):
+            raise RuntimeError("Item export inputs changed during export. Wait for processing to finish, then export again.")
+        receipt.save(path, out, inputs, files)
+        job.set_stage("export:item", "done", colours=info["colours"], sizes={k: v["size"] for k, v in info["views"].items()})
+    return info
+
+
+def _write_export(job: Job, profile: GameProfile, out: Path, receipt_path: Path, settings: dict) -> tuple[dict, list[Path]]:
     import numpy as np
 
     from ..pixel import chroma
     from ..pixel.pipeline import PixelParams, pixelize
-    if not is_item(job):
-        raise ValueError(f"{job.root.name} is not an item job")
-    job.require_approved("facings")
     f = job.root / "02_facings"
     rgbs = [np.array(Image.open(f / f"{v}.png").convert("RGB")) for v in VIEWS]
-    st = styles.get(styles.of_job(job))
+    st = styles.get(settings["style"])
     if st["post"] == "smooth":
         from ..pixel import smooth
         arts, _ = smooth.process(rgbs, profile.sprite_height_px * st["scale"], despill=profile.despill)
@@ -92,18 +135,18 @@ def export(job: Job, profile: GameProfile) -> dict:
         res = pixelize(rgbs, PixelParams(palette=profile.palette if isinstance(profile.palette, list) else profile.palette_size,
                                          pixel_size=size, outline=profile.outline, despill=profile.despill))
         arts, colours = [res.rgba(i) for i in range(len(VIEWS))], len(res.palette)
-    out = job.stage_dir("06_export") / "item"
+    receipt.incomplete(receipt_path)
     out.mkdir(parents=True, exist_ok=True)
-    name = job.read_meta()["character"]
-    files = {}
-    for v, label, art in zip(VIEWS, ("front", "back"), arts):
+    name = settings["name"]
+    views, files = {}, []
+    for label, art in zip(("front", "back"), arts):
         ys, xs = np.where(art[..., 3] > 0)
         crop = art[ys.min():ys.max() + 1, xs.min():xs.max() + 1] if len(ys) else art
         p = out / f"{name}_{label}.png"
         Image.fromarray(crop).save(p)
-        files[label] = {"file": p.name, "size": [int(crop.shape[1]), int(crop.shape[0])]}
-    info = {"item": name, "style": st["name"], "colours": colours, "views": files,
-            "fits": job.read_meta()["inputs"].get("fits") or []}
-    (out / f"{name}_item.json").write_text(json.dumps(info, indent=2))
-    job.set_stage("export:item", "done", colours=colours, sizes={k: v["size"] for k, v in files.items()})
-    return info
+        views[label] = {"file": p.name, "size": [int(crop.shape[1]), int(crop.shape[0])]}
+        files.append(p)
+    info = {"item": name, "style": st["name"], "colours": colours, "views": views, "fits": settings["fits"]}
+    meta = out / f"{name}_item.json"
+    meta.write_text(json.dumps(info, indent=2), encoding="utf-8")
+    return info, [*files, meta]

@@ -175,6 +175,19 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return stages.export(job, resolve(job.read_meta()["inputs"].get("profile")), facing, action, format)
 
     @mcp.tool()
+    def item_export_status(character: str, job_id: str) -> dict:
+        """Check the last item export against its current views, profile settings, and files."""
+        from .core import item
+        job = job_for(character, job_id)
+        return item.export_status(job, resolve(job.read_meta()["inputs"].get("profile")))
+
+    @mcp.tool()
+    def effect_export_status(character: str, job_id: str) -> dict:
+        """Check the last effect export against its saved clip, processing settings, and files."""
+        from .core import effect
+        return effect.export_status(job_for(character, job_id))
+
+    @mcp.tool()
     def action_export_status(character: str, job_id: str, facing: str, action: str) -> dict:
         """Check the PNG and Aseprite exports of one facing and action for changed or missing files."""
         from .core import stages

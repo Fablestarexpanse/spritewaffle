@@ -115,6 +115,17 @@ This check is also available through `spritewaffle export-character-status --job
 HTTP `GET /api/jobs/{character}/{job}/export_character`, and MCP `character_export_status`.
 If you exported with a CLI profile override, use the same `--profile` when checking in the CLI.
 
+Use **Check freshness** on an item's **Export** tab or on an **Effect** tab to check that
+bundle. Item checks cover front and back views, approval, sprite-file settings, and the fit
+list. Effect checks cover the saved clip, saved processing settings, and the latest completed
+bundle. Render-only prompt edits do not change the exported frames. Re-export an older item
+or use **Re-process frames** on an older effect once to establish its receipt.
+
+The CLI commands are `export-item-status --job CHARACTER/JOB` and
+`export-effect-status --job CHARACTER/JOB`. The HTTP API uses `GET /api/jobs/{character}/{job}/export_item`
+and `GET /api/jobs/{character}/{job}/export_effect`. MCP exposes `item_export_status` and
+`effect_export_status`.
+
 In **Animations**, open a facing to review its saved QA report. Expand **frames with findings**
 to inspect individual processed frames. QA numbers frames from zero and keeps the source
 filenames so a missing frame cannot shift a finding to another image.

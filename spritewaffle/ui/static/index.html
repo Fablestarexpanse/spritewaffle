@@ -1622,19 +1622,53 @@ function showAnim(a) {
   };
 }
 
+function bindBundleCheck(path, kind, rebuild) {
+  const button = $("#eCheck"), note = $("#exportStatus"), indicator = $("#exportFreshnessBadge");
+  button.onclick = async () => {
+    button.disabled = true;
+    note.hidden = false;
+    note.className = "muted";
+    note.textContent = "Checking export files…";
+    try {
+      const result = await api(jobPath() + path);
+      const labels = {current: "Current", missing: "Missing", untracked: "Untracked", incomplete: "Incomplete", stale: "Stale"};
+      indicator.textContent = labels[result.status];
+      indicator.className = result.status === "current" ? "badge pass" : result.status === "missing" ? "badge" : "badge warn";
+      indicator.hidden = false;
+      const reasons = {
+        current: `The ${kind} export matches its saved inputs and files.`,
+        missing: `No ${kind} export exists yet.`,
+        untracked: `This export has no usable receipt. ${rebuild}`,
+        incomplete: `The ${kind} export is in progress or stopped before completion. Check again or rebuild it.`
+      };
+      if (result.status === "stale") {
+        const changes = [...result.settings_changed, ...result.changed_inputs, ...result.changed_outputs];
+        const extra = changes.length > 4 ? ` and ${changes.length - 4} more` : "";
+        note.className = "warn";
+        note.textContent = `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. ${rebuild}`;
+      } else note.textContent = reasons[result.status];
+    } catch {
+      note.textContent = "The export check failed. See the error message for details.";
+    } finally { button.disabled = false; }
+  };
+}
+
 function paneExport(j) {
   const groups = {};
   j.exports.forEach(e => (groups[e.group] ??= []).push(e));
   const ch = j.stages["export:character"], it = j.stages["export:item"];
   if (j.asset_type === "item") {
-    $("#pane").innerHTML = `<section><h2>Export item ${badge(it?.status)}</h2>
+    $("#pane").innerHTML = `<section><h2>Export item <span id="exportFreshnessBadge" class="badge" ${it ? "" : "hidden"}>Built</span></h2>
       <p class="muted" style="margin-top:0">The item on its own (inventory icon, ground drop, shop picture): front and back as sprites at this
         profile's sprite height, one palette for both, plus a JSON listing the characters it was fitted on.</p>
       <div class="row"><button class="primary" id="iGo" ${j.stages.facings?.status === "approved" ? "" : "disabled"}>Export item</button>
+        <button id="eCheck">Check freshness</button>
         ${j.stages.facings?.status === "approved" ? "" : `<span class="warn">Approve the front and back (Facings) first.</span>`}</div>
+      <p id="exportStatus" class="muted" role="status" hidden></p>
       ${it ? `<p class="muted">Last export: front ${(it.sizes?.front || []).join("×")}, back ${(it.sizes?.back || []).join("×")}${it.colours ? `, ${it.colours} colours` : ""}</p>` : ""}</section>
       <section><h2>Files</h2>${(j.exports || []).map(f => `<p><a href="${esc(f.url)}">${esc(f.name)}</a> <span class="muted">${kb(f.size)}</span></p>`).join("") || `<p class="muted">Nothing exported yet.</p>`}</section>`;
     $("#iGo").onclick = async () => { const r = await api(jobPath() + "/export_item", {}); toast(`Item exported: front ${r.views.front.size.join("×")}`); lastSig = ""; refreshAll(); };
+    bindBundleCheck("/export_item", "item", "Export the item again.");
     return;
   }
   $("#pane").innerHTML = `${j.asset_type !== "prop" ? `<section>
@@ -1675,36 +1709,7 @@ function paneExport(j) {
     finally { lastSig = ""; refreshAll(); }
   };
   if ($("#eGo")) {
-    $("#eCheck").onclick = async event => {
-      const button = event.target, note = $("#exportStatus"), indicator = $("#exportFreshnessBadge");
-      button.disabled = true;
-      note.hidden = false;
-      note.className = "muted";
-      note.textContent = "Checking export files…";
-      try {
-        const result = await api(jobPath() + "/export_character");
-        const labels = {current: "Current", missing: "Missing", untracked: "Untracked", incomplete: "Incomplete", stale: "Stale"};
-        indicator.textContent = labels[result.status];
-        indicator.className = result.status === "current" ? "badge pass" : result.status === "missing" ? "badge" : "badge warn";
-        indicator.hidden = false;
-        const reasons = {
-          current: "The character export matches its inputs and files.",
-          missing: "No character export exists yet.",
-          untracked: "This export has no usable receipt. Export again to track freshness.",
-          incomplete: "The character export is in progress or stopped before completion. Check again or re-export."
-        };
-        if (result.status === "stale") {
-          const changes = [...result.settings_changed, ...result.changed_inputs, ...result.changed_outputs];
-          const extra = changes.length > 4 ? ` and ${changes.length - 4} more` : "";
-          note.className = "warn";
-          note.textContent = `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. Export the character again.`;
-        } else note.textContent = reasons[result.status];
-      } catch {
-        note.textContent = "The export check failed. See the error message for details.";
-      } finally {
-        button.disabled = false;
-      }
-    };
+    bindBundleCheck("/export_character", "character", "Export the character again.");
     $("#eSet").onchange = e => form.set = e.target.value;
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
     $("#eMax").onchange = e => form.maxSize = +e.target.value;
@@ -1725,7 +1730,7 @@ function paneEffect(j, st) {
   const v = {...e.spec, preset: j.inputs.preset || "", ...fxDraft.v};
   const m = e.meta, busy = st("effect:render") === "running";
   $("#pane").innerHTML = `<section class="fxpane">
-    <h2>Effect ${badge(st("effect:export"))}</h2>
+    <h2>Effect <span id="exportFreshnessBadge" class="badge" ${m || st("effect:export") ? "" : "hidden"}>Built</span></h2>
     <p class="muted" style="margin-top:0">A visual effect as its own sprite: spells, fire, explosions, impacts, auras. H3 draws a first frame, then the clip; the background becomes transparency.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
       <label class="field"><span>Preset</span><select data-fx="preset"><option value="">(your own)</option>
@@ -1744,8 +1749,10 @@ function paneEffect(j, st) {
     <div class="row" style="margin-top:8px">
       <button class="primary" id="fxRender" ${busy ? "disabled" : ""}>${e.clip ? "Re-render effect" : "Render effect"}</button>
       ${e.clip ? `<button id="fxProcess">Re-process frames</button>` : ""}
+      <button id="eCheck">Check freshness</button>
       <span class="hint">Render ≈ 1–2 min (still + clip); re-process uses the clip you have (size, frames, colours).</span>
     </div>
+    <p id="exportStatus" class="muted" role="status" hidden></p>
     <div class="row" style="align-items:flex-start;margin-top:14px;gap:16px;flex-wrap:wrap">
       ${e.still ? `<figure><a href="${esc(e.still)}" data-view="First frame">${img(e.still, "first frame")}</a><figcaption>first frame</figcaption></figure>` : ""}
       ${e.clip ? `<figure><a href="${esc(e.clip)}" data-view="Effect clip"><button class="ghost">▶ play clip</button></a><figcaption>H3 clip</figcaption></figure>` : ""}
@@ -1775,6 +1782,7 @@ function paneEffect(j, st) {
   };
   $("#fxRender").onclick = () => send("render");
   if ($("#fxProcess")) $("#fxProcess").onclick = () => send("process");
+  bindBundleCheck("/export_effect", "effect", "Re-process the saved clip.");
 }
 
 function paneStack(j, st) {

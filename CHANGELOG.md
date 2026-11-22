@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added freshness checks for item and effect bundles. A check reports changed inputs, missing or changed outputs, and interrupted writes. Existing bundles can be tracked by exporting the item again or reprocessing the saved effect clip.
 - Added project-library image selection for new anchors. The browser previews the chosen image, and the queue rejects archived or missing references. The generated take records the reference ID and opens for review.
 - Added a read-only project style check for asset settings and processed clip palettes. It identifies off-palette colours and keeps the job screen available when a clip's processing record is damaged.
 - Integrated the official SpriteWaffle artwork into the app header, welcome screen, About dialog, browser favicon, and README. Package the supplied Windows icon and keep the repository social preview artwork outside the app wheel.
