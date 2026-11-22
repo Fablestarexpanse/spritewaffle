@@ -134,6 +134,8 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
                      if not (f.replaced or f.inserted) for kind in MAPS)
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[f"{facing}/{action}"] = edits
+        if markers := timeline.pose_markers(items):
+            settings.setdefault("pose_markers", {})[f"{facing}/{action}"] = markers
         if clip.order:
             settings.setdefault("timeline_order", {})[f"{facing}/{action}"] = clip.order
         if set(clip.sources) - {f.source for f in items}:
@@ -220,6 +222,8 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
             meta_anims[-1]["playback_range"] = playback.frame_range
         if named:
             meta_anims[-1]["tags"] = named
+        if markers := timeline.pose_markers(a["timeline"]):
+            meta_anims[-1]["pose_markers"] = markers
         if any(f.duration_ms is not None for f in a["timeline"]):
             meta_anims[-1]["durations_ms"] = clip_durations
         if a["clip"].order:

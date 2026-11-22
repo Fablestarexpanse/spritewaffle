@@ -1,6 +1,9 @@
-NEXT: Whole-pixel repositioning and reference foot alignment verified. Next add pose markers and verify how they follow frame IDs. The official media kit is pending.
+NEXT: Pose markers and metadata exports verified. Next begin project style settings, then add project references and inherited palettes. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Baseline at `3a825ec` passed 271 tests in 71.57 s. Pose markers will be per-frame annotations with stable IDs. A duplicate starts unmarked. Hidden markers return with order undo. Marker-only edits affect the action PNG package JSON, character JSON, and manifest, so their receipts track the metadata without invalidating measured QA or the action Aseprite file.
+- 2026-11-21 Chromium verified marker selection, navigation, frame-set isolation, unmarked copies, reordering, removal, and undo/redo. Layout passed at 1440, 800, and 390 px, including 150% text at 390 px. On a disposable `hare/courier S/walk` clip, Contact and Key pose reached the action JSON, character JSON, and manifest. Only the two JSON export files changed, and the action Aseprite receipt and saved QA stayed current. Clearing the markers reproduced all 46 action and four character files byte for byte. The final suite passed 274 Python tests in 72.82 s with the existing Starlette warning, plus six Node tests.
 
 - 2026-11-21 Baseline at `f6e8eb1` passed 267 tests in 70.20 s. Manual and reference-foot shifts will use whole pixels and the existing artwork comparison. Vertical alignment is the default to preserve lateral motion. A move that would clip visible artwork will be refused. Reference alignment uses the timeline's effective images and leaves the separate batch alignment workflow available.
 - 2026-11-21 Read-only alignment of `hare/courier S/walk 12f` frame `002.png` to `001.png` moved the foot from `[191.5, 380.0]` to `[191.5, 382.0]`. The two-pixel downward shift changed 7,340 RGBA positions without clipping. Use this pair for the browser and export proof.

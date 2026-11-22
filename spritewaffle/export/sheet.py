@@ -27,7 +27,7 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
                events: list | dict | None = None, hitboxes: dict | None = None, preview_scale: int = 4,
                pivot=None, durations_ms: list[int] | None = None, frame_ids: list[str] | None = None,
                *, playback_range: list[int] | None = None, preview_once: bool = False,
-               tags: list[dict] | None = None) -> dict:
+               tags: list[dict] | None = None, pose_markers: list[dict] | None = None) -> dict:
     """frames (F,h,w,4) uint8 cells -> files. Returns {'strip','json','gif','apng','frames'} paths."""
     out = Path(out_dir)
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -58,6 +58,8 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
         meta["playback_range"] = playback_range
     if tags:
         meta["tags"] = tags
+    if pose_markers:
+        meta["pose_markers"] = pose_markers
     paths["json"].write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     start, end = playback_range if playback_range is not None else (0, n - 1)

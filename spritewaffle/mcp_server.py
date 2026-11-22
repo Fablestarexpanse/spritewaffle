@@ -216,14 +216,16 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                             fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None,
                             playback: dict | None = None, tag_id: str | None = None, tag: dict | None = None,
                             despill: str = "profile", dx: StrictInt = 0, dy: StrictInt = 0,
-                            reference: str | None = None, axes: str = "vertical") -> dict:
+                            reference: str | None = None, axes: str = "vertical",
+                            pose_markers: list[str] | None = None) -> dict:
         """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
         Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
         Insert takes a PNG path and inserts after frame. Insert_blank adds a transparent frame.
         Remove hides a frame. Undo and redo reverse sequence edits.
         Save_tag takes name, start_frame, end_frame, loop in tag, with a tag_id to update.
         Remove_tag uses tag_id. Reprocess applies a comparison with its fingerprint and despill mode.
-        Reposition applies a comparison with its fingerprint, plus dx and dy or a reference and axes."""
+        Reposition applies a comparison with its fingerprint, plus dx and dy or a reference and axes.
+        Pose replaces the selected frame's markers with pose_markers. An empty list clears them."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -247,6 +249,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = playback
         elif operation == "save_tag":
             value = tag
+        elif operation == "pose":
+            value = pose_markers
         target = tag_id if operation in timeline.TAG_OPERATIONS else frame
         selected = timeline.update(job.root, directory, target, operation, value)
         return animation_timeline(character, job_id, facing, action, frame_set) | timeline.selected_result(operation, selected)

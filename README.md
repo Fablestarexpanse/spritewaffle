@@ -128,6 +128,16 @@ checks the seam of each looping tag. Aseprite keeps the original animation tag a
 named entries such as `walk_S [Recovery]`. Action and character JSON include `tags` with
 inclusive, zero-based `start` and `end` positions relative to the clip.
 
+Open **Pose markers** on a selected frame to label beats such as Contact, Passing,
+Anticipation, Impact, Recovery, Idle, Key pose, or Loop transition. Save one or more labels
+for that frame, then use **Previous marker** and **Next marker** to jump among marked frames.
+Markers follow frame IDs within the selected frame set. Copies start unmarked. Undoing
+removal restores the original frame's markers.
+
+The action JSON and each character animation record include `pose_markers` with the
+zero-based `frame` position, stable `frame_id`, and `markers`. The asset manifest lists
+marker identifiers on each marked frame. Re-export after changing markers to refresh the JSON.
+
 Choose **Edit pixels** on the selected frame or copy. Pencil, Eraser, and Pick color work
 on the effective image. Choose an RGBA color or use a swatch from the job palette. Zoom
 in to use the pixel grid. With the canvas focused, move with the arrow keys and apply the
@@ -195,6 +205,10 @@ HTTP and MCP accept `operation` set to `playback` and a `playback` object with `
 Use `--save-tag tag.json` with `name`, `start_frame`, `end_frame`, and a boolean `loop`.
 Include the existing `id` to edit a tag. `--remove-tag ID` removes it. HTTP and MCP use
 `save_tag` with a `tag` object and optional `tag_id`, or `remove_tag` with `tag_id`.
+
+Use `--frame 001.png --pose contact --pose key` to set that frame's markers. Use
+`--clear-poses` on the same frame to clear them. HTTP and MCP accept `operation` set to
+`pose` with a `frame` ID and a `pose_markers` list. An empty list clears the markers.
 
 For pixel edits, use `--frame 001.png --pixels` to get the current `fingerprint`, cell dimensions,
 job palette, and base64-encoded row-major `rgba` bytes. Use `--paint patch.json` on the same frame

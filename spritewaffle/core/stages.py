@@ -308,8 +308,11 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
             settings.setdefault("timeline", {})[sd.name] = edits
         if clip.order:
             settings.setdefault("timeline_order", {})[sd.name] = clip.order
-        if fmt == "png" and (events := _events(job, facing, action, clip)) != settings["events"]:
-            settings.setdefault("events_by_set", {})[sd.name] = events
+        if fmt == "png":
+            if (events := _events(job, facing, action, clip)) != settings["events"]:
+                settings.setdefault("events_by_set", {})[sd.name] = events
+            if markers := timeline.pose_markers(items):
+                settings.setdefault("pose_markers", {})[sd.name] = markers
     return receipt.snapshot(job.root, files, settings)
 
 
@@ -397,7 +400,8 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
                                       durations_ms=durations if any(f.duration_ms is not None for f in items) else None,
                                       frame_ids=clip.order,
                                       playback_range=playback.frame_range,
-                                      preview_once=not playback.loop and bool(playback.signature()), tags=named)
+                                      preview_once=not playback.loop and bool(playback.signature()), tags=named,
+                                      pose_markers=timeline.pose_markers(items))
             artifacts["png"].extend(png.pop("frames"))
             artifacts["png"].extend(png.values())
             files.update({key: str(path) for key, path in png.items()})

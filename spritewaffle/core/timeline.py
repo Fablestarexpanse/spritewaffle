@@ -24,6 +24,10 @@ MAX_DURATION_MS = 65_535                  # Aseprite stores frame durations as u
 ORDER_OPERATIONS = ("duplicate", "move", "insert", "insert_blank", "remove", "undo", "redo")
 TAG_OPERATIONS = ("save_tag", "remove_tag")
 PLAYBACK_MODES = ("source", "loop", "once")
+POSE_MARKER_TYPES = {
+    "contact": "Contact", "passing": "Passing", "anticipation": "Anticipation", "impact": "Impact",
+    "recovery": "Recovery", "idle": "Idle", "key": "Key pose", "loop_transition": "Loop transition",
+}
 STALE_PIXELS = "The frame changed after the editor opened. Close and reopen the editor to load the current frame."
 
 
@@ -35,6 +39,7 @@ class Frame:
     duration_ms: int | None = None
     conflict: bool = False
     insertion_id: str | None = None
+    pose_markers: tuple[str, ...] = ()
 
     @property
     def replaced(self) -> bool:
@@ -216,7 +221,7 @@ def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> tu
         replacement = edit.get("replacement")
         active = _active_path(root, frame_set, replacement, _digest(source)) if replacement else None
         result.append(Frame(frame_id, source, active or source, edit.get("duration_ms"),
-                            bool(replacement) and active is None, insertion_id))
+                            bool(replacement) and active is None, insertion_id, tuple(edit.get("pose_markers", ()))))
     return result, unavailable
 
 
@@ -304,6 +309,12 @@ def pixels(paths: list[Path]) -> np.ndarray:
 
 def timings(items: list[Frame], default_ms: int) -> list[int]:
     return [frame.duration_ms if frame.duration_ms is not None else default_ms for frame in items]
+
+
+def pose_markers(items: list[Frame]) -> list[dict]:
+    """Marker records use clip-local positions and stable timeline IDs."""
+    return [{"frame": i, "frame_id": frame.id, "markers": list(frame.pose_markers)}
+            for i, frame in enumerate(items) if frame.pose_markers]
 
 
 def export_settings(items: list[Frame]) -> dict:
@@ -495,7 +506,10 @@ def _edit_order(root: Path, frame_set: Path, state: dict, sources: list[Path], n
         copies[new_id] = copies.get(name, name)
         order.insert(order.index(name) + 1, new_id)
         if name in state["frames"]:
-            state["frames"][new_id] = deepcopy(state["frames"][name])
+            edit = deepcopy(state["frames"][name])
+            edit.pop("pose_markers", None)
+            if edit:
+                state["frames"][new_id] = edit
         state["order"] = order
         return new_id
 
@@ -524,6 +538,16 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
             edit["duration_ms"] = value
     elif operation == "restore":
         edit.pop("replacement", None)
+    elif operation == "pose":
+        if not isinstance(value, list) or any(not isinstance(marker, str) or marker not in POSE_MARKER_TYPES for marker in value):
+            raise ValueError("Choose a list of supported pose markers for this frame.")
+        markers = [marker for marker in POSE_MARKER_TYPES if marker in value]
+        if markers == edit.get("pose_markers", []):
+            return False
+        if markers:
+            edit["pose_markers"] = markers
+        else:
+            edit.pop("pose_markers", None)
     else:
         if operation == "paint":
             active = _paint(root, frame_set, source, edit, value)
@@ -634,7 +658,7 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
     from .job import Job
 
     if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback",
-                         "reprocess", "reposition"):
+                         "reprocess", "reposition", "pose"):
         raise ValueError("Unknown timeline operation.")
     if operation not in (*TAG_OPERATIONS, "undo", "redo", "playback") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|(?:copy|insert)-[1-9][0-9]*)", name) is None
@@ -694,12 +718,12 @@ def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
         with Image.open(items[0].source if items else clip.sources[0]) as image:
             cell = list(image.size)
     return {"facing": facing, "action": action, "frame_set": name, "cell": cell, "loop": playback.loop,
-            "playback": asdict(playback), "tags": clip.describe_tags(),
+            "playback": asdict(playback), "tags": clip.describe_tags(), "pose_marker_types": POSE_MARKER_TYPES,
             "default_ms": default_ms, "max_duration_ms": MAX_DURATION_MS, "max_image_bytes": MAX_IMAGE_BYTES,
             "qa_needs_review": qa_needs_review(report, clip), "unavailable": clip.unavailable,
             "can_undo": bool(state.get("undo")), "can_redo": bool(state.get("redo")),
             "frames": [{"id": f.id, "name": f.source_id, "image": f.image.relative_to(root).as_posix(),
-                        "inserted": f.inserted,
+                        "inserted": f.inserted, "pose_markers": list(f.pose_markers),
                         "duration_ms": t, "timing_edited": f.duration_ms is not None,
                         "replaced": f.replaced, "conflict": f.conflict,
                         "history": _history_view(root, frame_set, f, state["frames"].get(f.id, {}))}

@@ -102,6 +102,17 @@ function showTimeline(action) {
               <button id="tlReset" type="button">Reset duration</button>
             </div>
           </form>
+          <details id="tlPoses">
+            <summary>Pose markers <span id="tlPoseSummary" class="muted"></span></summary>
+            <form id="tlPoseForm">
+              <div id="tlPoseChecks" role="group" aria-label="Pose marker types"></div>
+              <div class="row">
+                <button id="tlPoseSave" type="submit">Save markers</button>
+                <button id="tlPosePrev" type="button" aria-label="Previous marked frame">Previous marker</button>
+                <button id="tlPoseNext" type="button" aria-label="Next marked frame">Next marker</button>
+              </div>
+            </form>
+          </details>
           <form id="tlReplacement">
             <div class="row"><label class="field">Same-size PNG <input id="tlFile" type="file" accept="image/png,.png" required></label></div>
             <div class="row">
@@ -139,6 +150,8 @@ function showTimeline(action) {
   const mode = find("#tlMode"), limited = find("#tlLimit"), first = find("#tlFirst"), last = find("#tlLast");
   const tagPick = find("#tlTagPick"), tagName = find("#tlTagName"), tagLoop = find("#tlTagLoop");
   const tagFirst = find("#tlTagFirst"), tagLast = find("#tlTagLast"), tagPreview = find("#tlTagPreview");
+  const poseChecks = find("#tlPoseChecks"), poseSave = find("#tlPoseSave");
+  const posePrev = find("#tlPosePrev"), poseNext = find("#tlPoseNext");
   let clip, selected = 0, timer, playing = false, playingTag = null;
   try { onion.checked = localStorage.getItem("sw.timeline.onion") === "true"; } catch {}
 
@@ -199,6 +212,34 @@ function showTimeline(action) {
     showHistoryVersion();
   }
 
+  function poseLabels(frame) {
+    return frame.pose_markers.map(marker => clip.pose_marker_types[marker]).join(", ");
+  }
+
+  function showPoses(frame) {
+    const labels = poseLabels(frame);
+    find("#tlPoseSummary").textContent = labels ? `· ${labels}` : "";
+    for (const input of poseChecks.querySelectorAll("input")) input.checked = frame.pose_markers.includes(input.value);
+    poseSave.disabled = true;
+    posePrev.disabled = poseNext.disabled = !clip.frames.some(item => item.id !== frame.id && item.pose_markers.length);
+  }
+
+  function checkedPoses() {
+    return [...poseChecks.querySelectorAll("input:checked")].map(input => input.value);
+  }
+
+  function jumpToPose(direction) {
+    const count = clip.frames.length;
+    for (let step = 1; step < count; step++) {
+      const index = (selected + direction * step + count) % count;
+      if (clip.frames[index].pose_markers.length) {
+        stop();
+        select(index);
+        return;
+      }
+    }
+  }
+
   function select(index) {
     selected = index;
     const frame = clip.frames[index];
@@ -218,6 +259,7 @@ function showTimeline(action) {
     find("#tlRestore").disabled = !frame.replaced && !frame.conflict;
     find("#tlFrameNote").textContent = frame.conflict ? "The saved replacement is inactive. Its source or PNG changed." :
       frame.replaced ? "Using the saved replacement." : "";
+    showPoses(frame);
     showHistory(frame);
     paintOnion();
     for (const button of strip.children) button.setAttribute("aria-pressed", String(Number(button.dataset.tlIndex) === index));
@@ -315,15 +357,19 @@ function showTimeline(action) {
     displayUnavailable(data);
     displayPlayback(data);
     displayTags(selectedTag);
+    poseChecks.innerHTML = Object.entries(data.pose_marker_types).map(([marker, label]) =>
+      `<label><input type="checkbox" value="${esc(marker)}"> ${esc(label)}</label>`).join("");
     const {start, end, start_frame, error} = data.playback;
     strip.innerHTML = data.frames.map((frame, i) => {
       const inPlayback = start_frame && !error && start <= i && i <= end;
       const kind = frame.id !== frame.name ? "copy of" : frame.inserted ? "inserted" : "frame";
       const caption = frame.id !== frame.name ? "Copy " : frame.inserted ? "New " : "";
+      const poses = poseLabels(frame);
       return `
       <button type="button" data-tl-index="${i}" data-frame-id="${esc(frame.id)}"
         ${inPlayback ? 'data-in-playback="true"' : ""}
-        aria-label="${i + 1}, ${kind} ${esc(frame.name)}, ${frame.duration_ms} ms${inPlayback ? ", in playback range" : ""}">
+        ${poses ? `data-marked title="${esc(poses)}"` : ""}
+        aria-label="${i + 1}, ${kind} ${esc(frame.name)}, ${frame.duration_ms} ms${inPlayback ? ", in playback range" : ""}${poses ? `, ${esc(poses)}` : ""}">
         <img class="pix" src="${esc(frame.url)}" alt="">
         ${caption}${esc(frame.name.replace(/\.png$/, "").replace(/^insert-/, ""))} · ${frame.duration_ms} ms
       </button>`;
@@ -363,6 +409,7 @@ function showTimeline(action) {
     try {
       const body = {operation, frame: target};
       if (operation === "duration") body.duration_ms = value;
+      if (operation === "pose") body.pose_markers = value;
       if (operation === "activate") body.version = value;
       if (operation === "move") body.position = value;
       if (operation === "playback") body.playback = value;
@@ -384,7 +431,7 @@ function showTimeline(action) {
       const labels = {activate: `Version ${value} applied.`, duplicate: "Frame duplicated.", move: "Frame moved.",
                       insert: "PNG frame inserted.", insert_blank: "Blank frame inserted.", remove: "Frame removed from the sequence.",
                       undo: "Frame order change undone.", redo: "Frame order change redone.", playback: "Playback saved.",
-                      save_tag: "Tag saved.", remove_tag: "Tag removed."};
+                      save_tag: "Tag saved.", remove_tag: "Tag removed.", pose: value?.length ? "Pose markers saved." : "Pose markers cleared."};
       message(labels[operation] || "Saved.");
     } catch (error) {
       if (open()) message(error.message, true);
@@ -445,6 +492,12 @@ function showTimeline(action) {
   };
   find("#tlTiming").onsubmit = event => { event.preventDefault(); save("duration", duration.valueAsNumber); };
   find("#tlReset").onclick = () => save("duration", null);
+  find("#tlPoseForm").onsubmit = event => { event.preventDefault(); save("pose", checkedPoses()); };
+  poseChecks.onchange = () => {
+    poseSave.disabled = checkedPoses().join(",") === clip.frames[selected].pose_markers.join(",");
+  };
+  posePrev.onclick = () => jumpToPose(-1);
+  poseNext.onclick = () => jumpToPose(1);
   function savedArtwork(data, id, label) {
     if (!open()) return;
     const index = data.frames.findIndex(item => item.id === id);

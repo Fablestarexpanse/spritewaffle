@@ -39,6 +39,91 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     return data.getvalue()
 
 
+def test_pose_markers_export_as_metadata_without_invalidating_measured_qa(clip):
+    job, directory = clip
+    profile = resolve(None)
+    output = job.root / "06_export/S/walk"
+    char_dir = job.root / "06_export/character"
+    stages.qa(job, profile)
+    action = stages.export(job, profile)["12f"]
+    packed = character.export(job.root, char_dir, "hero", profile.fps)
+    action_baseline = {p: p.read_bytes() for p in output.rglob("*") if p.is_file()}
+    char_baseline = {p: p.read_bytes() for p in char_dir.rglob("*") if p.is_file()}
+    before = (directory / "frames/002.png").read_bytes()
+    timeline.update(job.root, directory, "002.png", "pose", ["key", "contact"])
+
+    view = timeline.describe(job.root, directory, 12)
+    assert view["pose_marker_types"]["passing"] == "Passing"
+    assert view["frames"][2]["pose_markers"] == ["contact", "key"]
+    assert not view["qa_needs_review"]
+    action_status = stages.export_status(job, profile)["formats"]
+    assert action_status["png"]["status"] == "stale" and action_status["aseprite"]["status"] == "current"
+    assert character.export_status(job.root, char_dir, profile.fps)["status"] == "stale"
+    frame = manifest.read(job)["animations"][0]["frames"][2]
+    assert frame["frame_id"] == "002.png" and frame["pose_markers"] == ["contact", "key"]
+
+    stages.export(job, profile, fmt="png")
+    character.export(job.root, char_dir, "hero", profile.fps)
+    meta = json.loads(Path(action["json"]).read_text(encoding="utf-8"))
+    packed_meta = json.loads(Path(packed["json"]).read_text(encoding="utf-8"))["animations"][0]
+    assert meta["pose_markers"] == packed_meta["pose_markers"] == [
+        {"frame": 2, "frame_id": "002.png", "markers": ["contact", "key"]}]
+    assert {p for p in action_baseline if p.read_bytes() != action_baseline[p]} == {Path(action["json"])}
+    assert {p for p in char_baseline if p.read_bytes() != char_baseline[p]} == {Path(packed["json"])}
+    timeline.update(job.root, directory, "002.png", "pose", [])
+    stages.export(job, profile, fmt="png")
+    character.export(job.root, char_dir, "hero", profile.fps)
+    assert all(p.read_bytes() == contents for p, contents in (action_baseline | char_baseline).items())
+    assert (directory / "frames/002.png").read_bytes() == before
+
+
+def test_pose_markers_follow_frame_ids_through_sequence_edits(clip):
+    job, directory = clip
+    original = "002.png"
+    timeline.update(job.root, directory, original, "pose", ["anticipation", "impact"])
+    timeline.update(job.root, directory, original, "duration", 140)
+    copied = timeline.update(job.root, directory, original, "duplicate")
+    assert [(frame.id, frame.pose_markers, frame.duration_ms) for frame in timeline.frames(job.root, directory)[2:4]] == [
+        (original, ("anticipation", "impact"), 140), (copied, (), 140)]
+    timeline.update(job.root, directory, original, "move", 0)
+    assert timeline.pose_markers(timeline.frames(job.root, directory)) == [
+        {"frame": 0, "frame_id": original, "markers": ["anticipation", "impact"]}]
+    timeline.update(job.root, directory, original, "remove")
+    assert timeline.pose_markers(timeline.frames(job.root, directory)) == []
+    with pytest.raises(FileNotFoundError, match="unavailable"):
+        timeline.update(job.root, directory, original, "pose", ["idle"])
+    timeline.update(job.root, directory, None, "undo")
+    assert timeline.frames(job.root, directory)[0].pose_markers == ("anticipation", "impact")
+    timeline.update(job.root, directory, None, "redo")
+    assert timeline.pose_markers(timeline.frames(job.root, directory)) == []
+    timeline.update(job.root, directory, None, "undo")
+    inserted = timeline.update(job.root, directory, original, "insert_blank")
+    timeline.update(job.root, directory, inserted, "pose", ["loop_transition"])
+    assert timeline.frames(job.root, directory)[1].pose_markers == ("loop_transition",)
+
+
+def test_pose_edit_validation_and_shared_interfaces(clip, tmp_path, monkeypatch, capsys):
+    job, directory = clip
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    route = "/api/jobs/hero/j/timeline?facing=S&action=walk"
+    frame = "001.png"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk", "--frame", frame]
+    assert cli.main([*args, "--pose", "passing", "--pose", "key"]) == 0
+    assert json.loads(capsys.readouterr().out)["frames"][1]["pose_markers"] == ["passing", "key"]
+    with TestClient(create_app(worker=False)) as client:
+        for value in (None, "impact", ["unknown"], [["key"]]):
+            assert client.post(route, json={"operation": "pose", "frame": frame, "pose_markers": value}).status_code == 400
+        assert client.get(route).json()["frames"][1]["pose_markers"] == ["passing", "key"]
+        response = client.post(route, json={"operation": "pose", "frame": frame, "pose_markers": ["recovery"]})
+        assert response.status_code == 200 and response.json()["frames"][1]["pose_markers"] == ["recovery"]
+    mcp, _ = build(tmp_path)
+    result = text(call(mcp, "edit_timeline_frame", character="hero", job_id="j", facing="S", action="walk",
+                       frame=frame, operation="pose", pose_markers=["idle"]))
+    assert result["frames"][1]["pose_markers"] == ["idle"]
+    assert cli.main([*args, "--clear-poses"]) == 0
+    assert json.loads(capsys.readouterr().out)["frames"][1]["pose_markers"] == []
+
+
 def test_reposition_preserves_rgba_and_saves_only_the_selected_frame(clip):
     job, directory = clip
     profile = resolve(None)

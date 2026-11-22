@@ -425,7 +425,7 @@ def cmd_timeline(a):
         timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
     elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
           or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove
-          or a.apply_reprocess or a.apply_reposition):
+          or a.apply_reprocess or a.apply_reposition or a.pose or a.clear_poses):
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
         if a.replace or a.insert:
@@ -442,6 +442,8 @@ def cmd_timeline(a):
                                        {"fingerprint": a.apply_reprocess, "despill": a.despill or "profile"})
         elif a.apply_reposition:
             selected = timeline.update(job.root, directory, a.frame, "reposition", {"fingerprint": a.apply_reposition, **offsets})
+        elif a.pose or a.clear_poses:
+            selected = timeline.update(job.root, directory, a.frame, "pose", a.pose or [])
         elif a.restore:
             selected = timeline.update(job.root, directory, a.frame, "restore")
         elif a.use_version is not None:
@@ -535,6 +537,8 @@ def cmd_mcp(a):
 # --- parser -----------------------------------------------------------------------------------
 
 def build() -> argparse.ArgumentParser:
+    from .core.timeline import POSE_MARKER_TYPES
+
     ap = argparse.ArgumentParser(prog="spritewaffle", description="AI image/video -> game-ready pixel-art sprites.",
                                  epilog=OVERVIEW, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--version", action="version", version=f"spritewaffle {__version__}")
@@ -700,6 +704,9 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--playback", choices=("source", "loop", "once"), help="set playback mode and optional range")
     edits.add_argument("--save-tag", metavar="TAG_JSON", help="create or edit a named range from JSON")
     edits.add_argument("--remove-tag", metavar="TAG_ID", help="remove a named range by ID")
+    edits.add_argument("--pose", action="append", choices=tuple(POSE_MARKER_TYPES), metavar="MARKER",
+                       help="replace the selected frame's pose markers, repeating for each marker")
+    edits.add_argument("--clear-poses", action="store_true", help="clear the selected frame's pose markers")
     ep.add_argument("--range-start", help="first frame ID for --playback")
     ep.add_argument("--range-end", help="last frame ID for --playback")
 

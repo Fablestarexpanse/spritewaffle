@@ -694,6 +694,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 value = body.get("playback")
             elif operation == "save_tag":
                 value = body.get("tag")
+            elif operation == "pose":
+                value = body.get("pose_markers")
             target = body.get("tag_id") if operation in timeline.TAG_OPERATIONS else body.get("frame")
             selected = timeline.update(j.root, directory, target, operation, value)
             return timeline_view(j, facing, action, frame_set) | timeline.selected_result(operation, selected)

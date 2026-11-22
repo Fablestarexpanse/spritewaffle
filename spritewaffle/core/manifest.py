@@ -136,7 +136,8 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
                                         place, rep.get("cell"))
                          if src_facing else downscale_record(rep, place, profile))
         out.append({"view_index": angles.view_index(yaw, vc), "frame": position, "yaw_degrees": yaw,
-                    **({"frame_id": edit.id, "source_frame": edit.source_id} if reordered else {}),
+                    **({"frame_id": edit.id, "source_frame": edit.source_id} if reordered or edit.pose_markers else {}),
+                    **({"pose_markers": list(edit.pose_markers)} if edit.pose_markers else {}),
                     **({"inserted": True} if edit.inserted else {}),
                     "camera_elevation_degrees": elev, "view_count": vc,
                     "mirrored": mirrored,

@@ -41,6 +41,9 @@
 - Added whole-pixel frame repositioning and alignment to a reference frame's foot point.
   The comparison shows the measured foot points, refuses clipped artwork, and saves through
   the existing replacement history.
+- Added pose markers for eight animation beats, with navigation between marked frames.
+  Markers follow frame IDs through sequence edits and export in action and character JSON
+  and in the asset manifest.
 
 ## 2026-11-21: directional sprite readiness
 

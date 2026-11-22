@@ -64,7 +64,7 @@ positions. An unresolved range carries `error` and has null positions until it i
 | `view_index`, `view_count`, `yaw_degrees` | int, int, float | the view this frame belongs to |
 | `frame` | int | index within the effective animation sequence |
 | `inserted` | bool, optional | `true` for a frame supplied by the timeline, including a copy of an insertion. Its source lives in the edit store. Generated maps, master, and downscale data are absent. |
-| `frame_id` | optional str | stable ID in a reordered or duplicated frame set, such as `001.png` or `copy-1` |
+| `frame_id` | optional str | stable ID for a marked frame or a frame in an edited sequence, such as `001.png` or `copy-1` |
 | `source_frame` | optional str | numbered processed filename behind a frame in an edited sequence |
 | `camera_elevation_degrees` | float | from the camera profile |
 | `mirrored` | bool | made by flipping another view's frame |
@@ -74,6 +74,7 @@ positions. An unresolved range carries `error` and has null positions until it i
 | `color_unaligned` | path\|null | the original frame when `color` is the aligned copy |
 | `color_source` | optional path | the processed or aligned image behind an active timeline replacement |
 | `duration_ms` | optional int | saved timeline duration for this frame |
+| `pose_markers` | optional list | saved identifiers such as `contact`, `passing`, or `loop_transition` |
 | `depth`, `normal` | path\|null | reserved slots: `<frame>_depth.png`, `<frame>_normal.png`. Replaced frames omit their old maps. |
 | `master` | path\|null | the high-res source, `03_actions/<facing>/<action>/selected_<n>f/<k>_src<i>.png`; a mirrored frame points at its source view's master |
 | `downscale` | object | how the processed frame was made from `master` (below), so it can be replayed |

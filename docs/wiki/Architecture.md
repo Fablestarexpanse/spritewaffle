@@ -82,6 +82,12 @@ fingerprint includes both images, and the bounds check refuses a translation tha
 clip any visible pixel. The asset manifest measures the saved replacement's foot point.
 Batch alignment continues to generate its separate aligned frame set.
 
+Pose markers are saved as optional frame annotations in the timeline sidecar. Frame order
+undo and redo control their visibility through the frame IDs, and duplication excludes the
+annotations. The action PNG package and character bundle receipts include the visible markers.
+Their JSON records use clip-local positions and stable IDs. The asset manifest carries the
+markers on each frame. A marker edit retains the measured QA report and the action Aseprite receipt.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA
