@@ -49,7 +49,9 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | field | type | meaning |
 |---|---|---|
 | `view_index`, `view_count`, `yaw_degrees` | int, int, float | the view this frame belongs to |
-| `frame` | int | index within the animation |
+| `frame` | int | index within the effective animation sequence |
+| `frame_id` | optional str | stable ID in a reordered or duplicated frame set, such as `001.png` or `copy-1` |
+| `source_frame` | optional str | numbered processed filename behind a frame in an edited sequence |
 | `camera_elevation_degrees` | float | from the camera profile |
 | `mirrored` | bool | made by flipping another view's frame |
 | `source_view_index` | int\|null | the view it was flipped from |

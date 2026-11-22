@@ -146,10 +146,12 @@ def review(report: dict) -> dict:
         add(0, "loop-seam", "warn", "Abrupt transition from the last frame.")
         add(count - 1, "loop-seam", "warn", "Abrupt transition to the first frame.")
     names = report.get("frame_files") or []
+    order = report.get("timeline_order") or []
     findings = []
     for index in sorted(frames):
         name = names[index] if isinstance(names, list) and index < len(names) else None
         findings.append({"frame": index, "file": name if isinstance(name, str) else f"{index:03d}.png",
+                         **({"frame_id": order[index]} if index < len(order) else {}),
                          "issues": frames[index]})
     return {"status": status, "classification": classification, "errors": errors, "warnings": warnings,
             "reroll": report.get("reroll", []), "frame_findings": findings}

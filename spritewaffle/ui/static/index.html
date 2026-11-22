@@ -1207,7 +1207,7 @@ function showAnim(a) {
     ${(a.sets["12f"].frames || []).length ? `<h3>Effect <span class="muted">a spell, a burst, a thrown object: a separate sprite, an event in the export</span></h3>
       ${(job.effect_jobs || []).length ? `<div class="fxattach">
         <div><canvas id="axCanvas" width="256" height="256" title="click where the effect starts"></canvas>
-          <div class="row" style="margin:4px 0"><label>Frame <input type="range" id="axFrame" min="0" max="${a.sets["12f"].frames.length - 1}" value="${a.attachment?.frame ?? 0}"></label><span id="axFrameN" class="muted"></span></div></div>
+          <div class="row" style="margin:4px 0"><label>Source frame <input type="range" id="axFrame" min="0" max="${a.sets["12f"].frames.length - 1}" value="${a.attachment?.frame ?? 0}"></label><span id="axFrameN" class="muted"></span></div></div>
         <div class="field" style="gap:8px;min-width:220px">
           <label class="field"><span>Effect job</span><select id="axJob">${job.effect_jobs.map(e => `<option ${e === a.attachment?.effect_job ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></label>
           <label>Layer <select id="axLayer"><option value="front">in front</option><option value="behind" ${a.attachment?.layer === "behind" ? "selected" : ""}>behind</option></select></label>

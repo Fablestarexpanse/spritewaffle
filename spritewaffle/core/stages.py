@@ -153,12 +153,16 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     return info
 
 
-def _events(job: Job, facing: str, action: str) -> list:
+def _events(job: Job, facing: str, action: str, items: list[timeline.Frame] | None = None) -> list:
     """Attached effects as export events (see core/attach.py)."""
     from . import attach
     att = attach.get(job, facing, action)
     if not att:
         return []
+    if items is not None:
+        att = attach.for_timeline(att, items)
+        if att is None:
+            return []
     try:
         directory = attach.effect_directory(job.root.parent.parent / att["effect_job"])
         meta = json.loads((directory / f"{directory.name}.json").read_text(encoding="utf-8"))
@@ -217,13 +221,19 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
     for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
-        items = timeline.frames(job.root, sd)
+        sources = video.colour_frames(sd / "frames")
+        items = timeline.frames(job.root, sd, sources)
         cells, places = _load_set(sd, items)
+        if len(places) == len(sources):
+            placement_by_source = dict(zip(sources, places))
+            places = [placement_by_source[f.source] for f in items]
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
         r["frame_files"] = [frame.source.name for frame in items]
         if active := timeline.replacements(items):
             r["timeline_replacements"] = active
+        if order := timeline.order_signature(items):
+            r["timeline_order"] = order
         r.setdefault("warnings", []).extend(prep.get("warnings", []))
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
@@ -275,6 +285,10 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
         files.extend(frame.image for frame in items)
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[sd.name] = edits
+        if order := timeline.order_signature(items):
+            settings.setdefault("timeline_order", {})[sd.name] = order
+        if fmt == "png" and (events := _events(job, facing, action, items)) != settings["events"]:
+            settings.setdefault("events_by_set", {})[sd.name] = events
     return receipt.snapshot(job.root, files, settings)
 
 
@@ -306,6 +320,7 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
     formats = ("png", "aseprite") if fmt == "both" else (fmt,)
     out.parent.mkdir(parents=True, exist_ok=True)
     with receipt.locked(out):
+        previous_png = (receipt.load(_action_receipt(out, "png")) or {}) if "png" in formats else {}
         before = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
         sets = [pdir / name for name in before[formats[0]]["settings"]["sets"]]
         if not sets:
@@ -314,6 +329,8 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
         after = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
         if before != after:
             raise RuntimeError("Action export inputs changed during export. Wait for processing to finish, then export again.")
+        if previous_png:
+            receipt.prune_exported_frames(out, previous_png, artifacts["png"])
         for kind in formats:
             receipt.save(_action_receipt(out, kind), out, before[kind], artifacts[kind])
         job.set_stage(f"export:{facing}/{action}", "done", formats=fmt)
@@ -326,12 +343,12 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
     pal = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)]
                     for h in json.loads((pdir / "pixel_report.json").read_text(encoding="utf-8"))["palette"]], np.uint8).reshape(-1, 3)
     base_fps = profile.fps(action)
-    events = _events(job, facing, action) if "png" in formats else []
     written = {}
     artifacts = {kind: [] for kind in formats}
     for sd in sets:
         fps = timeline.action_fps(base_fps, sd.name)
-        items = timeline.frames(job.root, sd)
+        sources = video.colour_frames(sd / "frames")
+        items = timeline.frames(job.root, sd, sources)
         cells, places = _load_set(sd, items)
         durations = timeline.timings(items, round(1000 / fps))
         pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
@@ -343,16 +360,22 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
         if "aseprite" in formats and indexed:
             ind = np.load(sd / "indices.npy")
             opaque = cells[..., 3] > 0
-            if (not np.issubdtype(ind.dtype, np.integer) or ind.shape != opaque.shape or
+            if ind.shape != (len(sources), *opaque.shape[1:]):
+                raise ValueError(f"{sd.name} indexed pixels disagree with the PNG frames. Pixelize again before exporting Aseprite.")
+            index_by_source = {path: i for i, path in enumerate(sources)}
+            ind = ind[[index_by_source[f.source] for f in items]]
+            if (not np.issubdtype(ind.dtype, np.integer) or
                     not np.array_equal(ind >= 0, opaque) or np.any(ind[opaque] >= len(pal)) or
                     not np.array_equal(pal[ind[opaque]], cells[opaque, :3])):
                 raise ValueError(f"{sd.name} indexed pixels disagree with the PNG frames. Pixelize again before exporting Aseprite.")
         if "png" in formats:
             if not artifacts["png"]:
                 receipt.incomplete(_action_receipt(out_dir, "png"))
-            png = sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot, events=events,
+            png = sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot,
+                                      events=_events(job, facing, action, items),
                                       preview_scale=4 if original_indexed else 1,
-                                      durations_ms=durations if any(f.duration_ms is not None for f in items) else None)
+                                      durations_ms=durations if any(f.duration_ms is not None for f in items) else None,
+                                      frame_ids=timeline.order_signature(items))
             artifacts["png"].extend(png.pop("frames"))
             artifacts["png"].extend(png.values())
             files.update({key: str(path) for key, path in png.items()})

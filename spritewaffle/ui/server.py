@@ -277,7 +277,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                     by_name = {p.name: p for p in frames}
                     qa_replacements = report.get("timeline_replacements") or {}
                     for finding in qa["frame_findings"]:
-                        digest = qa_replacements.get(finding["file"])
+                        digest = qa_replacements.get(finding.get("frame_id", finding["file"]))
                         path = (timeline.replacement_path(j.root, folder.parent, digest)
                                 if digest else by_name.get(finding["file"]))
                         finding["preview"] = url(path) if path else None
@@ -653,8 +653,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 value = b64decode(encoded, validate=True)
             elif operation == "activate":
                 value = body.get("version")
-            timeline.update(j.root, directory, body.get("frame", ""), operation, value)
-            return timeline_view(j, facing, action, frame_set)
+            elif operation == "move":
+                value = body.get("position")
+            selected = timeline.update(j.root, directory, body.get("frame"), operation, value)
+            return timeline_view(j, facing, action, frame_set) | {"selected_frame": selected}
         except (ValueError, TypeError, OSError, RuntimeError) as e:
             bad(e)
 

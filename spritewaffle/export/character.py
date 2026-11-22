@@ -38,8 +38,9 @@ def _aligned_frames(sd: Path, aligned: bool, count: int) -> list[Path]:
 
 
 def _images(sd: Path, aligned: bool, items: list[timeline.Frame]) -> list[Path]:
-    files = _aligned_frames(sd, aligned, len(items))
-    return [files[i] if files and not item.replaced else item.image for i, item in enumerate(items)]
+    sources = sorted({item.source for item in items})
+    aligned_by_source = dict(zip(sources, _aligned_frames(sd, aligned, len(sources))))
+    return [item.image if item.replaced else aligned_by_source.get(item.source, item.source) for item in items]
 
 
 def _sets(root: Path, frame_set: str):
@@ -49,12 +50,12 @@ def _sets(root: Path, frame_set: str):
         yield directory, directory.parent.parent.name, directory.parent.name
 
 
-def _qa_problem(path: Path, replacements: dict) -> str | None:
-    report = checks.read(path)
-    if report is None:
-        return "QA needs to review frame replacements" if replacements else "no QA report"
-    if (report.get("timeline_replacements") or {}) != replacements:
-        return "QA needs to review frame replacements"
+def _qa_problem(path: Path, items: list[timeline.Frame]) -> str | None:
+    report = checks.read(path) or {}
+    if timeline.qa_needs_review(report, items):
+        return "QA needs to review timeline changes"
+    if not report:
+        return "no QA report"
     if report["status"] != "pass":
         return "QA failed"
     return None
@@ -69,7 +70,7 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
         qa = job_root / "05_qa" / facing / action / frame_set / "report.json"
         items = timeline.frames(job_root, sd)
         replaced = timeline.replacements(items)
-        if require_pass and (problem := _qa_problem(qa, replaced)):
+        if require_pass and (problem := _qa_problem(qa, items)):
             skipped.append(f"{action}_{facing}: {problem}")
             continue
         if not items:
@@ -110,10 +111,9 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
     for directory, facing, action in _sets(root, frame_set):
         qa = root / "05_qa" / facing / action / frame_set / "report.json"
         items = timeline.frames(root, directory)
-        replaced = timeline.replacements(items)
         if require_pass:
             files.append(qa)
-            if _qa_problem(qa, replaced):
+            if _qa_problem(qa, items):
                 continue
         if not items:
             continue
@@ -123,6 +123,8 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
                      if not f.replaced for kind in MAPS)
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[f"{facing}/{action}"] = edits
+        if order := timeline.order_signature(items):
+            settings.setdefault("timeline_order", {})[f"{facing}/{action}"] = order
         files.extend([directory / "placements.json", root / "03_actions" / facing / action / "selection_report.json"])
         name = f"{action}_{facing}"
         if att := attachments.get(name):
@@ -190,7 +192,8 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     for a in anims:
         start = len(frames)
         n = len(a["cells"])
-        fps = fps_for(a["action"]) * (n // 12 if n > 12 else 1)       # 24f plays twice as fast
+        source_count = len({f.source for f in a["timeline"]})
+        fps = fps_for(a["action"]) * max(1, source_count // 12)      # Copies extend duration at the source rate.
         frames += list(a["cells"])
         clip_durations = timeline.timings(a["timeline"], round(1000 / fps))
         durations.extend(clip_durations)
@@ -200,6 +203,8 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
                            "row": len(meta_anims), "first": start})
         if any(f.duration_ms is not None for f in a["timeline"]):
             meta_anims[-1]["durations_ms"] = clip_durations
+        if order := timeline.order_signature(a["timeline"]):
+            meta_anims[-1]["frame_ids"] = order
     frames = np.stack(frames)
 
     pal = merged_palette(anims)
@@ -214,9 +219,12 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     effect_outputs = set()
     if atts:
         import shutil
-        for ma in meta_anims:
+        for ma, anim in zip(meta_anims, anims):
             att = atts.get(ma["name"])
             if not att:
+                continue
+            att = attach.for_timeline(att, anim["timeline"])
+            if att is None:
                 continue
             try:
                 _, fxmeta, fxdir = attach.effect_files(Path(job_root).parent.parent / att["effect_job"])

@@ -47,7 +47,23 @@ def load(path: Path) -> dict | None:
 
 
 def incomplete(path: Path) -> None:
-    fsutil.write_text(path, json.dumps({"version": 1, "incomplete": True}))
+    previous = load(path) or {}
+    fsutil.write_text(path, json.dumps({"version": 1, "incomplete": True, "outputs": previous.get("outputs", {})}))
+
+
+def prune_exported_frames(out_dir: Path, previous: dict, files: list[Path]) -> None:
+    """Remove surplus frames whose bytes still match the previous write of this set."""
+    recorded = previous.get("outputs")
+    if not isinstance(recorded, dict):
+        return
+    expected = {file.relative_to(out_dir).as_posix() for file in files}
+    frame_directories = {file.parent.resolve() for file in files if file.parent.name == "frames"}
+    for name in recorded.keys() - expected:
+        path = out_dir / name
+        digest = recorded[name]
+        if (path.suffix == ".png" and path.resolve().parent in frame_directories and
+                isinstance(digest, str) and _digest(path) == digest):
+            path.unlink(missing_ok=True)
 
 
 def save(path: Path, out_dir: Path, inputs: dict, files, *, options: dict | None = None) -> None:

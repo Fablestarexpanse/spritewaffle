@@ -104,7 +104,9 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         return []
     aligned = colour_frames(sd / "frames_aligned") if align else []
     use = aligned if len(aligned) == len(frames) else frames
-    edits = {item.source.name: item for item in timeline.frames(job.root, sd, frames)}
+    items = timeline.frames(job.root, sd, frames)
+    reordered = bool(timeline.order_signature(items))
+    source_indices = {frame: index for index, frame in enumerate(frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
     places = json.loads((sd / "placements.json").read_text()) if (sd / "placements.json").exists() else []
     src_facing = rep.get("source") if rep.get("method") == "mirror" else None
@@ -117,14 +119,16 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         src_places = json.loads(pf.read_text()) if pf.exists() else []
     yaw = angles.yaw_of(facing)
     out = []
-    for k, f in enumerate(use):
-        edit = edits[frames[k].name]
+    for position, edit in enumerate(items):
+        k = source_indices[edit.source]
+        f = use[k]
         foot = pts[k] if k < len(pts) else None
         maps = _maps(job, frames[k])
         if edit.replaced:
             foot = layout.foot_point(timeline.pixels([edit.image])[0])
             maps = {"depth": None, "normal": None}
-        out.append({"view_index": angles.view_index(yaw, vc), "frame": k, "yaw_degrees": yaw,
+        out.append({"view_index": angles.view_index(yaw, vc), "frame": position, "yaw_degrees": yaw,
+                    **({"frame_id": edit.id, "source_frame": edit.source.name} if reordered else {}),
                     "camera_elevation_degrees": elev, "view_count": vc,
                     "mirrored": bool(src_facing and not edit.replaced),
                     "source_view_index": angles.view_index(angles.yaw_of(src_facing), vc)

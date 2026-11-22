@@ -177,11 +177,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return timeline.describe(job.root, directory, resolve(job.read_meta()["inputs"].get("profile")).fps(action))
 
     @mcp.tool()
-    def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, frame: str,
-                            operation: str, frame_set: str = "12f",
+    def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, operation: str,
+                            frame: str | None = None, frame_set: str = "12f",
                             duration_ms: int | None = None, png_path: str | None = None,
-                            version: int | None = None) -> dict:
-        """Edit a frame using duration (null resets), replace (png_path), restore, or activate (version)."""
+                            version: int | None = None, position: int | None = None) -> dict:
+        """Edit a frame's duration, artwork, or order. Move takes a zero-based position. Undo and redo change order only."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -193,8 +193,10 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 value = stream.read(timeline.MAX_IMAGE_BYTES + 1)
         elif operation == "activate":
             value = version
-        timeline.update(job.root, directory, frame, operation, value)
-        return animation_timeline(character, job_id, facing, action, frame_set)
+        elif operation == "move":
+            value = position
+        selected = timeline.update(job.root, directory, frame, operation, value)
+        return animation_timeline(character, job_id, facing, action, frame_set) | {"selected_frame": selected}
 
     @mcp.tool()
     def showcase(character: str, job_id: str, size: int = 512) -> dict:

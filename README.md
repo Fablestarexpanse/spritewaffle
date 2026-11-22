@@ -96,6 +96,12 @@ imported again with **Replace frame**.
 Turn on **Onion skin** to compare the previous and next frames while paused. The overlays
 wrap on loops and stop at the ends of one-shot clips. The toggle is saved in this browser.
 
+Use **Duplicate**, **Move earlier**, and **Move later** to change the sequence.
+A copy starts with the selected frame's timing, artwork, and replacement history. It can
+then be edited independently. **Undo order** and **Redo order** apply to duplication and
+moves. Timing and artwork edits stay with their frame IDs. A saved effect attachment
+follows its original source frame through the sequence.
+
 Run **QA** after replacing or restoring artwork, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
 the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
@@ -104,10 +110,13 @@ and its old depth and normal maps are omitted. GIF preview timing uses 10 ms tic
 
 Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
 To edit, add `--frame 001.png` and one of `--duration 160`, `--reset-duration`,
-`--replace repair.png`, `--restore`, or `--use-version 1`. MCP exposes
+`--replace repair.png`, `--restore`, `--use-version 1`, `--duplicate`, or `--move-to 0`.
+Copies have IDs such as `copy-1`. Move positions count from zero. Use `--undo-order` and
+`--redo-order` to change the sequence history. MCP exposes
 `animation_timeline` and `edit_timeline_frame`. The HTTP route is
 `GET` or `POST /api/jobs/{character}/{job}/timeline`. Use operation `activate` with a
-one-based `version` to reuse history through MCP or HTTP.
+one-based `version` to reuse history. The order operations are `duplicate`, `move`
+with a zero-based `position`, `undo`, and `redo`.
 
 ## Workflows
 

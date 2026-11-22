@@ -9,12 +9,14 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from spritewaffle import cli
-from spritewaffle.core import manifest, stages, timeline
+from spritewaffle.core import attach, manifest, stages, timeline
 from spritewaffle.core.job import Job
 from spritewaffle.core.profile import resolve
 from spritewaffle.export import aseprite, character
+from spritewaffle.frames.video import colour_frames
 from spritewaffle.mcp_server import build
 from spritewaffle.ui.server import create_app
+from test_attach import _effect
 from test_character_export import _anim
 from test_mcp import call, text
 
@@ -207,3 +209,150 @@ def test_legacy_replacement_can_be_reapplied_to_same_size_source(clip):
     with pytest.raises(ValueError, match="8 × 8"):
         timeline.update(job.root, directory, source.name, "activate", 1)
     assert timeline.frames(job.root, directory)[1].conflict
+
+
+def test_duplicate_and_move_preserve_edits_and_support_order_undo(clip):
+    job, directory = clip
+    source = directory / "frames" / "001.png"
+    original = source.read_bytes()
+    timeline.update(job.root, directory, source.name, "duration", 320)
+    timeline.update(job.root, directory, source.name, "replace", _image())
+    copy = timeline.update(job.root, directory, source.name, "duplicate")
+    assert copy and copy != source.name
+    items = timeline.frames(job.root, directory)
+    assert items[1].image == items[2].image and items[2].duration_ms == 320
+    timeline.update(job.root, directory, copy, "duration", 181)
+    timeline.update(job.root, directory, copy, "move", 0)
+    assert timeline.frames(job.root, directory)[0].id == copy
+    timeline.update(job.root, directory, None, "undo")
+    assert timeline.frames(job.root, directory)[2].id == copy
+    timeline.update(job.root, directory, None, "undo")
+    assert len(timeline.frames(job.root, directory)) == 12
+    timeline.update(job.root, directory, None, "redo")
+    timeline.update(job.root, directory, None, "redo")
+    items = timeline.frames(job.root, directory)
+    assert items[0].id == copy and items[0].duration_ms == 181
+    assert next(f for f in items if f.id == source.name).duration_ms == 320
+    timeline.update(job.root, directory, copy, "restore")
+    items = timeline.frames(job.root, directory)
+    assert not items[0].replaced and next(f for f in items if f.id == source.name).replaced
+    assert source.read_bytes() == original
+
+
+def test_order_updates_qa_and_both_exports_without_copying_events(clip, tmp_path):
+    job, directory = clip
+    profile = resolve(None)
+    sources = colour_frames(directory / "frames")
+    # Numbered colours are identical but the two silhouettes alternate, so index order is observable.
+    palette = {"palette": ["#4614b4"], "sets": {"12": 12}}
+    (directory.parent / "pixel_report.json").write_text(json.dumps(palette), encoding="utf-8")
+    pixels = timeline.pixels(sources)
+    np.save(directory / "indices.npy", np.where(pixels[..., 3] > 0, 0, -1))
+    attach.set_attachment(job, "S", "walk", _effect(tmp_path), frame=1, x=8, y=8)
+    stages.export(job, profile)
+    copy = timeline.update(job.root, directory, "001.png", "duplicate")
+    timeline.update(job.root, directory, "001.png", "move", 0)
+    timeline.update(job.root, directory, copy, "duration", 157)
+    assert stages.export_status(job, profile)["formats"]["aseprite"]["status"] == "stale"
+    assert timeline.describe(job.root, directory, 12)["qa_needs_review"]
+    out_dir = job.root / "06_export" / "character"
+    with pytest.raises(RuntimeError, match="QA needs to review"):
+        character.export(job.root, out_dir, "hero", profile.fps)
+    stages.qa(job, profile)
+    assert not timeline.describe(job.root, directory, 12)["qa_needs_review"]
+    result = stages.export(job, profile)["12f"]
+    doc = aseprite.read(result["aseprite"])
+    assert doc.depth == 8 and len(doc.frames) == 13 and doc.durations[2] == 157
+    assert np.array_equal(doc.frames[0] > 0, pixels[1, ..., 3] > 0)
+    sheet = json.loads(Path(result["json"]).read_text(encoding="utf-8"))
+    assert [ev["frame"] for ev in sheet["events"]] == [0]
+    assert [frame["frame_id"] for frame in sheet["frames"][:3]] == ["001.png", "000.png", copy]
+    result = character.export(job.root, out_dir, "hero", profile.fps)
+    entry = json.loads(Path(result["json"]).read_text(encoding="utf-8"))["animations"][0]
+    assert entry["frames"] == 13 and entry["durations_ms"][2] == 157
+    assert [ev["frame"] for ev in entry["events"]] == [0]
+    frames = manifest.read(job)["animations"][0]["frames"]
+    assert [frame["frame_id"] for frame in frames[:3]] == ["001.png", "000.png", copy]
+    assert frames[0]["color"] == frames[2]["color"]
+
+    exported_frames = job.root / "06_export" / "S" / "walk" / "12f" / "frames"
+    extra = exported_frames / "walk_S_12f_012.png"
+    assert extra.is_file()
+    keep = exported_frames / "reference.png"
+    keep.write_bytes(sources[0].read_bytes())
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, None, "undo")
+    stages.export(job, profile)
+    assert not extra.exists() and keep.is_file()
+    timeline.update(job.root, directory, "001.png", "duplicate")
+    stages.export(job, profile)
+    edited_export = _image()
+    extra.write_bytes(edited_export)
+    timeline.update(job.root, directory, None, "undo")
+    stages.export(job, profile)
+    assert extra.read_bytes() == edited_export
+
+
+def test_order_operations_are_shared_by_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    job, _ = clip
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk"]
+    assert cli.main([*args, "--frame", "001.png", "--duplicate"]) == 0
+    copy = json.loads(capsys.readouterr().out)["selected_frame"]
+    route = "/api/jobs/hero/j/timeline?facing=S&action=walk"
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        response = client.post(route, json={"frame": copy, "operation": "move", "position": 0})
+        assert response.status_code == 200 and response.json()["frames"][0]["id"] == copy
+        response = client.post(route, json={"frame": copy, "operation": "move", "position": 99})
+        assert response.status_code == 400
+    mcp, _ = build(tmp_path)
+    undo = text(call(mcp, "edit_timeline_frame", character="hero", job_id="j", facing="S", action="walk", operation="undo"))
+    assert undo["can_redo"] and undo["frames"][2]["id"] == copy
+    assert cli.main([*args, "--redo-order"]) == 0
+    redo = json.loads(capsys.readouterr().out)
+    assert not redo["can_redo"] and redo["frames"][0]["id"] == copy
+
+
+def test_order_keeps_missing_source_positions_and_discards_redo_branch(clip):
+    job, directory = clip
+    source = directory / "frames" / "001.png"
+    original = source.read_bytes()
+    first = timeline.update(job.root, directory, source.name, "duplicate")
+    source.unlink()
+    timeline.update(job.root, directory, "002.png", "move", 0)
+    source.write_bytes(original)
+    assert [f.id for f in timeline.frames(job.root, directory)[:4]] == ["002.png", "001.png", first, "000.png"]
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, None, "undo")
+    second = timeline.update(job.root, directory, source.name, "duplicate")
+    assert second != first
+    assert not timeline.describe(job.root, directory, 12)["can_redo"]
+
+
+def test_duplicates_extend_playback_without_switching_character_fps(clip):
+    job, directory = clip
+    profile = resolve(None)
+    for _ in range(12):
+        timeline.update(job.root, directory, "001.png", "duplicate")
+    files = character.export(job.root, job.root / "06_export" / "character", "hero", profile.fps, require_pass=False)
+    doc = aseprite.read(files["aseprite"])
+    assert len(doc.frames) == 24
+    assert all(ms == round(1000 / profile.fps("walk")) for ms in doc.durations)
+
+
+def test_saved_qa_links_to_the_replacement_on_a_copied_frame(clip, tmp_path):
+    job, directory = clip
+    copy = timeline.update(job.root, directory, "001.png", "duplicate")
+    with Image.open(io.BytesIO(_image())) as image:
+        image.putpixel((0, 0), (255, 0, 0, 255))
+        replacement = io.BytesIO()
+        image.save(replacement, format="PNG")
+    timeline.update(job.root, directory, copy, "replace", replacement.getvalue())
+    assert stages.qa(job, resolve(None))["12f"] == "fail"
+    timeline.update(job.root, directory, copy, "move", 0)
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        report = client.get("/api/jobs/hero/j").json()["actions"][0]["sets"]["12f"]["qa"]
+        border = next(finding for finding in report["frame_findings"]
+                      if any(issue["code"] == "border" for issue in finding["issues"]))
+        assert border["frame_id"] == copy and border["frame"] == 2
+        assert "/edits/animations/" in border["preview"] and client.get(border["preview"]).status_code == 200

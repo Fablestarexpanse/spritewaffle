@@ -35,6 +35,13 @@ function showTimeline(action) {
             <span id="tlOnionKey" class="muted" hidden><span>Previous frame</span><span>Next frame</span></span>
           </div>
           <div id="tlStrip" role="group" aria-label="Animation frames"></div>
+          <div class="row" role="group" aria-label="Frame order">
+            <button id="tlDuplicate" type="button">Duplicate</button>
+            <button id="tlEarlier" type="button">Move earlier</button>
+            <button id="tlLater" type="button">Move later</button>
+            <button id="tlUndo" type="button">Undo order</button>
+            <button id="tlRedo" type="button">Redo order</button>
+          </div>
         </div>
         <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
@@ -53,7 +60,7 @@ function showTimeline(action) {
             </div>
           </form>
           <p id="tlFrameNote" class="muted"></p>
-          <p id="tlQaNote" class="warn" hidden>Run QA to review the changed artwork before character export.</p>
+          <p id="tlQaNote" class="warn" hidden>Run QA to review the edited timeline before character export.</p>
           <details id="tlHistory" hidden>
             <summary>Replacement history</summary>
             <div class="row"><label>Version <select id="tlVersion"></select></label></div>
@@ -135,10 +142,13 @@ function showTimeline(action) {
     selected = index;
     const frame = clip.frames[index];
     preview.src = frame.url;
-    preview.alt = "Frame " + frame.name;
+    const label = frame.id === frame.name ? "Frame " + frame.name : "Copy of " + frame.name;
+    preview.alt = label;
     scrub.value = index;
     find("#tlPosition").textContent = `${index + 1} / ${clip.frames.length}`;
-    find("#tlFrameLabel").textContent = "Frame " + frame.name;
+    find("#tlFrameLabel").textContent = label;
+    find("#tlEarlier").disabled = index === 0;
+    find("#tlLater").disabled = index === clip.frames.length - 1;
     duration.value = frame.duration_ms;
     find("#tlReset").disabled = !frame.timing_edited;
     find("#tlRestore").disabled = !frame.replaced && !frame.conflict;
@@ -162,10 +172,13 @@ function showTimeline(action) {
     replace.disabled = true;
     find("#tlClipInfo").textContent = `${data.cell.join(" × ")} px · ${data.loop ? "Loop" : "One shot"} · Default ${data.default_ms} ms`;
     find("#tlQaNote").hidden = !data.qa_needs_review;
+    find("#tlUndo").disabled = !data.can_undo;
+    find("#tlRedo").disabled = !data.can_redo;
     strip.innerHTML = data.frames.map((frame, i) => `
-      <button type="button" data-tl-index="${i}" aria-label="Frame ${esc(frame.name)}, ${frame.duration_ms} ms">
+      <button type="button" data-tl-index="${i}" data-frame-id="${esc(frame.id)}"
+        aria-label="${i + 1}, ${frame.id === frame.name ? "frame" : "copy of"} ${esc(frame.name)}, ${frame.duration_ms} ms">
         <img class="pix" src="${esc(frame.url)}" alt="">
-        ${esc(frame.name.replace(/\.png$/, ""))} · ${frame.duration_ms} ms
+        ${frame.id === frame.name ? "" : "Copy "}${esc(frame.name.replace(/\.png$/, ""))} · ${frame.duration_ms} ms
       </button>`).join("");
     select(Math.min(index, data.frames.length - 1));
   }
@@ -192,9 +205,10 @@ function showTimeline(action) {
     busy(true);
     message("Saving frame…");
     try {
-      const body = {operation, frame: clip.frames[selected].name};
+      const body = {operation, frame: clip.frames[selected].id};
       if (operation === "duration") body.duration_ms = value;
       if (operation === "activate") body.version = value;
+      if (operation === "move") body.position = value;
       if (operation === "replace") body.png = await new Promise((resolve, reject) => {
         if (value.size > clip.max_image_bytes) return reject(new Error("Choose a PNG no larger than 32 MiB."));
         const reader = new FileReader();
@@ -204,8 +218,11 @@ function showTimeline(action) {
       });
       const data = await api(endpoint + query(), body);
       if (!open()) return;
-      display(data, selected);
-      message(operation === "activate" ? `Version ${value} applied.` : "Saved.");
+      const next = data.frames.findIndex(frame => frame.id === (data.selected_frame || body.frame));
+      display(data, next >= 0 ? next : selected);
+      const labels = {activate: `Version ${value} applied.`, duplicate: "Frame duplicated.", move: "Frame moved.",
+                      undo: "Frame order change undone.", redo: "Frame order change redone."};
+      message(labels[operation] || "Saved.");
     } catch (error) {
       if (open()) message(error.message, true);
     } finally {
@@ -244,6 +261,11 @@ function showTimeline(action) {
   upload.onchange = () => { replace.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };
   find("#tlRestore").onclick = () => save("restore");
+  find("#tlDuplicate").onclick = () => save("duplicate");
+  find("#tlEarlier").onclick = () => save("move", selected - 1);
+  find("#tlLater").onclick = () => save("move", selected + 1);
+  find("#tlUndo").onclick = () => save("undo");
+  find("#tlRedo").onclick = () => save("redo");
   find("#tlEditor").onfocusin = stop;
   version.onchange = showHistoryVersion;
   useVersion.onclick = () => save("activate", Number(version.value));

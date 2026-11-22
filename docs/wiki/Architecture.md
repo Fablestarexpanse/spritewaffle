@@ -28,6 +28,14 @@ an earlier version verifies the file hash and cell size, then records its use ag
 current source. Only the active artwork and saved duration affect QA, manifests, and
 exports. Onion skins use the effective frame URLs in the browser preview.
 
+Sequence edits add an ordered list of stable IDs. Originals use their source filenames
+and copies have their own IDs with pointers to the numbered source. Order undo and redo
+restore sequence snapshots, while timing and artwork edits stay with their IDs. QA
+records the effective order alongside replacement hashes. The exporters remap effect
+events to the original slots and resolve palette indices through the same source mapping.
+Re-exporting a shorter action removes surplus PNG frames that still match the previous
+export receipt. A file modified outside SpriteWaffle is kept.
+
 One Python package (`spritewaffle/`), local only. ComfyUI is the only external service; it is
 driven through exported API-format workflow templates. Everything after generation is
 SpriteWaffle's own code.

@@ -25,7 +25,7 @@ def _preview(frames: np.ndarray, scale: int) -> list[Image.Image]:
 
 def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = True,
                events: list | dict | None = None, hitboxes: dict | None = None, preview_scale: int = 4,
-               pivot=None, durations_ms: list[int] | None = None) -> dict:
+               pivot=None, durations_ms: list[int] | None = None, frame_ids: list[str] | None = None) -> dict:
     """frames (F,h,w,4) uint8 cells -> files. Returns {'strip','json','gif','apng','frames'} paths."""
     out = Path(out_dir)
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -47,6 +47,7 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
         "name": name, "cell": [w, h], "frame_count": n, "fps": fps, "loop": loop,
         "pivot": list(pivot) if pivot is not None else feet_pivot(frames), "pivot_norm": None,
         "frames": [{"index": i, "rect": [i * w, 0, w, h], "duration_ms": durations[i],
+                    **({"frame_id": frame_ids[i]} if frame_ids else {}),
                     **({"hitbox": hitboxes[i]} if hitboxes and i in hitboxes else {})} for i in range(n)],
         "events": events or [],
     }

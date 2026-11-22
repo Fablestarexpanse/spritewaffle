@@ -19,6 +19,8 @@
   that QA reviewed active replacements, and the asset manifest records the effective images.
 - Added per-frame replacement history with previews and reuse after restoring the source.
   Onion skinning shows the previous and next frames while paused and follows the clip's loop mode.
+- Added frame duplication, reordering, and order undo/redo. Copies keep independent timing and
+  artwork edits, and attachment events follow their original frames when the order changes.
 
 ## 2026-11-21: directional sprite readiness
 

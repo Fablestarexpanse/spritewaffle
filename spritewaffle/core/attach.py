@@ -55,6 +55,10 @@ def set_attachment(job: Job, facing: str, action: str, effect_job: str, frame: i
     att = {"effect_job": effect_job, "effect": meta["name"], "frame": int(frame), "point": [int(x), int(y)],
            "layer": layer, "kind": kind, "speed": float(speed) if kind == "projectile" else 0.0,
            "direction": list(DIRECTION.get(facing, (1, 0)))}
+    from ..frames.video import colour_frames
+    sources = colour_frames(job.root / "04_pixel" / facing / action / "12f" / "frames")
+    if 0 <= att["frame"] < len(sources):
+        att["source_frame"] = sources[att["frame"]].name
     with job.mutate() as m:
         m["inputs"].setdefault("attachments", {})[_key(facing, action)] = att
     return att
@@ -72,6 +76,21 @@ def event(att: dict, fps_effect: int) -> dict:
             **({"velocity_px_per_frame": [round(att["direction"][0] * att["speed"], 3),
                                           round(att["direction"][1] * att["speed"], 3)]} if att["kind"] == "projectile" else {}),
             "effect_fps": fps_effect}
+
+
+def for_timeline(att: dict, items) -> dict | None:
+    """Resolve one event to the original slot in the current sequence."""
+    from . import timeline
+    source_name = att.get("source_frame")
+    if source_name is None:
+        if not timeline.order_signature(items):
+            return att
+        sources = sorted({f.source.name for f in items})
+        if not 0 <= att["frame"] < len(sources):
+            return None
+        source_name = sources[att["frame"]]
+    position = next((i for i, f in enumerate(items) if f.id == source_name), None)
+    return {**att, "frame": position} if position is not None else None
 
 
 def composite(cells: list[np.ndarray], fx: list[np.ndarray], att: dict, fx_loop: bool, loops: int = 2) -> list[np.ndarray]:
@@ -122,12 +141,15 @@ def preview(job: Job, facing: str, action: str, frame_set: str = "12f", fps: int
     if not att:
         raise FileNotFoundError("no effect attached to this animation")
     sd = job.root / "04_pixel" / facing / action / frame_set
-    from ..frames.video import colour_frames
-    cells = [np.array(Image.open(p).convert("RGBA")) for p in colour_frames(sd / "frames")]
-    if not cells:
+    from . import timeline
+    items = timeline.frames(job.root, sd)
+    if not items:
         raise FileNotFoundError(f"{action} {facing} has no {frame_set} frames yet")
+    att = for_timeline(att, items)
+    if att is None:
+        raise ValueError("The attached effect's source frame is missing.")
     fx, meta, _ = effect_files(job.root.parent.parent / att["effect_job"])
-    frames = composite(cells, fx, att, meta["loop"])
+    frames = composite(list(timeline.pixels([f.image for f in items])), fx, att, meta["loop"])
     from ..prompts import styles
     scale = 4 if styles.get(styles.of_job(job))["post"] == "pixel" else 1
     imgs = []
@@ -138,5 +160,7 @@ def preview(job: Job, facing: str, action: str, frame_set: str = "12f", fps: int
         imgs.append(Image.fromarray(comp).resize((f.shape[1] * scale, f.shape[0] * scale), Image.NEAREST))
     out = job.root / "06_export" / facing / action / frame_set / f"{action}_{facing}_{frame_set}_with_fx.gif"
     out.parent.mkdir(parents=True, exist_ok=True)
-    imgs[0].save(out, save_all=True, append_images=imgs[1:], duration=round(1000 / fps), loop=0)
+    duration = round(1000 / fps)
+    durations = timeline.timings(items, duration) * 2 if any(f.duration_ms is not None for f in items) else duration
+    imgs[0].save(out, save_all=True, append_images=imgs[1:], duration=durations, loop=0)
     return out

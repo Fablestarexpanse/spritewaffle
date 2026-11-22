@@ -1,6 +1,11 @@
-NEXT: Replacement history and onion skinning verified. Next implement reversible frame duplication and reordering while keeping edits, events, QA, and exports tied to the intended frame. The official media kit is pending.
+NEXT: Frame duplication, reordering, and order undo/redo verified. Next build a focused pixel editor with reversible saves. The official media kit is pending.
 
 # SpriteWaffle decisions log
+
+- 2026-11-21 Structural timeline edits keep the original filename as its frame ID and assign a new ID to every copy. A copy starts with the selected frame's timing and art edits. Undo and redo change the sequence and retain edits tied to each ID.
+- 2026-11-21 Attachment events follow the original slot. New attachments record the source filename and older attachments resolve their original index from the numbered source order. QA records the effective sequence alongside replacement hashes and links saved findings to their frame IDs.
+- 2026-11-21 Baseline at `e89cf9d` passed 241 tests in 60.73 s. A disposable copy of `hare/courier S/walk` exported 13 frames, with the moved copy at 133 ms. Undo and re-export reproduced all 46 baseline files byte for byte. Re-export removes surplus PNGs only when they match the prior receipt. Chromium verified the order controls, separate durations, saved order, and onion skin neighbors at 1440, 800, and 390 px, including 150% scale at 390 px.
+- 2026-11-21 The final suite passed 247 tests in 62.53 s with the existing Starlette deprecation warning. Coverage includes indexed output order, the source FPS after doubling a 12-frame clip, and saved QA previews for replaced copies after a move.
 
 - 2026-11-21 Keep replacement history as an additive list in the existing timeline schema. Reusing an older image is an explicit edit. It can bind to a changed source after validating the image again at the current cell size.
 - 2026-11-21 Baseline at `6494e7e` passed 239 tests in 61.34 s. On a disposable copy of `hare/courier S/walk`, version 2 made exports stale. Reapplying the reviewed version 1 made the existing PNG and Aseprite current again and restored the matching QA review. The processed PNG remained byte-identical.

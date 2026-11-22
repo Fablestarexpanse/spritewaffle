@@ -385,19 +385,28 @@ def cmd_timeline(a):
     from .core import timeline
     job = _job(a.job)
     directory = timeline.directory(job.root, a.facing, a.action, a.set)
-    if a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None:
+    selected = None
+    if a.undo_order or a.redo_order:
+        timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
+    elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
+          or a.duplicate or a.move_to is not None):
         if not a.frame:
-            raise ValueError("Pass --frame for an edit, such as --frame 001.png.")
+            raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
         if a.replace:
             with Path(a.replace).open("rb") as stream:
-                timeline.update(job.root, directory, a.frame, "replace", stream.read(timeline.MAX_IMAGE_BYTES + 1))
+                selected = timeline.update(job.root, directory, a.frame, "replace", stream.read(timeline.MAX_IMAGE_BYTES + 1))
         elif a.restore:
-            timeline.update(job.root, directory, a.frame, "restore")
+            selected = timeline.update(job.root, directory, a.frame, "restore")
         elif a.use_version is not None:
-            timeline.update(job.root, directory, a.frame, "activate", a.use_version)
+            selected = timeline.update(job.root, directory, a.frame, "activate", a.use_version)
+        elif a.duplicate:
+            selected = timeline.update(job.root, directory, a.frame, "duplicate")
+        elif a.move_to is not None:
+            selected = timeline.update(job.root, directory, a.frame, "move", a.move_to)
         else:
-            timeline.update(job.root, directory, a.frame, "duration", a.duration)
-    _print(timeline.describe(job.root, directory, _profile(a, job).fps(a.action)))
+            selected = timeline.update(job.root, directory, a.frame, "duration", a.duration)
+    result = timeline.describe(job.root, directory, _profile(a, job).fps(a.action))
+    _print(result | {"selected_frame": selected})
 
 
 # --- motion library (experimental) ------------------------------------------------------------
@@ -614,15 +623,19 @@ def build() -> argparse.ArgumentParser:
         OPT_ACTION, (("--format",), {"choices": ("png", "aseprite", "both"), "default": "both"}))
     cmd("export-action-status", cmd_action_export_status, "check the PNG and Aseprite files for one action",
         JOB, PROFILE, OPT_FACING, OPT_ACTION)
-    ep = cmd("timeline", cmd_timeline, "read or edit the timing and replacement frames of one action",
+    ep = cmd("timeline", cmd_timeline, "read or edit the timing, artwork, and order of one action",
              JOB, PROFILE, FACING, ACTION, (("--set",), {"default": "12f"}),
-             (("--frame",), {"help": "numbered source filename, such as 001.png"}))
+             (("--frame",), {"help": "frame ID, such as 001.png or copy-1"}))
     edits = ep.add_mutually_exclusive_group()
     edits.add_argument("--duration", type=int, help="frame duration in milliseconds")
     edits.add_argument("--reset-duration", action="store_true", help="restore the profile duration")
     edits.add_argument("--replace", metavar="PNG", help="replace the frame with a same-size PNG")
     edits.add_argument("--restore", action="store_true", help="restore the source image")
     edits.add_argument("--use-version", type=int, help="apply a saved replacement version")
+    edits.add_argument("--duplicate", action="store_true", help="copy the frame and its edits")
+    edits.add_argument("--move-to", type=int, metavar="POSITION", help="move the frame to a zero-based position")
+    edits.add_argument("--undo-order", action="store_true", help="undo the last frame order change")
+    edits.add_argument("--redo-order", action="store_true", help="redo the last undone frame order change")
 
     # motion library
     mp = sub.add_parser("motion", help="[experimental] library of approved driving clips").add_subparsers(dest="sub", required=True)
