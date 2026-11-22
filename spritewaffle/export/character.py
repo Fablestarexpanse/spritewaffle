@@ -50,9 +50,9 @@ def _sets(root: Path, frame_set: str):
         yield directory, directory.parent.parent.name, directory.parent.name
 
 
-def _qa_problem(path: Path, items: list[timeline.Frame]) -> str | None:
+def _qa_problem(path: Path, items: list[timeline.Frame], playback: timeline.Playback) -> str | None:
     report = checks.read(path) or {}
-    if timeline.qa_needs_review(report, items):
+    if timeline.qa_needs_review(report, items, playback):
         return "QA needs to review timeline changes"
     if not report:
         return "no QA report"
@@ -68,9 +68,11 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
     aligned = bool(Job(job_root).read_meta()["inputs"].get("align_feet"))
     for sd, facing, action in _sets(job_root, frame_set):
         qa = job_root / "05_qa" / facing / action / frame_set / "report.json"
-        items = timeline.frames(job_root, sd)
-        replaced = timeline.replacements(items)
-        if require_pass and (problem := _qa_problem(qa, items)):
+        items, playback = timeline.read_clip(job_root, sd)
+        if playback.error:
+            skipped.append(f"{action}_{facing}: {playback.error}")
+            continue
+        if require_pass and (problem := _qa_problem(qa, items, playback)):
             skipped.append(f"{action}_{facing}: {problem}")
             continue
         if not items:
@@ -83,12 +85,11 @@ def collect(job_root: Path, frame_set: str = "12f", require_pass: bool = True) -
             if any(m and m.exists() for m in mp):
                 maps[kind] = np.stack([np.array(Image.open(m).convert("RGBA")) if m and m.exists() else np.zeros_like(cells[0])
                                        for m in mp])
-        sel = job_root / "03_actions" / facing / action / "selection_report.json"
-        loop = json.loads(sel.read_text())["loop"] if sel.exists() else True
         pl = sd / "placements.json"
         places = json.loads(pl.read_text()) if pl.exists() else []
         pivot = places[0].get("pivot") if places else None
-        anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells, "loop": loop,
+        anims.append({"name": f"{action}_{facing}", "facing": facing, "action": action, "cells": cells,
+                      "loop": playback.loop, "playback": playback,
                       "pivot": pivot or feet_pivot(cells), "maps": maps, "timeline": items})
     return anims, skipped
 
@@ -110,10 +111,14 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
     settings = {"align_feet": aligned, "fps": {}, "attachments": {}}
     for directory, facing, action in _sets(root, frame_set):
         qa = root / "05_qa" / facing / action / frame_set / "report.json"
-        items = timeline.frames(root, directory)
+        items, playback = timeline.read_clip(root, directory)
+        if saved := playback.signature():
+            settings.setdefault("timeline_playback", {})[f"{facing}/{action}"] = saved
+        if playback.error:
+            continue
         if require_pass:
             files.append(qa)
-            if _qa_problem(qa, items):
+            if _qa_problem(qa, items, playback):
                 continue
         if not items:
             continue
@@ -197,10 +202,13 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
         frames += list(a["cells"])
         clip_durations = timeline.timings(a["timeline"], round(1000 / fps))
         durations.extend(clip_durations)
-        tags.append((a["name"], start, start + n - 1, "forward", 0 if a["loop"] else 1))
+        playback = a["playback"]
+        tags.append((a["name"], start + playback.start, start + playback.end, "forward", 0 if playback.loop else 1))
         meta_anims.append({"name": a["name"], "facing": a["facing"], "action": a["action"], "frames": n,
                            "fps": fps, "loop": a["loop"], "pivot": a["pivot"],
                            "row": len(meta_anims), "first": start})
+        if playback.frame_range is not None:
+            meta_anims[-1]["playback_range"] = playback.frame_range
         if any(f.duration_ms is not None for f in a["timeline"]):
             meta_anims[-1]["durations_ms"] = clip_durations
         if order := timeline.order_signature(a["timeline"]):

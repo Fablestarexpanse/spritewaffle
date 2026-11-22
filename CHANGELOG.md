@@ -26,6 +26,9 @@
   and appear in replacement history. A draft whose frame has changed is refused.
 - Added exact RGBA flood fill and rectangular selection with pointer and keyboard controls.
   Selections limit the paint tools and support erasing the selected area as one undoable edit.
+- Added per-frame-set playback modes and inclusive ranges. The timeline, onion skins, QA seam
+  checks, action previews, and Aseprite tags use the saved range. All frames still export.
+  A missing or crossed endpoint needs repair before the clip can export.
 
 ## 2026-11-21: directional sprite readiness
 

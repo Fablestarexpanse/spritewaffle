@@ -385,13 +385,18 @@ def cmd_timeline(a):
     from .core import timeline
     job = _job(a.job)
     directory = timeline.directory(job.root, a.facing, a.action, a.set)
+    if (a.range_start is not None or a.range_end is not None) and not a.playback:
+        raise ValueError("Pass --playback when setting a frame range.")
     if a.pixels:
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
         _print(timeline.describe_pixels(job.root, directory, a.frame))
         return
     selected = None
-    if a.undo_order or a.redo_order:
+    if a.playback:
+        selected = timeline.update(job.root, directory, None, "playback",
+                                   {"mode": a.playback, "start_frame": a.range_start, "end_frame": a.range_end})
+    elif a.undo_order or a.redo_order:
         timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
     elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
           or a.duplicate or a.move_to is not None or a.paint):
@@ -646,6 +651,9 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--redo-order", action="store_true", help="redo the last undone frame order change")
     edits.add_argument("--pixels", action="store_true", help="read exact RGBA bytes and the frame fingerprint")
     edits.add_argument("--paint", metavar="PATCH_JSON", help="save a pixel patch as a replacement version")
+    edits.add_argument("--playback", choices=("source", "loop", "once"), help="set playback mode and optional range")
+    ep.add_argument("--range-start", help="first frame ID for --playback")
+    ep.add_argument("--range-end", help="last frame ID for --playback")
 
     # motion library
     mp = sub.add_parser("motion", help="[experimental] library of approved driving clips").add_subparsers(dest="sub", required=True)

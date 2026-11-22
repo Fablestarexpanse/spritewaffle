@@ -16,6 +16,11 @@ Reviewed 2026-11-21. The decisions here use documented behavior and formats. Pro
 
 The first animation increment should retain original RGBA frames and record replacement frames and durations separately. This gives QA and export the same editable data without requiring a model or an external editor.
 
+Aseprite's existing tag record carries the inclusive playback bounds and repeat count.
+The native writer keeps the full cels and can therefore update the tag without removing
+frames. For one-shot action previews, Pillow uses different repeat settings for GIF and
+APNG, so each is verified by reopening the exported file. [Aseprite tag specification](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md#tags-chunk-0x2018) and [Pillow image formats](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html).
+
 ## Community observations
 
 - In June 2026 a developer reported palette and detail drift across generated frames, plus video crops that clipped the character. In October 2026 another reported hand swaps on an asymmetric lantern sprite. Include clipping and asymmetric attachment fixtures in QA before widening generation. These reports give examples, with no measured incidence. [June thread](https://www.reddit.com/r/aigamedev/comments/1u363gx/what_is_the_best_method_to_generate_the_most/) and [October thread](https://www.reddit.com/r/aigamedev/comments/1wv3c0h/what_are_you_guys_using_to_make_consistent/)

@@ -210,26 +210,36 @@ def _load_set(sd: Path, items: list[timeline.Frame]) -> tuple[np.ndarray, list[d
     return cells, json.loads((sd / "placements.json").read_text(encoding="utf-8"))
 
 
+def _playable_clips(root: Path, sets: list[Path]) -> list[tuple[Path, list[Path], list[timeline.Frame], timeline.Playback]]:
+    clips = []
+    for sd in sets:
+        sources = video.colour_frames(sd / "frames")
+        items, playback = timeline.read_clip(root, sd, sources)
+        playback.require_valid()
+        clips.append((sd, sources, items, playback))
+    return clips
+
+
 def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     facing, action = _ctx(job, facing, action)
     pdir = job.root / "04_pixel" / facing / action
-    loop = json.loads((job.action_dir(facing, action) / "selection_report.json").read_text())["loop"]
     prep = json.loads((pdir / "pixel_report.json").read_text())
     pal_n = len(prep["palette"])
     from . import job_palette
     jp = job_palette.get(job)
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
-    for sd in sorted(p for p in pdir.iterdir() if p.is_dir()):
-        sources = video.colour_frames(sd / "frames")
-        items = timeline.frames(job.root, sd, sources)
+    for sd, sources, items, playback in _playable_clips(job.root, _action_sets(pdir)):
         cells, places = _load_set(sd, items)
         if len(places) == len(sources):
             placement_by_source = dict(zip(sources, places))
             places = [placement_by_source[f.source] for f in items]
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
-        r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=loop)
+        r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=playback.loop,
+                       playback_range=playback.frame_range)
         r["frame_files"] = [frame.source.name for frame in items]
+        if settings := playback.signature():
+            r["timeline_playback"] = settings
         if active := timeline.replacements(items):
             r["timeline_replacements"] = active
         if order := timeline.order_signature(items):
@@ -281,8 +291,10 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
         settings["palette"] = json.loads(report.read_text(encoding="utf-8"))["palette"] if report.is_file() else None
         files.extend(indices)
     for sd in sets:
-        items = timeline.frames(job.root, sd)
+        items, playback = timeline.read_clip(job.root, sd)
         files.extend(frame.image for frame in items)
+        if saved := playback.signature():
+            settings.setdefault("timeline_playback", {})[sd.name] = saved
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[sd.name] = edits
         if order := timeline.order_signature(items):
@@ -338,17 +350,13 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
 
 
 def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, formats):
-    sel = _clip_path(job, "03_actions", facing, action) / "selection_report.json"
-    loop = json.loads(sel.read_text(encoding="utf-8"))["loop"]
     pal = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)]
                     for h in json.loads((pdir / "pixel_report.json").read_text(encoding="utf-8"))["palette"]], np.uint8).reshape(-1, 3)
     base_fps = profile.fps(action)
     written = {}
     artifacts = {kind: [] for kind in formats}
-    for sd in sets:
+    for sd, sources, items, playback in _playable_clips(job.root, sets):
         fps = timeline.action_fps(base_fps, sd.name)
-        sources = video.colour_frames(sd / "frames")
-        items = timeline.frames(job.root, sd, sources)
         cells, places = _load_set(sd, items)
         durations = timeline.timings(items, round(1000 / fps))
         pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
@@ -371,16 +379,18 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
         if "png" in formats:
             if not artifacts["png"]:
                 receipt.incomplete(_action_receipt(out_dir, "png"))
-            png = sheetmod.export_png(out, name, cells, fps, loop=loop, pivot=pivot,
+            png = sheetmod.export_png(out, name, cells, fps, loop=playback.loop, pivot=pivot,
                                       events=_events(job, facing, action, items),
                                       preview_scale=4 if original_indexed else 1,
                                       durations_ms=durations if any(f.duration_ms is not None for f in items) else None,
-                                      frame_ids=timeline.order_signature(items))
+                                      frame_ids=timeline.order_signature(items),
+                                      playback_range=playback.frame_range,
+                                      preview_once=not playback.loop and bool(playback.signature()))
             artifacts["png"].extend(png.pop("frames"))
             artifacts["png"].extend(png.values())
             files.update({key: str(path) for key, path in png.items()})
         if "aseprite" in formats:
-            tags = [(f"{action}_{facing}", 0, len(cells) - 1, "forward", 0 if loop else 1)]
+            tags = [(f"{action}_{facing}", playback.start, playback.end, "forward", 0 if playback.loop else 1)]
             pv = pivot or sheetmod.feet_pivot(cells)
             slices = [("pivot", [(0, 0, 0, cells.shape[2], cells.shape[1], int(pv[0]), int(pv[1]))])]
             if not artifacts["aseprite"]:

@@ -97,14 +97,14 @@ def _mirror_record(source: dict, placement: dict | None, cell) -> dict:
 
 
 def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, elev: float, profile: GameProfile,
-               align: bool) -> list[dict]:
+               align: bool, source_loop: bool) -> tuple[list[dict], timeline.Playback]:
     sd = job.root / "04_pixel" / facing / action / f"{n}f"
     frames = colour_frames(sd / "frames")
+    items, playback = timeline.read_clip(job.root, sd, frames, source_loop=source_loop)
     if not frames:
-        return []
+        return [], playback
     aligned = colour_frames(sd / "frames_aligned") if align else []
     use = aligned if len(aligned) == len(frames) else frames
-    items = timeline.frames(job.root, sd, frames)
     reordered = bool(timeline.order_signature(items))
     source_indices = {frame: index for index, frame in enumerate(frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
@@ -143,7 +143,7 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
                     "downscale": (_mirror_record(_downscale(src_rep, src_places[k] if k < len(src_places) else None, profile, None),
                                                  places[k] if k < len(places) else None, rep.get("cell"))
                                   if src_facing else _downscale(rep, places[k] if k < len(places) else None, profile, None))})
-    return out
+    return out, playback
 
 
 def build(job: Job) -> dict:
@@ -176,7 +176,12 @@ def build(job: Job) -> dict:
         for n in sorted(rep.get("sets") or {}, key=int):
             a = anims.setdefault((action, f"{n}f"), {"action": action, "frame_set": f"{n}f", "fps": profile.fps(action),
                                                      "loop": bool(loop), "frames": []})
-            a["frames"] += _frame_set(job, facing, action, n, rep, vc, elev, profile, bool(inputs.get("align_feet")))
+            frames, playback = _frame_set(job, facing, action, n, rep, vc, elev, profile,
+                                          bool(inputs.get("align_feet")), bool(loop))
+            a["frames"] += frames
+            if saved := playback.signature():
+                view = str(angles.view_index(angles.yaw_of(facing), vc))
+                a.setdefault("playback_by_view", {})[view] = saved
     for a in anims.values():
         a["frames"].sort(key=lambda f: (f["yaw_degrees"], f["frame"]))
         a["views"] = sorted({f["view_index"] for f in a["frames"]})

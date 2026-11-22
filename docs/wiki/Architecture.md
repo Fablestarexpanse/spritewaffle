@@ -41,6 +41,16 @@ selection record the original RGBA value of each touched pixel once per edit. Se
 bounds belong to the browser draft. The existing pixel patch is sufficient for saving any
 of these edits through the UI, HTTP, CLI, or MCP.
 
+Optional playback in the timeline sidecar stores a mode and endpoint frame IDs per set.
+The readers resolve the IDs against the same ordered timeline snapshot as the frames.
+The action and character receipts fingerprint playback overrides. QA keeps technical
+checks over the whole sequence and measures the seam at the selected endpoints. A missing
+or crossed endpoint prevents action QA or export and excludes that clip from character
+export. The manifest adds `playback_by_view` keyed by view index for overrides. Action
+previews use the range, while exported sheets and atlases keep all frames and event positions.
+The Aseprite tag stores the range as document-relative indices. The JSON export stores
+`playback_range` as inclusive clip-relative indices.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA

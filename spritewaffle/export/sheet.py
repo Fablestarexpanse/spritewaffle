@@ -25,7 +25,8 @@ def _preview(frames: np.ndarray, scale: int) -> list[Image.Image]:
 
 def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = True,
                events: list | dict | None = None, hitboxes: dict | None = None, preview_scale: int = 4,
-               pivot=None, durations_ms: list[int] | None = None, frame_ids: list[str] | None = None) -> dict:
+               pivot=None, durations_ms: list[int] | None = None, frame_ids: list[str] | None = None,
+               *, playback_range: list[int] | None = None, preview_once: bool = False) -> dict:
     """frames (F,h,w,4) uint8 cells -> files. Returns {'strip','json','gif','apng','frames'} paths."""
     out = Path(out_dir)
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -52,14 +53,19 @@ def export_png(out_dir, name: str, frames: np.ndarray, fps: int, loop: bool = Tr
         "events": events or [],
     }
     meta["pivot_norm"] = [meta["pivot"][0] / w, 1 - meta["pivot"][1] / h]   # Unity: origin bottom-left
-    paths["json"].write_text(json.dumps(meta, indent=2))
+    if playback_range is not None:
+        meta["playback_range"] = playback_range
+    paths["json"].write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
-    imgs = _preview(frames, preview_scale)
-    preview_duration = dur if durations_ms is None else durations_ms
-    imgs[0].save(paths["apng"], save_all=True, append_images=imgs[1:], duration=preview_duration, loop=0, disposal=1)
+    start, end = playback_range if playback_range is not None else (0, n - 1)
+    imgs = _preview(frames[start:end + 1], preview_scale)
+    preview_duration = dur if durations_ms is None else durations[start:end + 1]
+    imgs[0].save(paths["apng"], save_all=True, append_images=imgs[1:], duration=preview_duration,
+                 loop=1 if preview_once else 0, disposal=1)
     gif_frames = [_gif_frame(im) for im in imgs]
+    gif_loop = {} if preview_once else {"loop": 0}
     gif_frames[0].save(paths["gif"], save_all=True, append_images=gif_frames[1:], duration=preview_duration,
-                       loop=0, disposal=2, transparency=255, optimize=False)
+                       disposal=2, transparency=255, optimize=False, **gif_loop)
     return paths
 
 

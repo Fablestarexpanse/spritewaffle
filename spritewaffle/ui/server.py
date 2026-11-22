@@ -666,6 +666,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 value = body.get("position")
             elif operation == "paint":
                 value = body
+            elif operation == "playback":
+                value = body.get("playback")
             selected = timeline.update(j.root, directory, body.get("frame"), operation, value)
             return timeline_view(j, facing, action, frame_set) | {"selected_frame": selected}
         except (ValueError, TypeError, OSError, RuntimeError) as e:

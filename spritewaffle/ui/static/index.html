@@ -166,14 +166,16 @@
   #tlOnionKey { display: inline-flex; flex-wrap: wrap; gap: .7rem; }
   #tlOnionKey span:first-child { color: var(--bad); }
   #tlOnionKey span:last-child { color: var(--run); }
-  #tlHistory { border-top: 1px solid var(--line); margin-top: var(--space); padding-top: .6rem; }
-  #tlHistory summary { cursor: pointer; }
+  #tlHistory, #tlPlayback { border-top: 1px solid var(--line); margin-top: var(--space); padding-top: .6rem; }
+  #tlHistory summary, #tlPlayback summary { cursor: pointer; }
+  #tlPlayback select { max-width: 11rem; }
   #tlHistoryPreview { width: min(100%, 6.5rem); height: 6.5rem; object-fit: contain; }
   #tlReplacement .field { min-width: 0; max-width: 100%; align-items: stretch; }
   #tlDuration { width: 8rem; }
   #tlStrip { display: flex; gap: .5rem; overflow-x: auto; padding: .4rem; margin-top: .6rem; }
   #tlStrip button { flex: 0 0 4.6rem; padding: .3rem; font-size: .8rem; }
   #tlStrip button[aria-pressed="true"] { border-color: var(--link); color: var(--link); }
+  #tlStrip button[data-in-playback] { box-shadow: inset 0 -3px var(--link); }
   #tlStrip img { width: 100%; height: 3.5rem; object-fit: contain; margin-bottom: .25rem; }
   #tlRange { flex: 1; min-width: 5rem; }
   #pixelEditor { width: min(43rem, 94vw); }

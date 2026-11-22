@@ -42,6 +42,25 @@ function showTimeline(action) {
             <button id="tlUndo" type="button">Undo order</button>
             <button id="tlRedo" type="button">Redo order</button>
           </div>
+          <details id="tlPlayback">
+            <summary>Playback settings <span id="tlWindow" class="muted"></span></summary>
+            <form id="tlPlaybackForm">
+              <div class="row">
+                <label>Mode <select id="tlMode">
+                  <option value="source">Use source</option>
+                  <option value="loop">Loop</option>
+                  <option value="once">Play once</option>
+                </select></label>
+                <label><input type="checkbox" id="tlLimit"> Limit playback range</label>
+              </div>
+              <div class="row">
+                <label>First frame <select id="tlFirst"></select></label>
+                <label>Last frame <select id="tlLast"></select></label>
+              </div>
+              <p id="tlPlaybackError" class="warn" role="status" hidden></p>
+              <div class="row"><button type="submit">Save playback</button></div>
+            </form>
+          </details>
         </div>
         <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
@@ -85,6 +104,7 @@ function showTimeline(action) {
   const previousGhost = find("#tlPrevGhost"), nextGhost = find("#tlNextGhost");
   const history = find("#tlHistory"), version = find("#tlVersion");
   const historyPreview = find("#tlHistoryPreview"), useVersion = find("#tlUseVersion");
+  const mode = find("#tlMode"), limited = find("#tlLimit"), first = find("#tlFirst"), last = find("#tlLast");
   let clip, selected = 0, timer, playing = false;
   try { onion.checked = localStorage.getItem("sw.timeline.onion") === "true"; } catch {}
 
@@ -105,15 +125,19 @@ function showTimeline(action) {
 
   function paintOnion() {
     const count = clip?.frames.length || 0;
-    const show = onion.checked && !playing && count > 1;
-    const previous = selected > 0 ? selected - 1 : clip?.loop ? count - 1 : -1;
-    const next = selected < count - 1 ? selected + 1 : clip?.loop ? 0 : -1;
+    const playback = clip?.playback;
+    const inside = playback && !playback.error && selected >= playback.start && selected <= playback.end;
+    const start = inside ? playback.start : 0, end = inside ? playback.end : count - 1;
+    const show = onion.checked && !playing && start < end;
+    const wrap = inside && playback.loop;
+    const previous = selected > start ? selected - 1 : wrap ? end : -1;
+    const next = selected < end ? selected + 1 : wrap ? start : -1;
     for (const [layer, index] of [[previousGhost, previous], [nextGhost, next]]) {
       const url = show ? clip.frames[index]?.url : null;
       layer.hidden = !url;
       layer.style.maskImage = url ? `url(${JSON.stringify(url)})` : "none";
     }
-    onionKey.hidden = !show;
+    onionKey.hidden = previousGhost.hidden && nextGhost.hidden;
   }
 
   function showHistoryVersion() {
@@ -164,6 +188,28 @@ function showTimeline(action) {
     if (frameBox.left < stripBox.left) strip.scrollLeft -= stripBox.left - frameBox.left;
   }
 
+  function displayPlayback(data) {
+    const playback = data.playback;
+    mode.value = playback.mode;
+    limited.checked = !!playback.start_frame;
+    for (const [input, current, fallback] of [[first, playback.start_frame, data.frames[0].id],
+                                              [last, playback.end_frame, data.frames.at(-1).id]]) {
+      input.replaceChildren(...data.frames.map((frame, i) => new Option(`${i + 1} · ${frame.id}`, frame.id)));
+      if (current && !data.frames.some(frame => frame.id === current)) {
+        input.add(new Option(`Missing · ${current}`, current));
+      }
+      input.value = current || fallback;
+      input.disabled = !limited.checked;
+    }
+    find("#tlWindow").textContent = playback.error ? "· Range needs repair" : limited.checked
+      ? `· Frames ${playback.start + 1}–${playback.end + 1}` : "· Full clip";
+    const error = find("#tlPlaybackError");
+    error.textContent = playback.error || "";
+    error.hidden = !playback.error;
+    if (playback.error) find("#tlPlayback").open = true;
+    play.disabled = find("#tlQa").disabled = find("#tlExport").disabled = !!playback.error;
+  }
+
   function display(data, index = 0) {
     clip = data;
     controls.hidden = false;
@@ -175,12 +221,18 @@ function showTimeline(action) {
     find("#tlQaNote").hidden = !data.qa_needs_review;
     find("#tlUndo").disabled = !data.can_undo;
     find("#tlRedo").disabled = !data.can_redo;
-    strip.innerHTML = data.frames.map((frame, i) => `
+    displayPlayback(data);
+    const {start, end, start_frame, error} = data.playback;
+    strip.innerHTML = data.frames.map((frame, i) => {
+      const inPlayback = start_frame && !error && start <= i && i <= end;
+      return `
       <button type="button" data-tl-index="${i}" data-frame-id="${esc(frame.id)}"
-        aria-label="${i + 1}, ${frame.id === frame.name ? "frame" : "copy of"} ${esc(frame.name)}, ${frame.duration_ms} ms">
+        ${inPlayback ? 'data-in-playback="true"' : ""}
+        aria-label="${i + 1}, ${frame.id === frame.name ? "frame" : "copy of"} ${esc(frame.name)}, ${frame.duration_ms} ms${inPlayback ? ", in playback range" : ""}">
         <img class="pix" src="${esc(frame.url)}" alt="">
         ${frame.id === frame.name ? "" : "Copy "}${esc(frame.name.replace(/\.png$/, ""))} · ${frame.duration_ms} ms
-      </button>`).join("");
+      </button>`;
+    }).join("");
     select(Math.min(index, data.frames.length - 1));
   }
 
@@ -204,12 +256,13 @@ function showTimeline(action) {
   async function save(operation, value) {
     stop();
     busy(true);
-    message("Saving frame…");
+    message(operation === "playback" ? "Saving playback…" : "Saving frame…");
     try {
       const body = {operation, frame: clip.frames[selected].id};
       if (operation === "duration") body.duration_ms = value;
       if (operation === "activate") body.version = value;
       if (operation === "move") body.position = value;
+      if (operation === "playback") body.playback = value;
       if (operation === "replace") body.png = await new Promise((resolve, reject) => {
         if (value.size > clip.max_image_bytes) return reject(new Error("Choose a PNG no larger than 32 MiB."));
         const reader = new FileReader();
@@ -222,7 +275,7 @@ function showTimeline(action) {
       const next = data.frames.findIndex(frame => frame.id === (data.selected_frame || body.frame));
       display(data, next >= 0 ? next : selected);
       const labels = {activate: `Version ${value} applied.`, duplicate: "Frame duplicated.", move: "Frame moved.",
-                      undo: "Frame order change undone.", redo: "Frame order change redone."};
+                      undo: "Frame order change undone.", redo: "Frame order change redone.", playback: "Playback saved."};
       message(labels[operation] || "Saved.");
     } catch (error) {
       if (open()) message(error.message, true);
@@ -234,20 +287,28 @@ function showTimeline(action) {
   function advance() {
     timer = setTimeout(() => {
       if (!open() || !playing) return stop();
-      if (selected === clip.frames.length - 1 && !clip.loop) return stop();
-      select((selected + 1) % clip.frames.length);
+      const {start, end, loop} = clip.playback;
+      if (selected === end && !loop) return stop();
+      select(selected === end ? start : selected + 1);
       advance();
     }, clip.frames[selected].duration_ms);
   }
   play.onclick = () => {
     if (playing) return stop();
-    if (!clip.loop && selected === clip.frames.length - 1) select(0);
+    const {start, end, loop} = clip.playback;
+    if (selected < start || selected > end || (!loop && selected === end)) select(start);
     playing = true;
     play.textContent = "Pause";
     paintOnion();
     advance();
   };
   set.onchange = load;
+  limited.onchange = () => { first.disabled = last.disabled = !limited.checked; };
+  find("#tlPlaybackForm").onsubmit = event => {
+    event.preventDefault();
+    save("playback", {mode: mode.value, start_frame: limited.checked ? first.value : null,
+                      end_frame: limited.checked ? last.value : null});
+  };
   onion.onchange = () => {
     try { localStorage.setItem("sw.timeline.onion", String(onion.checked)); } catch {}
     paintOnion();

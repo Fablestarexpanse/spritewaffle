@@ -7,7 +7,7 @@ import json
 import re
 from base64 import b64encode
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +20,7 @@ from . import fsutil
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_DURATION_MS = 65_535                  # Aseprite stores frame durations as unsigned 16-bit integers.
 ORDER_OPERATIONS = ("duplicate", "move", "undo", "redo")
+PLAYBACK_MODES = ("source", "loop", "once")
 STALE_PIXELS = "The frame changed after the editor opened. Close and reopen the editor to load the current frame."
 
 
@@ -34,6 +35,28 @@ class Frame:
     @property
     def replaced(self) -> bool:
         return self.image != self.source
+
+
+@dataclass(frozen=True)
+class Playback:
+    mode: str
+    loop: bool
+    start: int
+    end: int
+    start_frame: str | None = None
+    end_frame: str | None = None
+    error: str | None = None
+
+    @property
+    def frame_range(self) -> list[int] | None:
+        return [self.start, self.end] if self.start_frame and not self.error else None
+
+    def signature(self) -> dict:
+        return asdict(self) if self.mode != "source" or self.start_frame is not None else {}
+
+    def require_valid(self) -> None:
+        if self.error:
+            raise ValueError(self.error)
 
 
 def directory(root: Path, facing: str, action: str, frame_set: str) -> Path:
@@ -124,6 +147,35 @@ def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> li
     return _frames(root, frame_set, sources, _state(_edit_directory(root, frame_set) / "timeline.json"))
 
 
+def _playback(root: Path, frame_set: Path, items: list[Frame], settings: dict, source_loop: bool | None) -> Playback:
+    mode = settings.get("mode", "source")
+    if source_loop is None and mode == "source":
+        facing, action, _ = frame_set.relative_to(root / "04_pixel").parts
+        report = root / "03_actions" / facing / action / "selection_report.json"
+        source_loop = bool(json.loads(fsutil.read_text(report)).get("loop", True)) if report.is_file() else True
+    loop = bool(source_loop) if mode == "source" else mode == "loop"
+    first, last = settings.get("start_frame"), settings.get("end_frame")
+    if first is None and last is None:
+        return Playback(mode, loop, 0, len(items) - 1)
+    indices = {frame.id: i for i, frame in enumerate(items)}
+    if first not in indices or last not in indices:
+        error = "A playback range endpoint is missing. Choose available frames or clear the range."
+    elif indices[first] > indices[last]:
+        error = "The playback range start must be before or at the end. Adjust the range or undo the move."
+    else:
+        return Playback(mode, loop, indices[first], indices[last], first, last)
+    return Playback(mode, loop, 0, len(items) - 1, first, last, error)
+
+
+def read_clip(root: Path, frame_set: Path, sources: list[Path] | None = None, *,
+              source_loop: bool | None = None) -> tuple[list[Frame], Playback]:
+    """Read the effective frames and playback from the same timeline snapshot."""
+    state = _state(_edit_directory(root, frame_set) / "timeline.json")
+    sources = colour_frames(frame_set / "frames") if sources is None else sources
+    items = _frames(root, frame_set, sources, state)
+    return items, _playback(root, frame_set, items, state.get("playback", {}), source_loop)
+
+
 def replacements(items: list[Frame]) -> dict[str, str]:
     return {frame.id: frame.image.stem for frame in items if frame.replaced}
 
@@ -133,9 +185,10 @@ def order_signature(items: list[Frame]) -> list[str]:
     return order if order != sorted({f.source.name for f in items}) else []
 
 
-def qa_needs_review(report: dict, items: list[Frame]) -> bool:
+def qa_needs_review(report: dict, items: list[Frame], playback: Playback) -> bool:
     return ((report.get("timeline_replacements") or {}) != replacements(items) or
-            (report.get("timeline_order") or []) != order_signature(items))
+            (report.get("timeline_order") or []) != order_signature(items) or
+            (report.get("timeline_playback") or {}) != playback.signature())
 
 
 def pixels(paths: list[Path]) -> np.ndarray:
@@ -340,13 +393,31 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
     return True
 
 
+def _edit_playback(root: Path, frame_set: Path, state: dict, sources: list[Path], value) -> None:
+    if not isinstance(value, dict) or value.get("mode") not in PLAYBACK_MODES:
+        raise ValueError("Playback mode must be source, loop, or once.")
+    first, last = value.get("start_frame"), value.get("end_frame")
+    if (first is not None or last is not None) and not (isinstance(first, str) and isinstance(last, str)):
+        raise ValueError("Choose both playback range endpoints, or clear both.")
+    if not sources:
+        raise FileNotFoundError("Pixelize the action before saving playback settings.")
+    settings = {"mode": value["mode"]}
+    if first is not None:
+        settings.update(start_frame=first, end_frame=last)
+    _playback(root, frame_set, _frames(root, frame_set, sources, state), settings, None).require_valid()
+    if first is None and settings["mode"] == "source":
+        state.pop("playback", None)
+    else:
+        state["playback"] = settings
+
+
 def update(root: Path, frame_set: Path, name: str | None, operation: str, value=None) -> str | None:
     from . import manifest
     from .job import Job
 
-    if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate", "paint"):
+    if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback"):
         raise ValueError("Unknown timeline operation.")
-    if operation not in ("undo", "redo") and (
+    if operation not in ("undo", "redo", "playback") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|copy-[1-9][0-9]*)", name) is None
     ):
         raise ValueError("Choose a frame ID from this timeline.")
@@ -359,6 +430,8 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
         selected = name
         if operation in ORDER_OPERATIONS:
             selected = _edit_order(state, sources, name, operation, value)
+        elif operation == "playback":
+            _edit_playback(root, frame_set, state, sources, value)
         elif not _edit_frame(root, frame_set, state, sources, name, operation, value):
             return selected
         fsutil.write_text(record, json.dumps(state, indent=2))
@@ -392,15 +465,15 @@ def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
     if not items:
         raise FileNotFoundError("Pixelize the action to open its timeline.")
     facing, action, name = frame_set.relative_to(root / "04_pixel").parts
-    selection = root / "03_actions" / facing / action / "selection_report.json"
     report = checks.read(root / "05_qa" / facing / action / name / "report.json") or {}
-    loop = json.loads(fsutil.read_text(selection)).get("loop", True) if selection.is_file() else True
+    playback = _playback(root, frame_set, items, state.get("playback", {}), None)
     default_ms = round(1000 / action_fps(base_fps, name))
     with Image.open(items[0].source) as image:
         cell = list(image.size)
-    return {"facing": facing, "action": action, "frame_set": name, "cell": cell, "loop": loop,
+    return {"facing": facing, "action": action, "frame_set": name, "cell": cell, "loop": playback.loop,
+            "playback": asdict(playback),
             "default_ms": default_ms, "max_duration_ms": MAX_DURATION_MS, "max_image_bytes": MAX_IMAGE_BYTES,
-            "qa_needs_review": qa_needs_review(report, items),
+            "qa_needs_review": qa_needs_review(report, items, playback),
             "can_undo": bool(state.get("undo")), "can_redo": bool(state.get("redo")),
             "frames": [{"id": f.id, "name": f.source.name, "image": f.image.relative_to(root).as_posix(),
                         "duration_ms": t, "timing_edited": f.duration_ms is not None,

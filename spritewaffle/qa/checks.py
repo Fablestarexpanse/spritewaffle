@@ -41,7 +41,7 @@ def _stray(a: np.ndarray) -> int:
 
 
 def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_size: int,
-        loop: bool, t: Thresholds = Thresholds()) -> dict:
+        loop: bool, t: Thresholds = Thresholds(), *, playback_range: list[int] | None = None) -> dict:
     n, h, w = cells.shape[:3]
     alpha = cells[..., 3] > 0
     errors, warnings, reroll = [], [], set()
@@ -89,9 +89,13 @@ def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_siz
             errors.append("preserve-canvas placements differ between frames (fake camera motion)")
             reroll.add("layout")
 
-    seam = _iou_dist(alpha[-1], alpha[0]) if n > 1 else 0.0
-    if loop and seam > t.loop_seam and seam > t.loop_seam_ratio * max(med, 1e-6):
-        warnings.append(f"loop seam {seam:.2f} vs median step {med:.2f}")
+    start, end = playback_range if playback_range is not None else (0, n - 1)
+    seam = _iou_dist(alpha[end], alpha[start]) if end > start else 0.0
+    loop_med = med
+    if playback_range is not None:
+        loop_med = float(np.median(adj[start:end])) if end > start else 0.0
+    if loop and seam > t.loop_seam and seam > t.loop_seam_ratio * max(loop_med, 1e-6):
+        warnings.append(f"loop seam {seam:.2f} vs median step {loop_med:.2f}")
         reroll.add("select (loop point)")
 
     return {
@@ -104,6 +108,7 @@ def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_siz
         "duplicate_frames": dups, "motion_pops": pops, "edge_contact_frames": edge,
         "height_cv": round(cv, 4), "palette_used": len(colors), "palette_size": palette_size,
         "stray_pixels": stray, "loop": loop, "loop_seam_diff": round(seam, 4),
+        **({"playback_range": playback_range} if playback_range is not None else {}),
         "thresholds": asdict(t),
     }
 
@@ -143,8 +148,13 @@ def review(report: dict) -> dict:
             if placement != placements[0]:
                 add(index, "placement", "fail", "Placement differs from frame 000.")
     if any(message.startswith("loop seam ") for message in warnings):
-        add(0, "loop-seam", "warn", "Abrupt transition from the last frame.")
-        add(count - 1, "loop-seam", "warn", "Abrupt transition to the first frame.")
+        if bounds := report.get("playback_range"):
+            start, end = bounds
+            add(start, "loop-seam", "warn", "Abrupt transition from the end of the playback range.")
+            add(end, "loop-seam", "warn", "Abrupt transition to the start of the playback range.")
+        else:
+            add(0, "loop-seam", "warn", "Abrupt transition from the last frame.")
+            add(count - 1, "loop-seam", "warn", "Abrupt transition to the first frame.")
     names = report.get("frame_files") or []
     order = report.get("timeline_order") or []
     findings = []

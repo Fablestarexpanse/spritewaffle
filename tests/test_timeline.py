@@ -39,6 +39,127 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     return data.getvalue()
 
 
+def test_saved_playback_range_reaches_qa_manifest_and_both_exporters(clip):
+    job, directory = clip
+    profile = resolve(None)
+    output = job.root / "06_export" / "character"
+    source = job.root / "03_actions" / "S" / "walk" / "selection_report.json"
+    original = source.read_bytes()
+    stages.export(job, profile)
+    character.export(job.root, output, "hero", profile.fps)
+    timeline.update(job.root, directory, "001.png", "duration", 320)
+    playback = {"mode": "once", "start_frame": "001.png", "end_frame": "003.png"}
+    timeline.update(job.root, directory, None, "playback", playback)
+    view = timeline.describe(job.root, directory, profile.fps("walk"))
+    assert not view["loop"] and view["playback"] == playback | {"loop": False, "start": 1, "end": 3, "error": None}
+    assert view["qa_needs_review"] and view["frames"][1]["duration_ms"] == 320
+    assert source.read_bytes() == original
+    assert character.export_status(job.root, output, profile.fps)["status"] == "stale"
+    assert {v["status"] for v in stages.export_status(job, profile)["formats"].values()} == {"stale"}
+    with pytest.raises(RuntimeError, match="QA needs to review"):
+        character.export(job.root, output, "hero", profile.fps)
+    assert stages.qa(job, profile)["12f"] == "pass"
+    qa = json.loads((job.root / "05_qa/S/walk/12f/report.json").read_text(encoding="utf-8"))
+    assert qa["loop"] is False and qa["playback_range"] == [1, 3]
+    assert not timeline.describe(job.root, directory, profile.fps("walk"))["qa_needs_review"]
+    anim = manifest.read(job)["animations"][0]
+    assert anim["playback_by_view"][str(anim["views"][0])] == view["playback"]
+
+    action = stages.export(job, profile)["12f"]
+    char = character.export(job.root, output, "hero", profile.fps)
+    for product in (action, char):
+        doc = aseprite.read(product["aseprite"])
+        assert len(doc.frames) == 12 and doc.durations[1] == 320
+        assert doc.tags == [("walk_S", 1, 3, "forward")] and doc.repeats == [1]
+    action_meta = json.loads(Path(action["json"]).read_text(encoding="utf-8"))
+    char_meta = json.loads(Path(char["json"]).read_text(encoding="utf-8"))["animations"][0]
+    assert len(action_meta["frames"]) == 12 and char_meta["frames"] == 12
+    for meta in (action_meta, char_meta):
+        assert meta["loop"] is False and meta["playback_range"] == [1, 3]
+    for key in ("apng", "gif"):
+        with Image.open(action[key]) as image:
+            assert image.n_frames == 3 and image.info.get("duration") == 320
+            assert image.info.get("loop") == (1 if key == "apng" else None)
+            for i in range(image.n_frames):
+                image.seek(i)
+                with Image.open(directory / "frames" / f"{i + 1:03}.png") as expected:
+                    actual, wanted = np.asarray(image.convert("RGBA")), np.asarray(expected)
+                    if key == "gif":
+                        assert np.array_equal(actual[..., 3], wanted[..., 3])
+                        assert np.array_equal(actual[wanted[..., 3] != 0], wanted[wanted[..., 3] != 0])
+                    else:
+                        assert np.array_equal(actual, wanted)
+
+
+def test_qa_reports_the_saved_range_endpoints_as_loop_seam_findings(clip):
+    job, directory = clip
+    profile = resolve(None)
+    for i, x in enumerate([3, 2, 3, 4, 5, 6, 7, 8, 9, 8, 6, 3]):
+        frame = Image.new("RGBA", (20, 16))
+        frame.paste((70, 20, 180, 255), (x, 4, x + 8, 12))
+        frame.save(directory / "frames" / f"{i:03}.png")
+    assert stages.qa(job, profile)["12f"] == "pass"
+    assert not any(issue["code"] == "loop-seam" for frame in stages.qa_review(job)["12f"]["frame_findings"] for issue in frame["issues"])
+    timeline.update(job.root, directory, None, "playback", {"mode": "loop", "start_frame": "001.png", "end_frame": "006.png"})
+    assert stages.qa(job, profile)["12f"] == "pass"
+    findings = stages.qa_review(job)["12f"]["frame_findings"]
+    assert [(frame["frame"], frame["file"]) for frame in findings if any(i["code"] == "loop-seam" for i in frame["issues"])] == [(1, "001.png"), (6, "006.png")]
+
+
+def test_playback_range_follows_ids_and_refuses_missing_or_crossed_endpoints(clip):
+    job, directory = clip
+    profile = resolve(None)
+    playback = {"mode": "loop", "start_frame": "copy-1", "end_frame": "004.png"}
+    timeline.update(job.root, directory, "001.png", "duplicate")
+    timeline.update(job.root, directory, None, "playback", playback)
+    timeline.update(job.root, directory, "000.png", "move", 3)
+    result = timeline.describe(job.root, directory, profile.fps("walk"))["playback"]
+    assert result["start"] == 1 and result["end"] == 5
+    timeline.update(job.root, directory, "copy-1", "move", 8)
+    assert "before" in timeline.describe(job.root, directory, profile.fps("walk"))["playback"]["error"]
+    with pytest.raises(ValueError, match="before"):
+        stages.export(job, profile)
+    with pytest.raises(ValueError, match="before"):
+        stages.qa(job, profile)
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, None, "undo")
+    assert "missing" in timeline.describe(job.root, directory, profile.fps("walk"))["playback"]["error"]
+    with pytest.raises(RuntimeError, match="missing"):
+        character.export(job.root, job.root / "06_export/character", "hero", profile.fps, require_pass=False)
+    timeline.update(job.root, directory, None, "redo")
+    view = timeline.describe(job.root, directory, profile.fps("walk"))["playback"]
+    assert view["start"] == 2 and view["error"] is None
+    for args in ({"mode": "bogus"}, {"mode": "loop", "start_frame": "000.png"},
+                 {"mode": "loop", "start_frame": "004.png", "end_frame": "001.png"},
+                 {"mode": "once", "start_frame": "999.png", "end_frame": "001.png"}):
+        with pytest.raises(ValueError, match="Playback|playback"):
+            timeline.update(job.root, directory, None, "playback", args)
+    assert timeline.describe(job.root, directory, profile.fps("walk"))["playback"] == view
+    timeline.update(job.root, directory, None, "playback", {"mode": "source"})
+    assert timeline.describe(job.root, directory, profile.fps("walk"))["playback"]["start"] == 0
+
+
+def test_playback_is_shared_by_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    job, _ = clip
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    route = "/api/jobs/hero/j/timeline?facing=S&action=walk"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk"]
+    assert cli.main([*args, "--playback", "once", "--range-start", "000.png", "--range-end", "001.png"]) == 0
+    view = json.loads(capsys.readouterr().out)
+    assert view["playback"]["end"] == 1 and view["loop"] is False
+    with TestClient(create_app(worker=False)) as client:
+        assert client.get(route).json()["playback"] == view["playback"]
+        response = client.post(route, json={"operation": "playback", "playback": {"mode": "loop"}})
+        assert response.status_code == 200 and response.json()["playback"]["end"] == 11
+        assert response.json()["loop"] is True
+        assert client.post(route, json={"operation": "playback", "playback": {"mode": [], "start_frame": 0}}).status_code == 400
+    mcp, _ = build(tmp_path)
+    result = text(call(mcp, "edit_timeline_frame", character="hero", job_id="j", facing="S", action="walk",
+                       operation="playback", playback={"mode": "source"}))
+    assert result["playback"]["mode"] == "source" and result["loop"] is True
+
+
 def test_pixel_save_edits_only_changed_rgba_on_selected_copy(clip):
     job, directory = clip
     profile = resolve(None)

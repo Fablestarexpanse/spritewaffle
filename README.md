@@ -102,6 +102,13 @@ then be edited independently. **Undo order** and **Redo order** apply to duplica
 moves. Timing and artwork edits stay with their frame IDs. A saved effect attachment
 follows its original source frame through the sequence.
 
+Open **Playback settings** to choose **Use source**, **Loop**, or **Play once**. To
+play a smaller section, enable **Limit playback range**, choose its first and last frames,
+and save. The timeline still lets you scrub and edit the full sequence. The range belongs
+to the selected frame set. Its endpoints follow the chosen frame IDs through reordering.
+If an endpoint disappears or moves across the other, choose a valid range, clear it, or
+undo the order change before running QA or exporting that clip.
+
 Choose **Edit pixels** on the selected frame or copy. Pencil, Eraser, and Pick color work
 on the effective image. Choose an RGBA color or use a swatch from the job palette. Zoom
 in to use the pixel grid. With the canvas focused, move with the arrow keys and apply the
@@ -118,11 +125,15 @@ choose **Deselect**. **Erase selected pixels** makes the rectangle transparent i
 are temporary. If the underlying frame changes while you edit, reopen the editor to start
 from the current image.
 
-Run **QA** after replacing or restoring artwork, then re-export the action or character.
+Run **QA** after changing artwork or playback, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
 the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
 existing aligned copies for untouched frames. A replacement uses the saved pixel position
 and its old depth and normal maps are omitted. GIF preview timing uses 10 ms ticks.
+For a saved playback range, GIF and APNG show that section and the Aseprite animation tag
+covers it. JSON metadata records inclusive, zero-based `playback_range` positions within
+the clip. Strips, atlas frames, and Aseprite cels retain the full sequence. Existing one-shot
+clips keep their preview export behavior until a playback override is saved.
 
 Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
 To edit, add `--frame 001.png` and one of `--duration 160`, `--reset-duration`,
@@ -133,6 +144,11 @@ Copies have IDs such as `copy-1`. Move positions count from zero. Use `--undo-or
 `GET` or `POST /api/jobs/{character}/{job}/timeline`. Use operation `activate` with a
 one-based `version` to reuse history. The order operations are `duplicate`, `move`
 with a zero-based `position`, `undo`, and `redo`.
+
+For playback, pass `--playback once --range-start 001.png --range-end 004.png`.
+Pass `--playback source` without endpoints to restore the source setting and the full clip.
+HTTP and MCP accept `operation` set to `playback` and a `playback` object with `mode`
+(`source`, `loop`, or `once`) and both optional `start_frame` and `end_frame` IDs.
 
 For pixel edits, use `--frame 001.png --pixels` to get the current `fingerprint`, cell dimensions,
 job palette, and base64-encoded row-major `rgba` bytes. Use `--paint patch.json` on the same frame

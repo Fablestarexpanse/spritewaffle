@@ -191,8 +191,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                             frame: str | None = None, frame_set: str = "12f",
                             duration_ms: int | None = None, png_path: str | None = None,
                             version: int | None = None, position: int | None = None,
-                            fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None) -> dict:
-        """Paint takes a current fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position. Undo and redo change order only."""
+                            fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None,
+                            playback: dict | None = None) -> dict:
+        """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
+        Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
+        Undo and redo change order only."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -208,6 +211,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = position
         elif operation == "paint":
             value = {"fingerprint": fingerprint, "pixels": pixels}
+        elif operation == "playback":
+            value = playback
         selected = timeline.update(job.root, directory, frame, operation, value)
         return animation_timeline(character, job_id, facing, action, frame_set) | {"selected_frame": selected}
 

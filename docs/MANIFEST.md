@@ -42,7 +42,13 @@ A flipped view shows yaw `(360 − yaw) mod 360` (W ↔ E, SW ↔ SE; S and N ma
 | `align_feet` | bool | true after Align feet. Untouched frames use their aligned copies when available. |
 | `base_job` | str\|null | a variant's base job (fitted item, one-change variant) |
 | `views` | list | one per view: `view_index`, `yaw_degrees`, `label`, `facing_image` (the still, or null), `mirrored`, `source_view_index` |
-| `animations` | list | one per action × frame set: `action`, `frame_set` (`12f`/`24f`), `fps`, `loop`, `views` (indices present), `frames` |
+| `animations` | list | one per action × frame set with `action`, `frame_set` (`12f`/`24f`), `fps`, `loop`, `views` (indices present), `frames`, and optional `playback_by_view` |
+
+`playback_by_view` uses stringified view indices. Each override has a `mode`, effective
+`loop` flag, inclusive zero-based `start` and `end`, and the `start_frame` and `end_frame`
+IDs when a custom range is set. If an endpoint is missing or crossed, `error` explains
+what to repair and the clip cannot export. Views without an override use their source
+playback settings.
 
 ## Frame entries (`animations[].frames[]`)
 
