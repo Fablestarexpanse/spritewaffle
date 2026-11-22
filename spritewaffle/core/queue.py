@@ -67,11 +67,13 @@ def _stages():
             raise ValueError(f"missing args {missing}")
 
     def anchor(job, prof, a):
-        if job.read_meta()["inputs"].get("base_job") and not (a.get("describe") or a.get("image")):
+        if (job.read_meta()["inputs"].get("base_job") and not (a.get("describe") or a.get("image"))
+                and a.get("project_reference_id") is None):
             from . import variant                          # a variant re-rolls its edited anchor
             return str(variant.anchor(job, prof, seed=a.get("seed")))
         return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed"),
-                                   asset_type=a.get("asset_type", "character"), style_ref=a.get("style_ref")))
+                                   asset_type=a.get("asset_type", "character"), style_ref=a.get("style_ref"),
+                                   project_reference_id=a.get("project_reference_id")))
 
     def facings(job, prof, a):
         return generate.facings(job, prof, only=a.get("only"), seed=a.get("seed"),
@@ -201,13 +203,20 @@ class Queue:
                after: list[str] | None = None) -> dict:
         if stage not in STAGE_NAMES:
             raise ValueError(f"unknown stage {stage}; known: {STAGE_NAMES}")
+        args = args or {}
+        if args.get("project_reference_id") is not None:
+            if stage != "anchor":
+                raise ValueError("A project reference can only be selected for the anchor stage.")
+            from .generate import anchor_reference
+            anchor_reference(Path(job).parent.parent, args["project_reference_id"], description=args.get("describe"),
+                             asset_type=args.get("asset_type", "character"), image=args.get("image"), style_ref=args.get("style_ref"))
         for a in after or []:
             if not self._path(a).exists():
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
                  "resource": "gpu" if stage in ("model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
-                 "args": args or {}, "profile": profile, "after": list(after or []), "status": "queued",
+                 "args": args, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)
 

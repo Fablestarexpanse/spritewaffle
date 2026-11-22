@@ -592,7 +592,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 tasks = queue.submit_animate(j.root, facings, actions, profile, mirror=args.pop("mirror", True), **args)
             else:
                 tasks = [queue.submit(j.root, stage, args, profile)]
-        except (KeyError, ValueError) as e:
+        except (KeyError, ValueError, FileNotFoundError) as e:
             bad(e)
         return [t["id"] for t in tasks]
 

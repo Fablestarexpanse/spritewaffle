@@ -96,9 +96,17 @@ Use **Archive** to hide an entry and **Show archived** to restore it. Original c
 thumbnails live in the jobs folder's `_references` directory. Move the whole jobs folder
 to keep the library portable. References are for visual guidance.
 
+On **Anchor**, choose one image under **Style reference → Project references** and describe
+the asset you want to generate. Click the reference thumbnail to inspect the original.
+SpriteWaffle queues the image with the description and records its ID in the job and manifest.
+The generated anchor opens for human review. If you archive a selected reference, restore it
+or choose another before generating. Animals and base bodies use their turnaround-sheet workflow.
+
 Use `spritewaffle project-references list`, `add`, `edit`, `archive`, `restore`, or `path`
 at the command line. The HTTP API uses `/api/project/references`. MCP provides
 `project_references` for managing entries and `project_reference_image` for previews.
+For generation, use `spritewaffle anchor --job hero/new --describe "a teal courier" --project-reference ID`
+or pass `project_reference_id` to MCP `generate` or the HTTP anchor stage arguments.
 
 Under **Export**, use **Check freshness** to compare the latest character bundle with its
 processed frames, palette, QA inputs, timing, maps, and attachments. It also checks that

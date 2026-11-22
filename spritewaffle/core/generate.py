@@ -28,7 +28,8 @@ def _seed(seed: int | None) -> int:
     return seed if seed is not None else random.randrange(2**31)
 
 
-def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> dict:
+def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path, *,
+         project_reference_id: str | None = None) -> dict:
     """One image generation. A project/asset camera profile adds its sentence to the prompt here, so
     every still (anchor, facings, items, variants) gets it; none set -> the prompt is unchanged."""
     from . import camera
@@ -45,6 +46,8 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path) -> 
     prov["files"] = [str(dest.relative_to(job.root))]
     prov["values"] = {k: (str(v) if isinstance(v, Path) else [str(x) for x in v] if isinstance(v, list) else v)
                       for k, v in prov["values"].items()}
+    if project_reference_id is not None:
+        prov["project_reference_id"] = project_reference_id
     job.log_provenance(str(dest.relative_to(job.root)), **prov, camera=camera.snapshot(job))
     return prov
 
@@ -61,15 +64,31 @@ def flatten_background(img: Image.Image, dest: Path) -> Path:
 
 # --- anchor ---------------------------------------------------------------------------------
 
+def anchor_reference(base: Path, reference_id: str, *, description: str | None, asset_type: str = "character",
+                     image: str | Path | None = None, style_ref: str | Path | None = None) -> Path:
+    """Resolve a selected library image for a new generation."""
+    from . import project_references
+    if image or style_ref:
+        raise ValueError("Choose one project reference, hero reference, or import image for the anchor.")
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError("Describe the anchor to generate with this project reference.")
+    if asset_type in ("animal", "base_body"):
+        raise ValueError("Animals and base bodies use a turnaround sheet. Choose an asset with single-anchor generation.")
+    return project_references.image(base, reference_id, active_only=True)
+
+
 def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, description: str | None = None,
            image: str | Path | None = None, seed: int | None = None, asset_type: str = "character",
-           style_ref: str | Path | None = None) -> Path:
+           style_ref: str | Path | None = None, project_reference_id: str | None = None) -> Path:
     """Generate the anchor from a description, or import an existing image. Not approved yet.
 
     style_ref: an approved hero anchor (path or job folder). The new anchor is drawn in the hero's
-    style through the image-edit template ("hero asset first, then reference it")."""
+    style through the image-edit template ("hero asset first, then reference it").
+    project_reference_id: one active image in the project's library, used through that template."""
     styles.use(styles.of_job(job))
     builder.asset(asset_type)
+    ref = (anchor_reference(job.root.parent.parent, project_reference_id, description=description,
+                            asset_type=asset_type, image=image, style_ref=style_ref) if project_reference_id is not None else None)
     dest = job.stage_dir("01_anchor") / "anchor.png"
     if image:
         takes.stash(job, dest)
@@ -79,17 +98,18 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
         if not description:
             raise ValueError("anchor needs --describe or --image")
         client = client or ComfyClient()
-        if style_ref:
-            ref = Path(style_ref)
-            if ref.is_dir():
-                hero = Job.open(ref)
-                hero.require_approved("anchor")
-                ref = hero.root / "01_anchor" / "anchor.png"
-            if not ref.exists():
-                raise FileNotFoundError(f"style reference {ref} not found")
+        if style_ref or ref is not None:
+            if ref is None:
+                ref = Path(style_ref)
+                if ref.is_dir():
+                    hero = Job.open(ref)
+                    hero.require_approved("anchor")
+                    ref = hero.root / "01_anchor" / "anchor.png"
+                if not ref.exists():
+                    raise FileNotFoundError(f"style reference {ref} not found")
             _run(client, job, "facing_multiref",
-                 {"prompt": builder.anchor_from_hero(description, profile, asset_type), "ref_images": [ref],
-                  "seed": _seed(seed)}, dest)
+                 {"prompt": builder.anchor_from_hero(description, profile, asset_type, project_reference=project_reference_id is not None),
+                  "ref_images": [ref], "seed": _seed(seed)}, dest, project_reference_id=project_reference_id)
         elif asset_type in ("animal", "base_body"):
             return _turnaround(job, profile, description, client, seed, asset_type)
         else:
@@ -100,6 +120,11 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
                  {"prompt": builder.anchor(text, profile, asset_type=asset_type), "seed": _seed(seed)}, dest)
     job.update_inputs(description=description, asset_type=asset_type, style_ref=str(style_ref) if style_ref else None)
     with job.mutate() as meta:                         # a new anchor invalidates AI text written for the old one
+        if project_reference_id is None:
+            meta["inputs"].pop("project_reference_id", None)
+        else:
+            meta["inputs"]["project_reference_id"] = project_reference_id
+            meta["inputs"].pop("style_ref", None)
         meta["inputs"].pop("visual_description", None)
         meta["inputs"].pop("action_specs", None)
     if job.read_meta()["inputs"].get("prompt_writer") == "ai":

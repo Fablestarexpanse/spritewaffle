@@ -5,6 +5,10 @@ Read this before changing a prompt in `prompts/builder.py`.
 
 ## H3 image edit (facings, variants, items)
 
+- **Saved project style reference.** A single sprite from the project library can guide a new
+  anchor through the existing image-edit workflow. The prompt identifies Picture 1 as an art
+  style reference and describes the new subject. PNG and lossless WebP versions of one knight
+  reference both produced a teal courier at seed 417. These two renders had different pixels.
 - **One reference picture per facing.** Adding the front view as a second picture made every
   facing come out as that front view. Diagonals use only the nearest cardinal as Picture 1
   (more pictures pulled SE to pure E).

@@ -34,7 +34,7 @@ Ronan's notes (2026-11-20, notebook), each checked against the code. Status: **h
 |---|---|---|---|
 | 9, 3 | "Edit model to make changes" / "test default character adding items, clothing etc." | **done** 2026-11-20 (Make a variant…; item from a picture done 2026-11-21) | Needs: edit an approved character with H3 Image edit ("add a red cape", "swap club for sword") → a new variant job that keeps the base's facings as references; test with a plain base character. |
 | 8 | "Items, accents, terrain etc, style match" | **part** (equipment items done 2026-11-21: item jobs, front + back, Fit on…; terrain/tiles open) | Props exist (sprite stacking, style reference from a hero). Needs: item/terrain/tile asset types that match a character's style and palette. |
-| 13 | "Style reference tool, way to add a set or view" | **part** | Anchor can take one style reference. The local project library can collect and preview several reference images. Applying a saved collection to new generation is open. |
+| 13 | "Style reference tool, way to add a set or view" | **part** | The local library collects and previews style images. Anchor generation can use one selected image from a collection. Using several images in the same generation is open. |
 
 ## E. Found while working
 

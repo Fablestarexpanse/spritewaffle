@@ -79,7 +79,7 @@ There are two copies of each workflow:
 | Workflow | What it does |
 |---|---|
 | `anchor_still` | text → the anchor image (H3 Image t2i) on flat #00FF00 |
-| `facing_multiref` | anchor (+ nearest cardinal) → one other facing (H3 Image edit) |
+| `facing_multiref` | anchor (+ nearest cardinal) → one other facing, or one selected style image → a new anchor (H3 Image edit) |
 | `transition_pose` | facing → the pose that starts and ends a clip |
 | `bridge_frame` | in-between frame when a clip needs one |
 | `h3_action_fl2va` | first + last frame → action clip (H3 FL2VA) |

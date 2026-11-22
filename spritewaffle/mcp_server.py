@@ -59,12 +59,13 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     def generate(character: str, stage: str = "anchor", description: str | None = None,
                  job_id: str | None = None, asset_type: str = "character", style_ref: str | None = None,
                  image: str | None = None, seed: int | None = None, only: list[str] | None = None,
-                 style: str | None = None, profile: str | None = None) -> dict:
+                 style: str | None = None, profile: str | None = None, project_reference_id: str | None = None) -> dict:
         """Queue a still-image stage.
 
         stage='anchor': creates the job when job_id is omitted. Needs `description` (or `image`, a path
         to import). asset_type: character | creature | prop. style_ref: an approved hero as
         'character/job_id' (or an image path) to draw this asset in the hero's style.
+        project_reference_id selects one active project library image instead of style_ref.
         stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
         style (anchor and sheet): pixel, painted, anime, or comic. Omit style and profile to use the
         project defaults on new assets. Pass profile='' for built-in sizes.
@@ -73,6 +74,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         Returns the job and queued task ids; call status(...) to follow progress."""
         if stage not in ("anchor", "facings", "sheet"):
             raise ValueError("stage must be 'anchor', 'facings' or 'sheet'")
+        if project_reference_id is not None:
+            if stage != "anchor":
+                raise ValueError("A project reference can only be selected for the anchor stage.")
+            gen.anchor_reference(base, project_reference_id, description=description, asset_type=asset_type,
+                                 image=image, style_ref=style_ref)
         inputs = {}
         if stage != "facings" and style:
             inputs["style"] = styles.get(style)["name"]
@@ -87,7 +93,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         elif stage == "anchor":
             builder.asset(asset_type)
             job = job_for(character, job_id) if job_id else Job.create(character, base=base, **inputs)
-            args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type}
+            args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type,
+                    "project_reference_id": project_reference_id}
             if style_ref:
                 ref = base / style_ref if "/" in style_ref and not Path(style_ref).exists() else Path(style_ref)
                 args["style_ref"] = str(ref)

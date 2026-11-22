@@ -62,9 +62,11 @@ def test_variant_anchor_and_facings_come_from_the_base(tmp_path):
     b = _base(tmp_path)
     b.set_stage("facings", "approved")
     v = variant.create(b, "add a cape")
+    v.update_inputs(project_reference_id="a" * 32)
     c = FakeComfy()
     prof = GameProfile(name="p")
     variant.anchor(v, prof, client=c)
+    assert "project_reference_id" not in v.read_meta()["inputs"]
     assert c.calls[0][1]["ref_images"] == [b.root / "01_anchor" / "anchor.png"]
     v.set_stage("anchor", "approved")
     rep = generate.facings(v, prof, client=c)              # the normal entry point routes variants

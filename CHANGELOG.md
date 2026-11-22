@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added project-library image selection for new anchors. The browser previews the chosen image, and the queue rejects archived or missing references. The generated take records the reference ID and opens for review.
 - Added a read-only project style check for asset settings and processed clip palettes. It identifies off-palette colours and keeps the job screen available when a clip's processing record is damaged.
 - Integrated the official SpriteWaffle artwork into the app header, welcome screen, About dialog, browser favicon, and README. Package the supplied Windows icon and keep the repository social preview artwork outside the app wheel.
 - Added project master palettes for new jobs. Pixel-art processing uses the saved project palette when the game profile or job has no fixed colours. Existing assets keep their saved colours when the project palette changes.

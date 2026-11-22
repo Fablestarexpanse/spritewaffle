@@ -171,21 +171,27 @@ def cmd_comfy_check(a):
 # --- character --------------------------------------------------------------------------------
 
 def cmd_anchor(a):
-    from .core import generate
+    from .core import generate, manifest
     job = _job(a.job, create=True, **({"profile": a.profile} if a.profile else {}))
+    had_reference = job.read_meta()["inputs"].get("project_reference_id") is not None
     if a.profile:
         job.update_inputs(profile=a.profile)
     print(generate.anchor(job, _profile(a, job), description=a.describe, image=a.image, seed=a.seed,
-                          asset_type=a.asset_type, style_ref=a.style_ref))
+                          asset_type=a.asset_type, style_ref=a.style_ref, project_reference_id=a.project_reference))
+    if had_reference or a.project_reference is not None:
+        manifest.refresh(job)
 
 
 def cmd_sheet_import(a):
-    from .core import sheet_import
+    from .core import manifest, sheet_import
     job = _job(a.job, create=True)
+    had_reference = job.read_meta()["inputs"].get("project_reference_id") is not None
     if a.style:
         from .prompts import styles
         job.update_inputs(style=styles.get(a.style)["name"])
     _print(sheet_import.import_sheet(job, a.image, _csv(a.views), subject=a.subject, mirror=not a.no_mirror))
+    if had_reference:
+        manifest.refresh(job)
     print("next: look at 02_facings, then `spritewaffle approve anchor` and generate any missing facings with "
           "`spritewaffle facings --only ...`")
 
@@ -659,7 +665,8 @@ def build() -> argparse.ArgumentParser:
         (("--describe",), {"help": "what the asset looks like"}),
         (("--image",), {"help": "import this image instead of generating"}),
         (("--asset-type",), {"default": "character", "choices": ("character", "creature", "prop")}),
-        (("--style-ref",), {"help": "approved hero job (<character>/<job_id>) to copy the art style from"}))
+        (("--style-ref",), {"help": "approved hero job (<character>/<job_id>) to copy the art style from"}),
+        (("--project-reference",), {"metavar": "ID", "help": "use one active project library image to guide the art style"}))
     cmd("sheet-import", cmd_sheet_import, "use YOUR character sheet (views side by side, any background) as anchor + facings",
         (("image",), {}), JOB,
         (("--views",), {"required": True, "help": "facing of each figure left to right, e.g. S,SE,E,N (S becomes the anchor)"}),

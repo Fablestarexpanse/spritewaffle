@@ -45,15 +45,17 @@ def list_all(base: Path, include_archived: bool = False) -> list[dict]:
 
 
 def _get(entries: dict, reference_id: str) -> dict:
-    if not REFERENCE_ID.fullmatch(reference_id):
+    if not isinstance(reference_id, str) or not REFERENCE_ID.fullmatch(reference_id):
         raise ValueError("Invalid project reference ID")
     if reference_id not in entries:
         raise FileNotFoundError(f"No project reference with ID {reference_id}")
     return entries[reference_id]
 
 
-def image(base: Path, reference_id: str, thumbnail: bool = False) -> Path:
+def image(base: Path, reference_id: str, thumbnail: bool = False, *, active_only: bool = False) -> Path:
     entry = _get(_catalog(project.read(base)), reference_id)
+    if active_only and entry["archived"]:
+        raise ValueError("This project reference is archived. Restore it or choose another image.")
     original = _image_path(base, reference_id, FORMATS[entry["format"]])
     if not original.is_file():
         raise FileNotFoundError(f"Image for project reference {reference_id} is missing")

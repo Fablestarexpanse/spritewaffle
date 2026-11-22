@@ -202,6 +202,7 @@ def build(job: Job) -> dict:
             "asset_type": inputs.get("asset_type", "character"), "style": inputs.get("style") or "pixel",
             **({"style_guide": inputs["style_guide"]} if inputs.get("style_guide") else {}),
             **({"project_palette": inputs["project_palette"]} if inputs.get("project_palette") else {}),
+            **({"project_reference_id": inputs["project_reference_id"]} if inputs.get("project_reference_id") else {}),
             "profile": profile.name, "camera": cam, "mirror_policy": policy, "mirror_map": inputs.get("mirror_map"),
             "view_count": vc, "canvas": [cell, cell], "align_feet": bool(inputs.get("align_feet")),
             "base_job": Path(inputs["base_job"]).name if inputs.get("base_job") else None,

@@ -102,7 +102,9 @@ def import_sheet(job: Job, sheet: str | Path, views: list[str], subject: str = "
     (fdir / "facings_report.json").write_text(json.dumps(
         {"source": "sheet", "facings": {}, "mirrored": {f: {"from": MIRROR[f]} for f in mirrored},
          "warnings": [], "diagonals": "sheet"}, indent=2))
-    job.update_inputs(sheet=str(sheet), sheet_views=views)
+    with job.mutate() as meta:
+        meta["inputs"].update(sheet=str(sheet), sheet_views=views)
+        meta["inputs"].pop("project_reference_id", None)
     job.log_provenance("01_anchor/anchor.png", source=str(sheet), method="sheet import (SAM 3)", views=views,
                        mirrored=mirrored)
     job.set_stage("anchor", "review", source="sheet")

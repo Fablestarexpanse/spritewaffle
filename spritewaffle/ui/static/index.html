@@ -253,6 +253,8 @@
   #styleCheckResults p { margin: .55em 0; }
   #styleCheckResults ul { padding-inline-start: 1.4em; }
   #styleCheckResults li + li { margin-top: .7em; }
+  #anchorReferencePreview img { display: block; width: 3.6rem; height: 3.6rem; object-fit: contain; }
+  #styleRef { max-width: min(21rem, 100%); }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
@@ -1274,8 +1276,11 @@ function showFitOn(item) {
   d.showModal();
 }
 
+const anchorReferenceDrafts = new Map();
+
 function paneAnchor(j, st) {
   const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
+  const projectRefsAllowed = !["animal", "base_body"].includes(j.asset_type);
   $("#pane").innerHTML = `<section>
     <h2>Anchor ${badge(st("anchor"))}</h2>
     ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Equipment item: the anchor is its front, Facings draws its back. Once both are approved, open a character and use <b>Make a variant…</b> to fit it on.
@@ -1290,8 +1295,10 @@ function paneAnchor(j, st) {
         <div class="field"><span>Description</span>
           <textarea id="desc" placeholder="what it looks like: outfit, colours, props">${esc(j.inputs.description || "")}</textarea></div>
         <div class="row">
-          <label>Style reference <select id="styleRef"><option value="">none (this is the hero)</option>
-            ${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}" ${j.inputs.style_ref?.endsWith(h.job_id) ? "selected" : ""}>${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</select></label>
+          <label class="field" style="max-width:100%">Style reference <select id="styleRef"><option value="">None</option>
+            ${heroes.length ? `<optgroup label="Approved hero jobs">${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}">${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</optgroup>` : ""}
+            ${projectRefsAllowed ? '<optgroup id="projectReferenceOptions" label="Project references" hidden></optgroup>' : ""}</select></label>
+          <a id="anchorReferencePreview" data-view="" aria-label="Preview selected project reference" hidden><img alt=""></a>
           <label>Seed <input id="seed" type="number" placeholder="random" style="width:110px"></label>
         </div>
         <div class="row">
@@ -1315,11 +1322,62 @@ function paneAnchor(j, st) {
       </div>
     </div></section>`;
   if ($("#vReroll")) $("#vReroll").onclick = () => run("anchor", {}, "Variant anchor queued");
+  const select = $("#styleRef"), generate = $("#genAnchor"), preview = $("#anchorReferencePreview");
+  const key = `${j.character}/${j.job_id}`, prefix = "project:";
+  const savedHero = j.inputs.style_ref?.replaceAll("\\", "/").replace(/\/$/, "");
+  const hero = heroes.find(h => savedHero?.endsWith(`/${h.character}/${h.job_id}`) || savedHero === `${h.character}/${h.job_id}`);
+  const saved = j.inputs.project_reference_id && projectRefsAllowed ? prefix + j.inputs.project_reference_id
+    : hero ? `${hero.character}/${hero.job_id}` : "";
+  let entries = [];
+  const showSelection = () => {
+    const reference = entries.find(item => prefix + item.id === select.value);
+    generate.disabled = select.value.startsWith(prefix) && !reference;
+    preview.hidden = !reference;
+    if (reference) {
+      preview.href = `/api/project/references/${encodeURIComponent(reference.id)}/image`;
+      preview.dataset.view = reference.name;
+      preview.querySelector("img").src = `${preview.getAttribute("href")}?thumbnail=true`;
+    }
+  };
+  const setSelection = value => {
+    select.querySelector("option[data-missing]")?.remove();
+    if (value.startsWith(prefix) && !entries.some(item => prefix + item.id === value)) {
+      const missing = new Option("Saved project reference unavailable", value);
+      missing.disabled = true;
+      missing.dataset.missing = "";
+      select.add(missing);
+    }
+    select.value = value;
+    if (select.selectedIndex < 0) select.value = "";
+    showSelection();
+  };
+  select.onchange = () => { anchorReferenceDrafts.set(key, select.value); showSelection(); };
+  const draft = anchorReferenceDrafts.get(key) ?? saved;
+  setSelection(!projectRefsAllowed && draft.startsWith(prefix) ? "" : draft);
+  if (projectRefsAllowed) {
+    const group = $("#projectReferenceOptions");
+    let request = 0;
+    const load = async () => {
+      const currentRequest = ++request;
+      try {
+        const records = await api("/api/project/references");
+        if (!select.isConnected || currentRequest !== request) return;
+        const value = select.value;
+        entries = records.filter(ref => ref.available);
+        group.replaceChildren(...entries.map(ref => new Option(`${ref.collection} · ${ref.name}`, prefix + ref.id)));
+        group.hidden = !entries.length;
+        setSelection(value);
+      } catch { /* Hero references and generation without references stay available. */ }
+    };
+    select.addEventListener("reload-project-references", load);
+    load();
+  }
   $("#genAnchor").onclick = () => {
     const describe = $("#desc").value.trim();
     if (!describe) return toast("Describe the asset first", true);
     const args = {describe, asset_type: j.asset_type};
-    if ($("#styleRef").value) args.style_ref = status.jobs + "/" + $("#styleRef").value;
+    if (select.value.startsWith(prefix)) args.project_reference_id = select.value.slice(prefix.length);
+    else if (select.value) args.style_ref = status.jobs + "/" + select.value;
     if ($("#seed").value) args.seed = +$("#seed").value;
     run("anchor", args, "Anchor queued");
   };
@@ -1913,6 +1971,9 @@ $("#jfNeeds").onchange = e => { jf.needs = e.target.checked; saveJf(); };
 $("#jfGroup").onchange = e => { jf.group = e.target.checked; saveJf(); };
 $("#btnNew").onclick = () => showNew();
 $("#btnProjectStyle").onclick = () => showProjectStyle();
+$("#projectReferenceDialog").addEventListener("close", () => {
+  $("#styleRef")?.dispatchEvent(new Event("reload-project-references"));
+});
 $("#btnProjectPalette").onclick = () => showProjectPalette();
 $("#btnAbout").onclick = () => {
   $("#aboutVersion").textContent = status.version ? `Version ${status.version}` : "";

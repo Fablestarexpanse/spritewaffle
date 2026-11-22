@@ -159,6 +159,9 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, se
     src = base.root / "01_anchor" / "anchor.png"
     generate._run(client, job, "facing_multiref", {**_edit_values(job, inputs, "S", src, False),
                                                    "seed": generate._seed(seed)}, dest)
+    if "project_reference_id" in inputs:
+        with job.mutate() as meta:
+            meta["inputs"].pop("project_reference_id", None)
     job.set_stage("anchor", "review", variant_of=base.root.name)
     return dest
 

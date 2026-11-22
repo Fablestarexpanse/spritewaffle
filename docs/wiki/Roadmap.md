@@ -5,8 +5,9 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
 1. **Directional test prep** (when the Myth-style test starts): generate more than 8 views
    (prompts worded by yaw degrees, nearest generated view as reference); depth/normal map
    generation from masters via `manifest.replay_downscale`.
-2. **Style sets** (backlog #13): the local image library, palette inheritance, and style checks
-   are available. Next test reuse of a saved reference collection in new generation.
+2. **Style sets** (backlog #13): the local library, palette inheritance, and style checks
+   are available. Anchor generation accepts one saved image. Multi-image guidance and family
+   palette rules remain open.
    Terrain and tiles that match a character's style and palette are still open (#8, items done).
 3. **Motion library** (#2, #11): more driving clips (idle, run, attack, jump); flow vs TARA per
    action; optional mannequin conversion of added clips.

@@ -110,14 +110,17 @@ def anchor(description: str, profile: GameProfile, facing: str = "S", asset_type
             f"{style_text(profile)} {FRAMING}")
 
 
-def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "character") -> str:
-    """'Hero asset first, then reference it': a new anchor drawn in the approved hero's style."""
+def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "character", *,
+                     project_reference: bool = False) -> str:
+    """Draw a new anchor in the style of an approved hero or a single project reference."""
     a = asset(asset_type)
-    return ("<Picture 1> shows the approved hero sprite of this game. "
-            f"Draw a new, different {a['subject'].lower()}: {description.strip().rstrip('.')}. "
+    intro = ("<Picture 1> is an art style reference for this game. " if project_reference
+             else "<Picture 1> shows the approved hero sprite of this game. ")
+    source = "the reference's" if project_reference else "the hero's"
+    return (f"{intro}Draw a new, different {a['subject'].lower()}: {description.strip().rstrip('.')}. "
             "Use exactly the same art style as <Picture 1>: same "
             + ("pixel size, " if styles.get()["post"] == "pixel" else "") + "outline weight, shading and "
-            "palette feel, and the same scale on the canvas. Do not copy the hero's design. "
+            f"palette feel, and the same scale on the canvas. Do not copy {source} design. "
             f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
 
