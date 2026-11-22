@@ -92,6 +92,7 @@ function showTimeline(action) {
           <h3 id="tlFrameLabel"></h3>
           <div class="row">
             <button id="tlPixels" type="button">Edit pixels</button>
+            <button id="tlReposition" type="button">Reposition frame</button>
             <button id="tlReprocess" type="button">Reprocess frame</button>
           </div>
           <form id="tlTiming">
@@ -465,6 +466,16 @@ function showTimeline(action) {
     const saveUrl = endpoint + query();
     const readUrl = endpoint + "/reprocess" + query() + "&frame=" + encodeURIComponent(frame.id);
     showFrameRepair(readUrl, saveUrl, frame.id, label, data => savedArtwork(data, frame.id, "Reprocessed frame saved to replacement history."));
+  };
+  find("#tlReposition").onclick = () => {
+    stop();
+    const frame = clip.frames[selected];
+    const label = find("#tlFrameLabel").textContent;
+    const saveUrl = endpoint + query();
+    const readUrl = endpoint + "/reposition" + query() + "&frame=" + encodeURIComponent(frame.id);
+    const references = clip.frames.map((item, i) => ({id: item.id, label: `${i + 1} · ${item.id}`})).filter(item => item.id !== frame.id);
+    showFrameRepair(readUrl, saveUrl, frame.id, label,
+                    data => savedArtwork(data, frame.id, "Repositioned frame saved to replacement history."), references);
   };
   upload.onchange = () => { replace.disabled = insert.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };

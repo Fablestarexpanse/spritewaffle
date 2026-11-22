@@ -660,6 +660,18 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as e:
             bad(e)
 
+    @app.get("/api/jobs/{char}/{jid}/timeline/reposition")
+    def get_frame_reposition(char: str, jid: str, facing: str, action: str, frame: str, frame_set: str = "12f",
+                             dx: int = 0, dy: int = 0, reference: str | None = None, axes: str = "vertical"):
+        from ..core import frame_repair
+
+        try:
+            j = job_or_404(char, jid)
+            directory = timeline.directory(j.root, facing, action, frame_set)
+            return frame_repair.preview_reposition(j.root, directory, frame, dx=dx, dy=dy, reference=reference, axes=axes)
+        except (ValueError, OSError, RuntimeError) as e:
+            bad(e)
+
     @app.post("/api/jobs/{char}/{jid}/timeline")
     def edit_timeline(char: str, jid: str, facing: str, action: str, frame_set: str = "12f", body: dict = Body(...)):
         j = job_or_404(char, jid)
@@ -676,7 +688,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 value = body.get("version")
             elif operation == "move":
                 value = body.get("position")
-            elif operation in ("paint", "reprocess"):
+            elif operation in ("paint", "reprocess", "reposition"):
                 value = body
             elif operation == "playback":
                 value = body.get("playback")

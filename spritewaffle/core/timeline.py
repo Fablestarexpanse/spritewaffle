@@ -527,12 +527,16 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
     else:
         if operation == "paint":
             active = _paint(root, frame_set, source, edit, value)
-        elif operation == "reprocess":
+        elif operation in ("reprocess", "reposition"):
             from . import frame_repair
 
             if not isinstance(value, dict) or not isinstance(value.get("fingerprint"), str):
-                raise ValueError("Compare the reprocessed frame before applying it.")
-            draft = frame_repair.prepare(root, frame_set, name, value.get("despill", "profile"))
+                raise ValueError("Compare the candidate frame before applying it.")
+            if operation == "reprocess":
+                draft = frame_repair.prepare(root, frame_set, name, value.get("despill", "profile"))
+            else:
+                draft = frame_repair.prepare_reposition(root, frame_set, name, dx=value.get("dx", 0), dy=value.get("dy", 0),
+                                                       reference=value.get("reference"), axes=value.get("axes", "vertical"))
             if value["fingerprint"] != draft.fingerprint:
                 raise RuntimeError(frame_repair.STALE)
             if not draft.changed_pixels:
@@ -629,7 +633,8 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
     from . import manifest
     from .job import Job
 
-    if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback", "reprocess"):
+    if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback",
+                         "reprocess", "reposition"):
         raise ValueError("Unknown timeline operation.")
     if operation not in (*TAG_OPERATIONS, "undo", "redo", "playback") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|(?:copy|insert)-[1-9][0-9]*)", name) is None

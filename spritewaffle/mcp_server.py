@@ -197,19 +197,33 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return frame_repair.preview(job.root, directory, frame, despill=despill, include_png=include_png)
 
     @mcp.tool()
+    def preview_frame_reposition(character: str, job_id: str, facing: str, action: str, frame: str,
+                                 frame_set: str = "12f", dx: StrictInt = 0, dy: StrictInt = 0,
+                                 reference: str | None = None, axes: str = "vertical", include_png: bool = False) -> dict:
+        """Compare a whole-pixel shift or align to a different frame's foot point."""
+        from .core import frame_repair, timeline
+
+        job = job_for(character, job_id)
+        directory = timeline.directory(job.root, facing, action, frame_set)
+        return frame_repair.preview_reposition(job.root, directory, frame, dx=dx, dy=dy, reference=reference,
+                                                axes=axes, include_png=include_png)
+
+    @mcp.tool()
     def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, operation: str,
                             frame: str | None = None, frame_set: str = "12f",
                             duration_ms: int | None = None, png_path: str | None = None,
                             version: int | None = None, position: int | None = None,
                             fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None,
                             playback: dict | None = None, tag_id: str | None = None, tag: dict | None = None,
-                            despill: str = "profile") -> dict:
+                            despill: str = "profile", dx: StrictInt = 0, dy: StrictInt = 0,
+                            reference: str | None = None, axes: str = "vertical") -> dict:
         """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
         Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
         Insert takes a PNG path and inserts after frame. Insert_blank adds a transparent frame.
         Remove hides a frame. Undo and redo reverse sequence edits.
         Save_tag takes name, start_frame, end_frame, loop in tag, with a tag_id to update.
-        Remove_tag uses tag_id. Reprocess applies a comparison with its fingerprint and despill mode."""
+        Remove_tag uses tag_id. Reprocess applies a comparison with its fingerprint and despill mode.
+        Reposition applies a comparison with its fingerprint, plus dx and dy or a reference and axes."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -227,6 +241,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = {"fingerprint": fingerprint, "pixels": pixels}
         elif operation == "reprocess":
             value = {"fingerprint": fingerprint, "despill": despill}
+        elif operation == "reposition":
+            value = {"fingerprint": fingerprint, "dx": dx, "dy": dy, "reference": reference, "axes": axes}
         elif operation == "playback":
             value = playback
         elif operation == "save_tag":

@@ -38,6 +38,9 @@
 - Added local reprocessing of selected frames with a before-and-after comparison, green spill
   controls, and exact changed-pixel highlighting. Applying saves a reversible version and
   rejects a comparison whose retained master, processing record, or artwork has changed.
+- Added whole-pixel frame repositioning and alignment to a reference frame's foot point.
+  The comparison shows the measured foot points, refuses clipped artwork, and saves through
+  the existing replacement history.
 
 ## 2026-11-21: directional sprite readiness
 

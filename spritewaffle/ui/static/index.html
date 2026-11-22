@@ -184,11 +184,18 @@
   #tlRange { flex: 1; min-width: 5rem; }
   #pixelEditor { width: min(43rem, 94vw); }
   #frameRepair { width: min(48rem, 94vw); }
+  #frFields { border: 0; padding: 0; margin: 0; min-width: 0; }
+  #frDx, #frDy { width: 5.5rem; }
+  #frFields label:has(select) { max-width: 100%; flex-wrap: wrap; }
+  #frFields select { max-width: 100%; }
+  #frFields #frReference { max-width: min(12rem, 100%); }
   #frImages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space); margin-top: var(--space); }
   #frImages figure { min-width: 0; }
-  #frImages img { display: block; width: 100%; aspect-ratio: 1; max-height: 38vh; object-fit: contain;
+  #frImages img { display: block; width: 100%; height: auto; aspect-ratio: var(--fr-aspect, 1);
     background: var(--preview-color) var(--preview-pattern) 0 0 / 16px 16px; }
-  #frCandidate { position: relative; }
+  .fr-canvas { position: relative; width: min(100%, calc(38vh * var(--fr-aspect, 1))); margin-inline: auto; }
+  .fr-foot { position: absolute; pointer-events: none; width: .6rem; height: .6rem; border-radius: 50%;
+    transform: translate(-50%, -50%); border: 1px solid var(--accent); box-shadow: 0 0 0 1px var(--panel); }
   #frMask { position: absolute; inset: 0; pointer-events: none; background: var(--run);
     mask-size: contain; mask-repeat: no-repeat; mask-position: center; mask-mode: alpha; }
   #frSource { overflow-wrap: anywhere; }

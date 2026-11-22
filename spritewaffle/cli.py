@@ -389,12 +389,17 @@ def cmd_timeline(a):
         raise ValueError("Pass --playback when setting a frame range.")
     if a.despill is not None and not (a.preview_reprocess or a.apply_reprocess):
         raise ValueError("Pass --preview-reprocess or --apply-reprocess with --despill.")
-    if a.preview_reprocess:
+    if any(option is not None for option in (a.dx, a.dy, a.reference, a.axes)) and not (a.preview_reposition or a.apply_reposition):
+        raise ValueError("Pass --preview-reposition or --apply-reposition with repositioning options.")
+    offsets = {"dx": a.dx or 0, "dy": a.dy or 0, "reference": a.reference, "axes": a.axes or "vertical"}
+    if a.preview_reprocess or a.preview_reposition:
         from .core import frame_repair
 
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
-        _print(frame_repair.preview(job.root, directory, a.frame, despill=a.despill or "profile"))
+        preview = (frame_repair.preview(job.root, directory, a.frame, despill=a.despill or "profile") if a.preview_reprocess
+                   else frame_repair.preview_reposition(job.root, directory, a.frame, **offsets))
+        _print(preview)
         return
     if a.pixels:
         if not a.frame:
@@ -419,7 +424,8 @@ def cmd_timeline(a):
     elif a.undo_order or a.redo_order:
         timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
     elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
-          or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove or a.apply_reprocess):
+          or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove
+          or a.apply_reprocess or a.apply_reposition):
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
         if a.replace or a.insert:
@@ -434,6 +440,8 @@ def cmd_timeline(a):
         elif a.apply_reprocess:
             selected = timeline.update(job.root, directory, a.frame, "reprocess",
                                        {"fingerprint": a.apply_reprocess, "despill": a.despill or "profile"})
+        elif a.apply_reposition:
+            selected = timeline.update(job.root, directory, a.frame, "reposition", {"fingerprint": a.apply_reposition, **offsets})
         elif a.restore:
             selected = timeline.update(job.root, directory, a.frame, "restore")
         elif a.use_version is not None:
@@ -683,6 +691,12 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--preview-reprocess", action="store_true", help="compare the current frame with local reprocessing")
     edits.add_argument("--apply-reprocess", metavar="FINGERPRINT", help="apply a matching reprocessed frame preview")
     ep.add_argument("--despill", choices=("profile", "all", "edge"), help="green spill cleanup for frame reprocessing")
+    edits.add_argument("--preview-reposition", action="store_true", help="compare a frame with a whole-pixel shift")
+    edits.add_argument("--apply-reposition", metavar="FINGERPRINT", help="apply a matching repositioned frame preview")
+    ep.add_argument("--dx", type=int, help="horizontal offset in pixels (positive is right)")
+    ep.add_argument("--dy", type=int, help="vertical offset in pixels (positive is down)")
+    ep.add_argument("--reference", metavar="FRAME", help="match the foot point of a different frame in this set")
+    ep.add_argument("--axes", choices=("vertical", "both"), help="foot alignment axes (default: vertical)")
     edits.add_argument("--playback", choices=("source", "loop", "once"), help="set playback mode and optional range")
     edits.add_argument("--save-tag", metavar="TAG_JSON", help="create or edit a named range from JSON")
     edits.add_argument("--remove-tag", metavar="TAG_ID", help="remove a named range by ID")

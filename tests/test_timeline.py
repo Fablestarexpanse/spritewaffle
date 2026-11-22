@@ -39,6 +39,108 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     return data.getvalue()
 
 
+def test_reposition_preserves_rgba_and_saves_only_the_selected_frame(clip):
+    job, directory = clip
+    profile = resolve(None)
+    frame = "001.png"
+    timeline.update(job.root, directory, frame, "replace", _image())
+    timeline.update(job.root, directory, frame, "duration", 140)
+    old = timeline.frames(job.root, directory)[1]
+    stages.qa(job, profile)
+    stages.export(job, profile)
+    files = {path: path.read_bytes() for path in job.root.rglob("*") if path.is_file()}
+    result = frame_repair.preview_reposition(job.root, directory, frame, dx=-2, dy=3)
+    with Image.open(old.image) as source:
+        expected = Image.new("RGBA", source.size)
+        expected.paste(source, (-2, 3))
+    with Image.open(io.BytesIO(b64decode(result["after_png"]))) as after:
+        assert after.tobytes() == expected.tobytes()
+        assert after.getpixel((3, 8)) == (190, 60, 104, 128)
+        assert after.getpixel((7, 2)) == (0, 0, 0, 0)
+    assert result["foot_before"] == [7.0, 12.0] and result["foot_after"] == [5.0, 15.0]
+    assert {path: path.read_bytes() for path in job.root.rglob("*") if path.is_file()} == files
+    options = {"fingerprint": result["fingerprint"], "dx": -2, "dy": 3}
+    timeline.update(job.root, directory, frame, "reposition", options)
+    assert old.source.read_bytes() == files[old.source] and old.image.read_bytes() == files[old.image]
+    assert timeline.describe(job.root, directory, 12)["qa_needs_review"]
+    assert stages.export_status(job, profile)["formats"]["png"]["status"] == "stale"
+    stages.qa(job, profile)
+    actual = aseprite.read(stages.export(job, profile)["12f"]["aseprite"])
+    assert actual.durations[1] == 140 and np.array_equal(actual.frames[1], np.asarray(expected))
+    version = timeline.describe(job.root, directory, 12)["frames"][1]["history"]
+    assert len(version) == 2 and version[1]["active"]
+    timeline.update(job.root, directory, frame, "activate", 1)
+    assert timeline.frames(job.root, directory)[1] == old
+
+
+def test_foot_alignment_defaults_to_vertical_and_binds_the_reference(clip):
+    job, directory = clip
+    reference = "002.png"
+    edited = Image.new("RGBA", (16, 16))
+    edited.paste((70, 20, 180, 255), (8, 3, 14, 9))
+    buffer = io.BytesIO()
+    edited.save(buffer, format="PNG")
+    timeline.update(job.root, directory, reference, "replace", buffer.getvalue())
+    vertical = frame_repair.preview_reposition(job.root, directory, "000.png", reference=reference)
+    both = frame_repair.preview_reposition(job.root, directory, "000.png", reference=reference, axes="both")
+    assert vertical["foot_reference"] == [11.0, 9.0]
+    assert [vertical["dx"], vertical["dy"]] == [0, -3] and vertical["foot_after"] == [7.0, 9.0]
+    assert [both["dx"], both["dy"]] == [4, -3] and both["foot_after"] == [11.0, 9.0]
+    assert vertical["fingerprint"] != both["fingerprint"]
+    timeline.update(job.root, directory, reference, "restore")
+    with pytest.raises(RuntimeError, match="compare again"):
+        timeline.update(job.root, directory, "000.png", "reposition",
+                        {"reference": reference, "fingerprint": vertical["fingerprint"]})
+    assert not timeline.frames(job.root, directory)[0].replaced
+    timeline.update(job.root, directory, reference, "activate", 1)
+    timeline.update(job.root, directory, "000.png", "reposition",
+                    {"reference": reference, "axes": "both", "fingerprint": both["fingerprint"]})
+    item = manifest.read(job)["animations"][0]["frames"][0]
+    assert item["foot_point"] == [11.0, 9.0]
+
+
+def test_reposition_refuses_clipping_invalid_offsets_and_empty_reference(clip):
+    job, directory = clip
+    frame = "000.png"
+    for options, message in (({"dx": -5}, "clip"), ({"dy": 5}, "clip"), ({"dx": True}, "whole"),
+                             ({"reference": frame}, "different"), ({"reference": "005.png", "dx": 1}, "offsets or")):
+        with pytest.raises(ValueError, match=message):
+            frame_repair.preview_reposition(job.root, directory, frame, **options)
+    blank = timeline.update(job.root, directory, frame, "insert_blank")
+    with pytest.raises(ValueError, match="no visible"):
+        frame_repair.preview_reposition(job.root, directory, frame, reference=blank)
+    zero = frame_repair.preview_reposition(job.root, directory, frame, include_png=False)
+    assert zero["changed_pixels"] == 0 and "after_png" not in zero
+    timeline.update(job.root, directory, frame, "reposition", {"fingerprint": zero["fingerprint"]})
+    assert not timeline.describe(job.root, directory, 12)["frames"][0]["history"]
+
+
+def test_reposition_is_available_through_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    endpoint = "/api/jobs/hero/j/timeline"
+    query = "?facing=S&action=walk"
+    frame = "002.png"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk", "--frame", frame]
+    with TestClient(create_app(worker=False)) as client:
+        response = client.get(endpoint + "/reposition" + query + "&frame=" + frame + "&dx=2")
+        assert response.status_code == 200
+        view = response.json()
+        assert client.post(endpoint + query, json={"operation": "reposition", "frame": frame,
+                                                  "fingerprint": view["fingerprint"], "dx": 3}).status_code == 400
+    assert cli.main([*args, "--preview-reposition", "--dx", "2"]) == 0
+    assert json.loads(capsys.readouterr().out) == view
+    mcp, _ = build(tmp_path)
+    target = {"character": "hero", "job_id": "j", "facing": "S", "action": "walk", "frame": frame, "dx": 2}
+    compared = text(call(mcp, "preview_frame_reposition", **target))
+    assert compared["fingerprint"] == view["fingerprint"] and "after_png" not in compared
+    saved = text(call(mcp, "edit_timeline_frame", **target, operation="reposition", fingerprint=view["fingerprint"]))
+    assert saved["frames"][2]["replaced"]
+    assert cli.main([*args, "--restore"]) == 0
+    capsys.readouterr()
+    assert cli.main([*args, "--apply-reposition", view["fingerprint"], "--dx", "2"]) == 0
+    assert json.loads(capsys.readouterr().out)["frames"][2]["replaced"]
+
+
 @pytest.fixture
 def retained_frame(clip):
     job, directory = clip

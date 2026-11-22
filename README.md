@@ -144,6 +144,14 @@ choose **Deselect**. **Erase selected pixels** makes the rectangle transparent i
 are temporary. If the underlying frame changes while you edit, reopen the editor to start
 from the current image.
 
+Choose **Reposition frame** to shift the artwork by whole pixels. Positive horizontal
+offsets move right, and positive vertical offsets move down. **Align to reference foot**
+measures the foot point in another frame from the same set, including its saved edits.
+It aligns vertically by default. Choose **Horizontal and vertical** to also move to the
+nearest whole pixel horizontally. The comparison shows both foot points and refuses
+offsets that would clip visible pixels. Apply the result as a replacement to keep its
+previous artwork available in history.
+
 Choose **Reprocess frame** to compare the current artwork with a fresh pass from the retained
 master PNG. The comparison uses the saved cell and placement, and the recorded palette and
 grid or painted-art scale. Choose **Edges only** under **Green spill cleanup** to preserve
@@ -203,6 +211,13 @@ For reprocessing, choose a frame and run `--preview-reprocess --despill edge`. U
 and `despill`. POST `operation: "reprocess"` with `frame`, `fingerprint`, and `despill`. MCP exposes
 `preview_frame_reprocess` and the same `reprocess` edit. Set `include_png` to include the two
 base64 PNGs and their change mask in the MCP comparison response.
+
+For repositioning, use `--preview-reposition --dx 2 --dy -1` or
+`--preview-reposition --reference 001.png --axes vertical`. Apply the result with
+`--apply-reposition FINGERPRINT` and the same options. HTTP exposes a `/timeline/reposition`
+comparison with `frame` and either `dx` and `dy` or `reference` and `axes`. POST `operation`
+set to `reposition` with the fingerprint and the same inputs. MCP exposes
+`preview_frame_reposition` and the corresponding timeline edit.
 
 ## Workflows
 

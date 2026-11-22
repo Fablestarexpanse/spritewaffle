@@ -1,4 +1,4 @@
-"""Compare one locally reprocessed frame before saving it as a timeline replacement."""
+"""Compare a reprocessed or repositioned frame before saving a timeline replacement."""
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +22,7 @@ from .job import Job
 from .profile import resolve
 
 DESPILL_MODES = ("profile", "all", "edge")
-STALE = "The reprocessing inputs changed. Please compare again before applying the frame."
+STALE = "The comparison inputs changed. Please compare again before applying the frame."
 RECIPE_ERROR = "The processed frame has no usable grid, scale, or placement record."
 
 
@@ -40,12 +40,11 @@ def _png(image: Image.Image) -> bytes:
 class Draft:
     current: Image.Image
     candidate: bytes
-    source: str
     fingerprint: str
     source_digest: str
-    applied_despill: str
     changed: np.ndarray
     inputs: dict[Path, str]
+    details: dict
 
     @property
     def changed_pixels(self) -> int:
@@ -58,6 +57,34 @@ class Draft:
         except OSError:
             pass
         raise RuntimeError(STALE)
+
+    def view(self, include_png: bool) -> dict:
+        view = {"fingerprint": self.fingerprint, "width": self.current.width, "height": self.current.height,
+                "changed_pixels": self.changed_pixels, **self.details}
+        if include_png:
+            view["before_png"] = b64encode(_png(self.current)).decode("ascii")
+            view["after_png"] = b64encode(self.candidate).decode("ascii")
+            mask = Image.new("RGBA", self.current.size, "white")
+            mask.putalpha(Image.fromarray(self.changed.astype(np.uint8) * 255))
+            view["change_mask_png"] = b64encode(_png(mask)).decode("ascii")
+        return view
+
+
+def _draft(root: Path, current: Image.Image, result: np.ndarray, *, source_digest: str,
+           inputs: dict[Path, str], details: dict, provenance: dict) -> Draft:
+    changes = np.any(np.asarray(current) != result, axis=2)
+    candidate = _png(Image.fromarray(result))
+    receipt = {"inputs": {path.relative_to(root).as_posix(): digest for path, digest in inputs.items()},
+               "details": details, "provenance": provenance, "candidate": _hash(candidate)}
+    fingerprint = _hash(json.dumps(receipt, sort_keys=True).encode("utf-8"))
+    return Draft(current, candidate, fingerprint, source_digest, changes, inputs, details)
+
+
+def _artwork_inputs(frame: timeline.Frame, source_digest: str) -> dict[Path, str]:
+    inputs = {frame.source: source_digest}
+    if frame.replaced:
+        inputs[frame.image] = frame.image.stem
+    return inputs
 
 
 def _repair_art(master: np.ndarray, recipe: dict, size: tuple[int, int], despill: str) -> np.ndarray:
@@ -98,9 +125,7 @@ def prepare(root: Path, frame_set: Path, frame: str, despill: str = "profile") -
     count = set_name.rstrip("f")
     slot = int(selected.source.stem)
     job_root = root.resolve()
-    inputs = {selected.source: source_digest}
-    if selected.replaced:
-        inputs[selected.image] = selected.image.stem
+    inputs = _artwork_inputs(selected, source_digest)
 
     def read(path: Path, missing: str) -> bytes:
         if not path.resolve().is_relative_to(job_root):
@@ -138,24 +163,57 @@ def prepare(root: Path, frame_set: Path, frame: str, despill: str = "profile") -
     result = _repair_art(original, recipe, current.size, cleanup)
     if not result[..., 3].any():
         raise ValueError("Reprocessing produced an empty frame. Check the retained master and crop.")
-    changes = np.any(np.asarray(current) != result, axis=2)
-    candidate = _png(Image.fromarray(result))
-    receipt = {"frame": frame, "artwork": artwork_fingerprint, "despill": despill, "mode": cleanup,
-               "inputs": {path.relative_to(root).as_posix(): digest for path, digest in inputs.items()},
-               "recipe": recipe, "candidate": _hash(candidate)}
-    fingerprint = _hash(json.dumps(receipt, sort_keys=True).encode("utf-8"))
-    return Draft(current, candidate, master.relative_to(root).as_posix(), fingerprint, source_digest, cleanup, changes, inputs)
+    details = {"source": master.relative_to(root).as_posix(), "despill": despill, "applied_despill": cleanup}
+    provenance = {"operation": "reprocess", "frame": frame, "artwork": artwork_fingerprint, "recipe": recipe}
+    return _draft(root, current, result, source_digest=source_digest, inputs=inputs, details=details, provenance=provenance)
 
 
 def preview(root: Path, frame_set: Path, frame: str, *, despill: str = "profile", include_png: bool = True) -> dict:
-    draft = prepare(root, frame_set, frame, despill)
-    view = {"fingerprint": draft.fingerprint, "source": draft.source, "width": draft.current.width,
-            "height": draft.current.height, "changed_pixels": draft.changed_pixels,
-            "despill": despill, "applied_despill": draft.applied_despill}
-    if include_png:
-        view["before_png"] = b64encode(_png(draft.current)).decode("ascii")
-        view["after_png"] = b64encode(draft.candidate).decode("ascii")
-        mask = Image.new("RGBA", draft.current.size, "white")
-        mask.putalpha(Image.fromarray(draft.changed.astype(np.uint8) * 255))
-        view["change_mask_png"] = b64encode(_png(mask)).decode("ascii")
-    return view
+    return prepare(root, frame_set, frame, despill).view(include_png)
+
+
+def prepare_reposition(root: Path, frame_set: Path, frame: str, *, dx: int = 0, dy: int = 0,
+                       reference: str | None = None, axes: str = "vertical") -> Draft:
+    if type(dx) is not int or type(dy) is not int:
+        raise ValueError("Use whole-pixel offsets for frame repositioning.")
+    if axes not in ("vertical", "both"):
+        raise ValueError("Choose vertical or both axes for foot alignment.")
+    if reference is not None:
+        if not isinstance(reference, str) or not reference or reference == frame:
+            raise ValueError("Choose a different reference frame in this set.")
+        if dx or dy:
+            raise ValueError("Choose manual offsets or a reference frame.")
+    selected, current, source_digest, artwork_fingerprint = timeline.frame_artwork(root, frame_set, frame)
+    foot = layout.foot_point(np.asarray(current))
+    if foot is None:
+        raise ValueError("The selected frame has no visible artwork to reposition.")
+    inputs = _artwork_inputs(selected, source_digest)
+    provenance = {"operation": "reposition", "frame": frame, "artwork": artwork_fingerprint}
+    target = None
+    if reference is not None:
+        ref, image, ref_source, ref_fingerprint = timeline.frame_artwork(root, frame_set, reference)
+        if image.size != current.size:
+            raise ValueError("The reference frame has a different cell size.")
+        target = layout.foot_point(np.asarray(image))
+        if target is None:
+            raise ValueError("The reference frame has no visible artwork to align to.")
+        inputs.update(_artwork_inputs(ref, ref_source))
+        provenance["reference_artwork"] = ref_fingerprint
+        dx = round(target[0] - foot[0]) if axes == "both" else 0
+        dy = round(target[1] - foot[1])
+
+    left, top, right, bottom = current.getchannel("A").getbbox()
+    if left + dx < 0 or top + dy < 0 or right + dx > current.width or bottom + dy > current.height:
+        raise ValueError("This offset would clip visible pixels. Choose a smaller offset or another reference frame.")
+    result = Image.new("RGBA", current.size)
+    result.paste(current, (dx, dy))
+    details = {"dx": dx, "dy": dy, "axes": axes, "reference": reference, "foot_before": foot,
+               "foot_after": [foot[0] + dx, foot[1] + dy], "foot_reference": target}
+    return _draft(root, current, np.asarray(result), source_digest=source_digest, inputs=inputs,
+                  details=details, provenance=provenance)
+
+
+def preview_reposition(root: Path, frame_set: Path, frame: str, *, dx: int = 0, dy: int = 0,
+                       reference: str | None = None, axes: str = "vertical", include_png: bool = True) -> dict:
+    draft = prepare_reposition(root, frame_set, frame, dx=dx, dy=dy, reference=reference, axes=axes)
+    return draft.view(include_png)

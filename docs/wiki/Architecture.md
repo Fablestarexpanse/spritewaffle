@@ -75,6 +75,13 @@ profile settings used, and effective artwork. Apply rebuilds the candidate under
 lock and checks the inputs before activating a replacement. An identical result creates no
 version. Subsequent QA and exports read the replacement through the normal timeline path.
 
+Frame repositioning uses the same comparison and replacement path. Manual offsets copy
+RGBA pixels to a new cell at whole-pixel coordinates. Optional reference alignment uses
+the existing foot-point measurement on two effective timeline images. The comparison
+fingerprint includes both images, and the bounds check refuses a translation that would
+clip any visible pixel. The asset manifest measures the saved replacement's foot point.
+Batch alignment continues to generate its separate aligned frame set.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA
