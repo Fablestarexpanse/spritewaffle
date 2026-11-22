@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a project reference library for local PNG, JPEG, and WebP images. Group references into collections, preview the full image, edit titles and notes, or archive and restore entries. Original copies and previews move with the jobs folder.
 - Added project style settings for the default art style, game profile, target engine, and art direction. New jobs can inherit the defaults or override them individually. The job and asset manifest retain the guide saved at creation.
 - Camera and project style edits preserve one another and refuse to overwrite a newer project schema. MCP and CLI queue submissions carry the job's game profile into the worker.
 - Added browser-local appearance settings with five themes, live system matching, custom

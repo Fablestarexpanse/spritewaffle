@@ -19,7 +19,7 @@ from .core.profile import GameProfile, resolve
 FACINGS = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 
 OVERVIEW = """\
-setup         doctor, profile, project-style, comfy
+setup         doctor, profile, project-style, project-references, comfy
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
@@ -121,6 +121,23 @@ def cmd_project_style(a):
         _print(project.set_style(base, value))
     else:
         _print(project.style(base))
+
+
+def cmd_project_references(a):
+    from .core import project_references as refs
+    base = paths.jobs()
+    if a.sub == "list":
+        _print(refs.list_all(base, a.all))
+    elif a.sub == "path":
+        print(refs.image(base, a.reference_id))
+    elif a.sub in ("archive", "restore"):
+        _print(refs.update(base, a.reference_id, {"archived": a.sub == "archive"}))
+    else:
+        fields = {key: getattr(a, key) for key in refs.TEXT_LIMITS if getattr(a, key) is not None}
+        if a.sub == "add":
+            _print(refs.import_file(base, a.image, **fields))
+        else:
+            _print(refs.update(base, a.reference_id, fields))
 
 
 def cmd_comfy_check(a):
@@ -600,6 +617,21 @@ def build() -> argparse.ArgumentParser:
     changes = ps.add_mutually_exclusive_group()
     changes.add_argument("--set", type=Path, metavar="FILE", help="patch fields from a UTF-8 JSON file")
     changes.add_argument("--clear", action="store_true", help="clear the project style guide")
+    pr = sub.add_parser("project-references", help="manage the project's local image references")
+    pr.set_defaults(fn=cmd_project_references)
+    refs = pr.add_subparsers(dest="sub", required=True)
+    refs.add_parser("list", help="list image references").add_argument("--all", action="store_true", help="include archived")
+    add_ref = refs.add_parser("add", help="copy an image into the reference library")
+    add_ref.add_argument("image", type=Path)
+    edit_ref = refs.add_parser("edit", help="change a reference's details")
+    edit_ref.add_argument("reference_id")
+    for entry in (add_ref, edit_ref):
+        entry.add_argument("--name")
+        entry.add_argument("--collection")
+        entry.add_argument("--notes")
+    refs.add_parser("archive", help="hide a reference and keep its image").add_argument("reference_id")
+    refs.add_parser("restore", help="return an archived reference to the library").add_argument("reference_id")
+    refs.add_parser("path", help="print a reference image's local path").add_argument("reference_id")
     cp = sub.add_parser("comfy", help="ComfyUI connection and templates").add_subparsers(dest="sub", required=True)
     cc = cp.add_parser("check", help="connect and validate exported templates")
     cc.add_argument("--url", default=DEFAULT_URL)

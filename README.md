@@ -70,6 +70,17 @@ appears in that asset's manifest. Art direction and target engine are recorded a
 Project settings live in the jobs folder. The CLI uses `spritewaffle project-style`
 with optional `--set FILE` or `--clear`. HTTP uses `/api/project/style` and MCP uses `project_style`.
 
+Open **Settings → Project references** to build a visual reference library. Add a PNG, JPEG,
+or WebP still up to 16 MiB and 16,777,216 pixels. Set a collection and add notes, then use the
+collection filter to find the image again. Click its thumbnail to view the full original.
+Use **Archive** to hide an entry and **Show archived** to restore it. Original copies and
+thumbnails live in the jobs folder's `_references` directory. Move the whole jobs folder
+to keep the library portable. References are for visual guidance.
+
+Use `spritewaffle project-references list`, `add`, `edit`, `archive`, `restore`, or `path`
+at the command line. The HTTP API uses `/api/project/references`. MCP provides
+`project_references` for managing entries and `project_reference_image` for previews.
+
 Under **Export**, use **Check freshness** to compare the latest character bundle with its
 processed frames, palette, QA inputs, timing, maps, and attachments. It also checks that
 exported files still match the receipt. Re-export an older bundle once to start tracking it.

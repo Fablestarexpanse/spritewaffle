@@ -16,7 +16,7 @@ from pydantic import StrictInt
 
 from . import paths
 from .core import generate as gen
-from .core import project
+from .core import project, project_references as references
 from .core.job import Job
 from .core.profile import resolve
 from .core.queue import Queue, Worker
@@ -317,6 +317,29 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if action == "clear":
             return project.set_style(base, None)
         raise ValueError("Use action='get', action='set' with a style object, or action='clear'")
+
+    @mcp.tool()
+    def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,
+                           fields: dict | None = None, include_archived: bool = False) -> dict:
+        """Manage images in the local project's reference library. List hides archived images by default.
+        Add takes a local path and optional name, collection, and notes in fields.
+        Update takes a reference ID and fields to patch. Set archived=true to hide or false to restore.
+        Use project_reference_image to look at a reference."""
+        if action == "list":
+            return {"references": references.list_all(base, include_archived)}
+        if action == "add" and path:
+            details = fields or {}
+            if details.keys() - references.TEXT_LIMITS.keys():
+                raise ValueError("Add fields are name, collection, and notes")
+            return references.import_file(base, Path(path), **details)
+        if action == "update" and reference_id and fields is not None:
+            return references.update(base, reference_id, fields)
+        raise ValueError("Use list, add with path, or update with reference_id and fields")
+
+    @mcp.tool()
+    def project_reference_image(reference_id: str) -> Image:
+        """Show a preview of a local project reference by stable ID."""
+        return thumb(references.image(base, reference_id, thumbnail=True))
 
     @mcp.tool()
     def camera_profile(action: str = "get", camera: dict | None = None, character: str | None = None,

@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, project, timeline
+from ..core import generate, project, project_references, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -719,6 +719,43 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return project.set_style(base, body["style"])
         except (ValueError, TypeError, OSError, RuntimeError) as e:
             bad(e)
+
+    @app.get("/api/project/references")
+    def list_project_references(include_archived: bool = False):
+        try:
+            return project_references.list_all(base, include_archived)
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.post("/api/project/references")
+    def add_project_reference(body: dict = Body(...)):
+        try:
+            encoded = body.get("data")
+            if not isinstance(encoded, str) or len(encoded) > 4 * ((project_references.MAX_IMAGE_BYTES + 2) // 3):
+                raise ValueError("Choose an image no larger than 16 MiB")
+            return project_references.add(base, b64decode(encoded, validate=True), body.get("filename"),
+                                          **{key: body[key] for key in project_references.TEXT_LIMITS if key in body})
+        except (ValueError, TypeError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/project/references/{reference_id}")
+    def edit_project_reference(reference_id: str, body: dict = Body(...)):
+        try:
+            return project_references.update(base, reference_id, body)
+        except FileNotFoundError as error:
+            raise HTTPException(404, str(error)) from error
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.get("/api/project/references/{reference_id}/image")
+    def project_reference_image(reference_id: str, thumbnail: bool = False):
+        try:
+            return FileResponse(project_references.image(base, reference_id, thumbnail),
+                                headers={"X-Content-Type-Options": "nosniff"})
+        except FileNotFoundError as error:
+            raise HTTPException(404, str(error)) from error
+        except (ValueError, OSError) as error:
+            bad(error)
 
     # --- directional readiness: camera profile, mirror policy, manifest (docs/MANIFEST.md) --------
     @app.get("/api/project/camera")
