@@ -393,7 +393,18 @@ def cmd_timeline(a):
         _print(timeline.describe_pixels(job.root, directory, a.frame))
         return
     selected = None
-    if a.playback:
+    operation = ""
+    if a.save_tag or a.remove_tag:
+        if a.save_tag:
+            operation = "save_tag"
+            tag = json.loads(Path(a.save_tag).read_text(encoding="utf-8-sig"))
+            if not isinstance(tag, dict):
+                raise ValueError("The tag JSON must be an object.")
+            selected = timeline.update(job.root, directory, tag.get("id"), operation, tag)
+        else:
+            operation = "remove_tag"
+            timeline.update(job.root, directory, a.remove_tag, operation)
+    elif a.playback:
         selected = timeline.update(job.root, directory, None, "playback",
                                    {"mode": a.playback, "start_frame": a.range_start, "end_frame": a.range_end})
     elif a.undo_order or a.redo_order:
@@ -422,7 +433,7 @@ def cmd_timeline(a):
         else:
             selected = timeline.update(job.root, directory, a.frame, "duration", a.duration)
     result = timeline.describe(job.root, directory, _profile(a, job).fps(a.action))
-    _print(result | {"selected_frame": selected})
+    _print(result | timeline.selected_result(operation, selected))
 
 
 # --- motion library (experimental) ------------------------------------------------------------
@@ -658,6 +669,8 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--pixels", action="store_true", help="read exact RGBA bytes and the frame fingerprint")
     edits.add_argument("--paint", metavar="PATCH_JSON", help="save a pixel patch as a replacement version")
     edits.add_argument("--playback", choices=("source", "loop", "once"), help="set playback mode and optional range")
+    edits.add_argument("--save-tag", metavar="TAG_JSON", help="create or edit a named range from JSON")
+    edits.add_argument("--remove-tag", metavar="TAG_ID", help="remove a named range by ID")
     ep.add_argument("--range-start", help="first frame ID for --playback")
     ep.add_argument("--range-end", help="last frame ID for --playback")
 

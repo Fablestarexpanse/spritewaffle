@@ -236,11 +236,14 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
             if places:
                 places = [placement_by_source.get(f.source, places[0]) for f in items]
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
+        tags = clip.describe_tags()
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=playback.loop,
-                       playback_range=playback.frame_range)
+                       playback_range=playback.frame_range, named_tags=tags)
         r["frame_files"] = [frame.source_id for frame in items]
         if settings := playback.signature():
             r["timeline_playback"] = settings
+        if tags:
+            r["timeline_tags"] = tags
         if active := timeline.alternate_images(items):
             r["timeline_replacements"] = active
         if clip.order:
@@ -299,6 +302,8 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
             settings.setdefault("timeline_unavailable", {})[sd.name] = clip.unavailable
         if saved := playback.signature():
             settings.setdefault("timeline_playback", {})[sd.name] = saved
+        if clip.tags:
+            settings.setdefault("timeline_tags", {})[sd.name] = clip.describe_tags()
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[sd.name] = edits
         if clip.order:
@@ -366,6 +371,8 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
         durations = timeline.timings(items, round(1000 / fps))
         pivot = places[0].get("pivot") if places else None        # None: laid out before pivots existed
         name = f"{action}_{facing}_{sd.name}"
+        animation = f"{action}_{facing}"
+        named = clip.export_tags(animation)
         out = out_dir / sd.name
         files = {}
         original_indexed = (sd / "indices.npy").is_file()
@@ -390,12 +397,12 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
                                       durations_ms=durations if any(f.duration_ms is not None for f in items) else None,
                                       frame_ids=clip.order,
                                       playback_range=playback.frame_range,
-                                      preview_once=not playback.loop and bool(playback.signature()))
+                                      preview_once=not playback.loop and bool(playback.signature()), tags=named)
             artifacts["png"].extend(png.pop("frames"))
             artifacts["png"].extend(png.values())
             files.update({key: str(path) for key, path in png.items()})
         if "aseprite" in formats:
-            tags = [(f"{action}_{facing}", playback.start, playback.end, "forward", 0 if playback.loop else 1)]
+            tags = aseprite.animation_tags(animation, playback.start, playback.end, playback.loop, named)
             pv = pivot or sheetmod.feet_pivot(cells)
             slices = [("pivot", [(0, 0, 0, cells.shape[2], cells.shape[1], int(pv[0]), int(pv[1]))])]
             if not artifacts["aseprite"]:

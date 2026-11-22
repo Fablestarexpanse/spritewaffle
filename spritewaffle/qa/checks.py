@@ -40,8 +40,13 @@ def _stray(a: np.ndarray) -> int:
     return int((a & ~nb).sum())
 
 
+def _abrupt_seam(distance: float, median_step: float, t: Thresholds) -> bool:
+    return distance > t.loop_seam and distance > t.loop_seam_ratio * max(median_step, 1e-6)
+
+
 def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_size: int,
-        loop: bool, t: Thresholds = Thresholds(), *, playback_range: list[int] | None = None) -> dict:
+        loop: bool, t: Thresholds = Thresholds(), *, playback_range: list[int] | None = None,
+        named_tags: list[dict] | None = None) -> dict:
     n, h, w = cells.shape[:3]
     alpha = cells[..., 3] > 0
     errors, warnings, reroll = [], [], set()
@@ -94,9 +99,21 @@ def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_siz
     loop_med = med
     if playback_range is not None:
         loop_med = float(np.median(adj[start:end])) if end > start else 0.0
-    if loop and seam > t.loop_seam and seam > t.loop_seam_ratio * max(loop_med, 1e-6):
+    if loop and _abrupt_seam(seam, loop_med, t):
         warnings.append(f"loop seam {seam:.2f} vs median step {loop_med:.2f}")
         reroll.add("select (loop point)")
+    tag_seams = []
+    for tag in named_tags or []:
+        first, last = tag["start"], tag["end"]
+        if not tag["loop"] or first == last:
+            continue
+        distance = _iou_dist(alpha[last], alpha[first])
+        step = float(np.median(adj[first:last]))
+        warn = _abrupt_seam(distance, step, t)
+        if warn:
+            warnings.append(f"Animation tag {tag['name']!r} loop seam {distance:.2f} vs median step {step:.2f}")
+            reroll.add("adjust animation tag endpoints")
+        tag_seams.append({"name": tag["name"], "start": first, "end": last, "loop_seam_diff": round(distance, 4), "warning": warn})
 
     return {
         "status": "fail" if errors else "pass",
@@ -109,6 +126,7 @@ def run(cells: np.ndarray, placements: list[dict], layout_mode: str, palette_siz
         "height_cv": round(cv, 4), "palette_used": len(colors), "palette_size": palette_size,
         "stray_pixels": stray, "loop": loop, "loop_seam_diff": round(seam, 4),
         **({"playback_range": playback_range} if playback_range is not None else {}),
+        **({"tag_seams": tag_seams} if tag_seams else {}),
         "thresholds": asdict(t),
     }
 
@@ -155,6 +173,11 @@ def review(report: dict) -> dict:
         else:
             add(0, "loop-seam", "warn", "Abrupt transition from the last frame.")
             add(count - 1, "loop-seam", "warn", "Abrupt transition to the first frame.")
+    for seam in report.get("tag_seams", []):
+        if seam["warning"]:
+            message = f"Abrupt transition across the endpoints of animation tag {seam['name']!r}."
+            add(seam["start"], "tag-loop-seam", "warn", message)
+            add(seam["end"], "tag-loop-seam", "warn", message)
     names = report.get("frame_files") or []
     order = report.get("timeline_order") or []
     findings = []

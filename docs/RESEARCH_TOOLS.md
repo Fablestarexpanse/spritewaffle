@@ -21,6 +21,11 @@ The native writer keeps the full cels and can therefore update the tag without r
 frames. For one-shot action previews, Pillow uses different repeat settings for GIF and
 APNG, so each is verified by reopening the exported file. [Aseprite tag specification](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md#tags-chunk-0x2018) and [Pillow image formats](https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html).
 
+Named tags let a single sprite document hold multiple playable ranges. SpriteWaffle stores
+its own tag records, then uses the documented Aseprite fields for the range and repeat count.
+Keeping the original tag preserves the existing clip name. The facing prefix on additional
+tags keeps repeated labels distinct in a multi-action character document. [Aseprite Tags](https://aseprite.org/docs/tags/) and [Aseprite file format](https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md#tags-chunk-0x2018).
+
 ## Community observations
 
 - In June 2026 a developer reported palette and detail drift across generated frames, plus video crops that clipped the character. In October 2026 another reported hand swaps on an asymmetric lantern sprite. Include clipping and asymmetric attachment fixtures in QA before widening generation. These reports give examples, with no measured incidence. [June thread](https://www.reddit.com/r/aigamedev/comments/1u363gx/what_is_the_best_method_to_generate_the_most/) and [October thread](https://www.reddit.com/r/aigamedev/comments/1wv3c0h/what_are_you_guys_using_to_make_consistent/)

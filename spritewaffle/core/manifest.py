@@ -190,6 +190,8 @@ def build(job: Job) -> dict:
                 a.setdefault("playback_by_view", {})[view] = saved
             if clip.unavailable:
                 a.setdefault("unavailable_frames_by_view", {})[view] = clip.unavailable
+            if clip.tags:
+                a.setdefault("tags_by_view", {})[view] = clip.describe_tags()
     for a in anims.values():
         a["frames"].sort(key=lambda f: (f["yaw_degrees"], f["frame"]))
         a["views"] = sorted({f["view_index"] for f in a["frames"]})

@@ -53,6 +53,10 @@ playback settings.
 `unavailable_frames_by_view` appears when a saved insertion cannot be read. It maps view
 indices to the unavailable frame IDs and their repair messages.
 
+`tags_by_view` maps each view index to its ordered tag records. Each record includes `id`,
+`name`, `loop`, `start_frame`, `end_frame`, and the resolved inclusive `start` and `end`
+positions. An unresolved range carries `error` and has null positions until it is repaired.
+
 ## Frame entries (`animations[].frames[]`)
 
 | field | type | meaning |

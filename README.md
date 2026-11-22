@@ -117,6 +117,17 @@ to the selected frame set. Its endpoints follow the chosen frame IDs through reo
 If an endpoint disappears or moves across the other, choose a valid range, clear it, or
 undo the order change before running QA or exporting that clip.
 
+Open **Animation tags** to name sections of a frame set. Choose **New tag**, enter a name,
+select its first and last frames, and choose whether it loops. Tags may overlap. Select
+an existing tag to change it, preview it, or remove it. **Preview tag** plays that range
+with its own timing and loop setting. The main playback settings stay as saved.
+
+Tag endpoints follow their frame IDs through sequence edits. If an endpoint disappears or
+crosses the other, repair or remove the tag before running QA or exporting the clip. QA
+checks the seam of each looping tag. Aseprite keeps the original animation tag and adds
+named entries such as `walk_S [Recovery]`. Action and character JSON include `tags` with
+inclusive, zero-based `start` and `end` positions relative to the clip.
+
 Choose **Edit pixels** on the selected frame or copy. Pencil, Eraser, and Pick color work
 on the effective image. Choose an RGBA color or use a swatch from the job palette. Zoom
 in to use the pixel grid. With the canvas focused, move with the arrow keys and apply the
@@ -160,6 +171,10 @@ For playback, pass `--playback once --range-start 001.png --range-end 004.png`.
 Pass `--playback source` without endpoints to restore the source setting and the full clip.
 HTTP and MCP accept `operation` set to `playback` and a `playback` object with `mode`
 (`source`, `loop`, or `once`) and both optional `start_frame` and `end_frame` IDs.
+
+Use `--save-tag tag.json` with `name`, `start_frame`, `end_frame`, and a boolean `loop`.
+Include the existing `id` to edit a tag. `--remove-tag ID` removes it. HTTP and MCP use
+`save_tag` with a `tag` object and optional `tag_id`, or `remove_tag` with `tag_id`.
 
 For pixel edits, use `--frame 001.png --pixels` to get the current `fingerprint`, cell dimensions,
 job palette, and base64-encoded row-major `rgba` bytes. Use `--paint patch.json` on the same frame

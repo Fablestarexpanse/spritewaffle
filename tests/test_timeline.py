@@ -39,6 +39,117 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     return data.getvalue()
 
 
+def test_named_tags_are_additive_in_both_exporters_and_the_manifest(clip):
+    job, directory = clip
+    profile = resolve(None)
+    _anim(job, "E", "idle", [(20, 90, 140)])
+    bundle_dir = job.root / "06_export/character"
+    stages.export(job, profile)
+    character.export(job.root, bundle_dir, "hero", profile.fps)
+    view = timeline.describe(job.root, directory, profile.fps("walk"))
+    recover = {"name": "Récupération", "start_frame": "005.png", "end_frame": "009.png", "loop": False}
+    coast = {"name": "Coast", "start_frame": "001.png", "end_frame": "006.png", "loop": True}
+    tag_id = timeline.update(job.root, directory, None, "save_tag", recover)
+    timeline.update(job.root, directory, None, "save_tag", coast)
+    updated = timeline.describe(job.root, directory, profile.fps("walk"))
+    assert [tag["name"] for tag in updated["tags"]] == [recover["name"], coast["name"]]
+    assert updated["tags"][0] == recover | {"id": tag_id, "start": 5, "end": 9, "error": None}
+    assert updated["playback"] == view["playback"] and updated["qa_needs_review"]
+    assert {item["status"] for item in stages.export_status(job, profile)["formats"].values()} == {"stale"}
+    assert character.export_status(job.root, bundle_dir, profile.fps)["status"] == "stale"
+
+    assert stages.qa(job, profile)["12f"] == "pass"
+    assert not timeline.describe(job.root, directory, profile.fps("walk"))["qa_needs_review"]
+    manifest_anim = manifest.read(job)["animations"][0]
+    assert manifest_anim["tags_by_view"][str(manifest_anim["views"][0])] == updated["tags"]
+    action = stages.export(job, profile)["12f"]
+    character_out = character.export(job.root, bundle_dir, "hero", profile.fps)
+    doc = aseprite.read(action["aseprite"])
+    tags = [("walk_S", 0, 11, "forward"), ("walk_S [Récupération]", 5, 9, "forward"), ("walk_S [Coast]", 1, 6, "forward")]
+    assert len(doc.frames) == 12 and doc.tags == tags and doc.repeats == [0, 1, 0]
+    packed = aseprite.read(character_out["aseprite"])
+    assert len(packed.frames) == 24
+    assert packed.tags == [("idle_E", 0, 11, "forward"), *[(name, a + 12, b + 12, direction) for name, a, b, direction in tags]]
+    assert packed.repeats == [0, 0, 1, 0]
+    action_meta = json.loads(Path(action["json"]).read_text(encoding="utf-8"))
+    char_meta = json.loads(Path(character_out["json"]).read_text(encoding="utf-8"))["animations"]
+    assert "tags" not in char_meta[0]
+    assert action_meta["tags"] == char_meta[1]["tags"] == [
+        {"name": "Récupération", "start": 5, "end": 9, "loop": False, "aseprite_tag": "walk_S [Récupération]"},
+        {"name": "Coast", "start": 1, "end": 6, "loop": True, "aseprite_tag": "walk_S [Coast]"},
+    ]
+
+
+def test_named_tags_follow_frame_ids_and_reject_invalid_edits(clip):
+    job, directory = clip
+    profile = resolve(None)
+    copy = timeline.update(job.root, directory, "001.png", "duplicate")
+    tag = {"name": "Loop", "start_frame": copy, "end_frame": "004.png", "loop": True}
+    tag_id = timeline.update(job.root, directory, None, "save_tag", tag)
+    with pytest.raises(ValueError, match="already"):
+        timeline.update(job.root, directory, None, "save_tag", tag | {"name": " loop "})
+    for change in ({"name": "bad[tag]"}, {"name": ""}, {"loop": "true"}, {"start_frame": "0000.png"}):
+        with pytest.raises(ValueError):
+            timeline.update(job.root, directory, None, "save_tag", tag | change)
+    timeline.update(job.root, directory, "000.png", "move", 3)
+    view = timeline.describe(job.root, directory, 12)["tags"][0]
+    assert view["start"] == 1 and view["end"] == 5 and view["id"] == tag_id
+    timeline.update(job.root, directory, copy, "move", 8)
+    assert "before" in timeline.describe(job.root, directory, 12)["tags"][0]["error"]
+    with pytest.raises(ValueError, match="Loop.*before"):
+        stages.export(job, profile)
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, copy, "remove")
+    assert "missing" in timeline.describe(job.root, directory, 12)["tags"][0]["error"]
+    with pytest.raises(RuntimeError, match="Loop.*missing"):
+        character.export(job.root, job.root / "06_export/character", "hero", profile.fps, require_pass=False)
+    timeline.update(job.root, directory, None, "undo")
+    assert timeline.describe(job.root, directory, 12)["tags"][0] == view
+    renamed = timeline.update(job.root, directory, tag_id, "save_tag", tag | {"name": "Motion"})
+    assert renamed == tag_id
+    timeline.update(job.root, directory, tag_id, "remove_tag")
+    assert timeline.describe(job.root, directory, 12)["tags"] == []
+    with pytest.raises(ValueError, match="tag"):
+        timeline.update(job.root, directory, tag_id, "save_tag", tag)
+
+
+def test_named_loop_seam_finding_points_to_tag_endpoints(clip):
+    job, directory = clip
+    for i, x in enumerate([3, 2, 3, 4, 5, 6, 7, 8, 9, 8, 6, 3]):
+        frame = Image.new("RGBA", (20, 16))
+        frame.paste((70, 20, 180, 255), (x, 4, x + 8, 12))
+        frame.save(directory / "frames" / f"{i:03}.png")
+    tag = {"name": "March", "start_frame": "001.png", "end_frame": "006.png", "loop": True}
+    timeline.update(job.root, directory, None, "save_tag", tag)
+    timeline.update(job.root, directory, None, "save_tag", tag | {"name": "Once", "loop": False})
+    assert stages.qa(job, resolve(None))["12f"] == "pass"
+    review = stages.qa_review(job)["12f"]
+    assert any("March" in warning for warning in review["warnings"]) and not any("Once" in warning for warning in review["warnings"])
+    assert [(entry["frame"], entry["file"]) for entry in review["frame_findings"]
+            if any(issue["code"] == "tag-loop-seam" for issue in entry["issues"])] == [(1, "001.png"), (6, "006.png")]
+
+
+def test_named_tags_share_state_between_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    route = "/api/jobs/hero/j/timeline?facing=S&action=walk"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk"]
+    tag = {"name": "Land", "start_frame": "001.png", "end_frame": "005.png", "loop": False}
+    path = tmp_path / "tag.json"
+    path.write_text(json.dumps(tag), encoding="utf-8")
+    assert cli.main([*args, "--save-tag", str(path)]) == 0
+    view = json.loads(capsys.readouterr().out)
+    tag_id = view["selected_tag"]
+    with TestClient(create_app(worker=False)) as client:
+        assert client.get(route).json()["tags"] == view["tags"]
+        response = client.post(route, json={"operation": "save_tag", "tag_id": tag_id, "tag": tag | {"name": "Impact"}})
+        assert response.status_code == 200 and response.json()["selected_tag"] == tag_id
+        assert response.json()["tags"][0]["name"] == "Impact"
+    mcp, _ = build(tmp_path)
+    result = text(call(mcp, "edit_timeline_frame", character="hero", job_id="j", facing="S", action="walk",
+                       operation="remove_tag", tag_id=tag_id))
+    assert result["tags"] == []
+
+
 def test_inserted_frames_export_with_exact_rgba_and_can_be_undone(clip):
     job, directory = clip
     profile = resolve(None)

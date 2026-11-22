@@ -192,11 +192,13 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                             duration_ms: int | None = None, png_path: str | None = None,
                             version: int | None = None, position: int | None = None,
                             fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None,
-                            playback: dict | None = None) -> dict:
+                            playback: dict | None = None, tag_id: str | None = None, tag: dict | None = None) -> dict:
         """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
         Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
         Insert takes a PNG path and inserts after frame. Insert_blank adds a transparent frame.
-        Remove hides a frame. Undo and redo reverse sequence edits."""
+        Remove hides a frame. Undo and redo reverse sequence edits.
+        Save_tag takes name, start_frame, end_frame, loop in tag, with a tag_id to update.
+        Remove_tag uses tag_id."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -214,8 +216,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = {"fingerprint": fingerprint, "pixels": pixels}
         elif operation == "playback":
             value = playback
-        selected = timeline.update(job.root, directory, frame, operation, value)
-        return animation_timeline(character, job_id, facing, action, frame_set) | {"selected_frame": selected}
+        elif operation == "save_tag":
+            value = tag
+        target = tag_id if operation in timeline.TAG_OPERATIONS else frame
+        selected = timeline.update(job.root, directory, target, operation, value)
+        return animation_timeline(character, job_id, facing, action, frame_set) | timeline.selected_result(operation, selected)
 
     @mcp.tool()
     def showcase(character: str, job_id: str, size: int = 512) -> dict:

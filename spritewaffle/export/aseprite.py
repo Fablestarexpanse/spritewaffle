@@ -58,12 +58,21 @@ def _layer_chunk(name: str) -> bytes:
 
 
 def _tags_chunk(tags) -> bytes:
+    if len(tags) > 65_535:
+        raise ValueError("The Aseprite bundle exceeds the animation tag limit.")
     data = struct.pack("<H8x", len(tags))
     for tag in tags:
         name, start, end, direction = tag[:4]
         repeat = tag[4] if len(tag) > 4 else 0            # 0 = loop forever, 1 = play once (one-shot)
         data += struct.pack("<HHBH6x3Bx", start, end, DIRECTIONS[direction], repeat, 0, 0, 0) + _string(name)
     return _chunk(CHUNK_TAGS, data)
+
+
+def animation_tags(name: str, start: int, end: int, loop: bool, named: list[dict], offset: int = 0) -> list:
+    tags = [(name, offset + start, offset + end, "forward", 0 if loop else 1)]
+    tags.extend((tag["aseprite_tag"], offset + tag["start"], offset + tag["end"], "forward", 0 if tag["loop"] else 1)
+                for tag in named)
+    return tags
 
 
 def _slice_chunk(name: str, keys) -> bytes:

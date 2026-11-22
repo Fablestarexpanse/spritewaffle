@@ -166,9 +166,11 @@
   #tlOnionKey { display: inline-flex; flex-wrap: wrap; gap: .7rem; }
   #tlOnionKey span:first-child { color: var(--bad); }
   #tlOnionKey span:last-child { color: var(--run); }
-  #tlHistory, #tlPlayback { border-top: 1px solid var(--line); margin-top: var(--space); padding-top: .6rem; }
-  #tlHistory summary, #tlPlayback summary { cursor: pointer; }
-  #tlPlayback select { max-width: 11rem; }
+  #tlHistory, #tlPlayback, #tlTags { border-top: 1px solid var(--line); margin-top: var(--space); padding-top: .6rem; }
+  #tlHistory summary, #tlPlayback summary, #tlTags summary { cursor: pointer; }
+  #tlPlayback select, #tlTagFirst, #tlTagLast { max-width: 11rem; }
+  #tlTags .field { max-width: 100%; align-items: stretch; }
+  #tlTagPick, #tlTagName { max-width: 100%; width: 16rem; }
   #tlUnavailableList { padding-inline-start: 1.2rem; overflow-wrap: anywhere; }
   #tlHistoryPreview { width: min(100%, 6.5rem); height: 6.5rem; object-fit: contain; }
   #tlReplacement .field { min-width: 0; max-width: 100%; align-items: stretch; }

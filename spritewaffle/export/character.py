@@ -118,6 +118,8 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
             settings.setdefault("timeline_unavailable", {})[f"{facing}/{action}"] = clip.unavailable
         if saved := playback.signature():
             settings.setdefault("timeline_playback", {})[f"{facing}/{action}"] = saved
+        if clip.tags:
+            settings.setdefault("timeline_tags", {})[f"{facing}/{action}"] = clip.describe_tags()
         if clip.error:
             continue
         if require_pass:
@@ -209,12 +211,15 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
         clip_durations = timeline.timings(a["timeline"], round(1000 / fps))
         durations.extend(clip_durations)
         playback = a["playback"]
-        tags.append((a["name"], start + playback.start, start + playback.end, "forward", 0 if playback.loop else 1))
+        named = a["clip"].export_tags(a["name"])
+        tags.extend(aseprite.animation_tags(a["name"], playback.start, playback.end, playback.loop, named, offset=start))
         meta_anims.append({"name": a["name"], "facing": a["facing"], "action": a["action"], "frames": n,
                            "fps": fps, "loop": a["loop"], "pivot": a["pivot"],
                            "row": len(meta_anims), "first": start})
         if playback.frame_range is not None:
             meta_anims[-1]["playback_range"] = playback.frame_range
+        if named:
+            meta_anims[-1]["tags"] = named
         if any(f.duration_ms is not None for f in a["timeline"]):
             meta_anims[-1]["durations_ms"] = clip_durations
         if a["clip"].order:

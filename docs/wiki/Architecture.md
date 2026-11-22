@@ -59,6 +59,13 @@ default timing, and legacy attachment targets. Inserted frames use their own RGB
 no generated depth or normal maps. A missing, changed, or mismatched insertion is recorded
 as unavailable and must be repaired or removed before QA and export can use the clip.
 
+Named tags store a stable tag ID, a label, two frame IDs, and a loop flag. The timeline
+resolves the endpoints against the same snapshot as default playback. An invalid tag
+blocks QA and that clip's export until it is repaired or removed. QA checks each looping
+tag's last-to-first transition using the steps within that tag. The action and character
+receipts include tag changes. Both Aseprite outputs retain the default tag and add the
+named ranges. Their JSON uses clip-relative positions, and the manifest groups tags by view.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA

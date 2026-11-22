@@ -32,6 +32,9 @@
 - Added reversible blank and PNG frame insertion and removal. Inserted frames keep their
   own editable source PNG. Removing a frame leaves its files and edits intact and omits any
   attachment event at that frame until the frame is restored.
+- Added named animation ranges with independent loop or play-once preview. Tags follow frame
+  IDs, contribute loop seam findings to QA, and export in Aseprite and JSON alongside the
+  default animation.
 
 ## 2026-11-21: directional sprite readiness
 

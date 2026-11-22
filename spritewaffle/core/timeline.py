@@ -9,6 +9,8 @@ from base64 import b64encode
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from unicodedata import normalize
+from uuid import uuid4
 
 import numpy as np
 from PIL import Image
@@ -20,6 +22,7 @@ from . import fsutil
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_DURATION_MS = 65_535                  # Aseprite stores frame durations as unsigned 16-bit integers.
 ORDER_OPERATIONS = ("duplicate", "move", "insert", "insert_blank", "remove", "undo", "redo")
+TAG_OPERATIONS = ("save_tag", "remove_tag")
 PLAYBACK_MODES = ("source", "loop", "once")
 STALE_PIXELS = "The frame changed after the editor opened. Close and reopen the editor to load the current frame."
 
@@ -65,11 +68,24 @@ class Playback:
 
 
 @dataclass(frozen=True)
+class Tag:
+    id: str
+    name: str
+    start_frame: str
+    end_frame: str
+    loop: bool
+    start: int | None
+    end: int | None
+    error: str | None
+
+
+@dataclass(frozen=True)
 class Clip:
     items: list[Frame]
     sources: list[Path]
     playback: Playback
     unavailable: dict[str, str]
+    tags: list[Tag]
 
     @property
     def order(self) -> list[str]:
@@ -80,7 +96,19 @@ class Clip:
     def error(self) -> str | None:
         if self.unavailable:
             return "Restore or remove unavailable inserted frames: " + ", ".join(self.unavailable) + "."
-        return self.playback.error
+        if self.playback.error:
+            return self.playback.error
+        for tag in self.tags:
+            if tag.error:
+                return f"Repair or remove animation tag {tag.name!r}. {tag.error}"
+        return None
+
+    def describe_tags(self) -> list[dict]:
+        return [asdict(tag) for tag in self.tags]
+
+    def export_tags(self, animation: str) -> list[dict]:
+        return [{"name": tag.name, "start": tag.start, "end": tag.end, "loop": tag.loop,
+                 "aseprite_tag": f"{animation} [{tag.name}]"} for tag in self.tags]
 
     def require_valid(self) -> None:
         if error := self.error:
@@ -206,6 +234,14 @@ def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> li
     return _frames(root, frame_set, sources, _state(_edit_directory(root, frame_set) / "timeline.json"))[0]
 
 
+def _range_positions(indices: dict[str, int], first: str, last: str) -> tuple[int | None, int | None, str | None]:
+    if first not in indices or last not in indices:
+        return None, None, "A range endpoint is missing. Choose available first and last frames."
+    if indices[first] > indices[last]:
+        return None, None, "The range start must be before or at the end. Adjust the range or undo the move."
+    return indices[first], indices[last], None
+
+
 def _playback(root: Path, frame_set: Path, items: list[Frame], settings: dict, source_loop: bool | None) -> Playback:
     mode = settings.get("mode", "source")
     if source_loop is None and mode == "source":
@@ -217,19 +253,27 @@ def _playback(root: Path, frame_set: Path, items: list[Frame], settings: dict, s
     if first is None and last is None:
         return Playback(mode, loop, 0, len(items) - 1)
     indices = {frame.id: i for i, frame in enumerate(items)}
-    if first not in indices or last not in indices:
-        error = "A playback range endpoint is missing. Choose available frames or clear the range."
-    elif indices[first] > indices[last]:
-        error = "The playback range start must be before or at the end. Adjust the range or undo the move."
-    else:
-        return Playback(mode, loop, indices[first], indices[last], first, last)
-    return Playback(mode, loop, 0, len(items) - 1, first, last, error)
+    start, end, error = _range_positions(indices, first, last)
+    if error:
+        return Playback(mode, loop, 0, len(items) - 1, first, last, f"Playback needs repair. {error}")
+    return Playback(mode, loop, start, end, first, last)
+
+
+def _tags(items: list[Frame], records: list[dict]) -> list[Tag]:
+    if not records:
+        return []
+    indices = {frame.id: i for i, frame in enumerate(items)}
+    tags = []
+    for tag in records:
+        start, end, error = _range_positions(indices, tag["start_frame"], tag["end_frame"])
+        tags.append(Tag(**tag, start=start, end=end, error=error))
+    return tags
 
 
 def _clip(root: Path, frame_set: Path, sources: list[Path], state: dict, source_loop: bool | None = None) -> Clip:
     items, unavailable = _frames(root, frame_set, sources, state)
     playback = _playback(root, frame_set, items, state.get("playback", {}), source_loop)
-    return Clip(items, sources, playback, unavailable)
+    return Clip(items, sources, playback, unavailable, _tags(items, state.get("tags", [])))
 
 
 def read_clip(root: Path, frame_set: Path, sources: list[Path] | None = None, *, source_loop: bool | None = None) -> Clip:
@@ -246,7 +290,8 @@ def alternate_images(items: list[Frame]) -> dict[str, str]:
 def qa_needs_review(report: dict, clip: Clip) -> bool:
     return (bool(clip.error) or (report.get("timeline_replacements") or {}) != alternate_images(clip.items) or
             (report.get("timeline_order") or []) != clip.order or
-            (report.get("timeline_playback") or {}) != clip.playback.signature())
+            (report.get("timeline_playback") or {}) != clip.playback.signature() or
+            (report.get("timeline_tags") or []) != clip.describe_tags())
 
 
 def pixels(paths: list[Path]) -> np.ndarray:
@@ -510,13 +555,61 @@ def _edit_playback(root: Path, frame_set: Path, state: dict, sources: list[Path]
         state["playback"] = settings
 
 
+def _edit_tag(root: Path, frame_set: Path, state: dict, sources: list[Path], tag_id: str | None,
+              operation: str, value) -> str | None:
+    tags = state.get("tags", [])
+    index = next((i for i, tag in enumerate(tags) if tag["id"] == tag_id), None)
+    if (tag_id is not None or operation == "remove_tag") and index is None:
+        raise ValueError("Choose an existing animation tag.")
+    if operation == "remove_tag":
+        tags.pop(index)
+        if not tags:
+            state.pop("tags", None)
+        return None
+
+    if not isinstance(value, dict) or not isinstance(value.get("name"), str):
+        raise ValueError("Enter a name for the animation tag.")
+    name = normalize("NFC", value["name"].strip())
+    if not name or not name.isprintable() or "[" in name or "]" in name:
+        raise ValueError("Enter a printable animation tag name without square brackets.")
+    facing, action, _ = frame_set.relative_to(root / "04_pixel").parts
+    if len(f"{action}_{facing} [{name}]".encode("utf-8")) > 65_535:
+        raise ValueError("The exported animation tag name exceeds the Aseprite file format limit.")
+    if any(tag["name"].casefold() == name.casefold() and tag["id"] != tag_id for tag in tags):
+        raise ValueError("An animation tag with that name already exists in this frame set.")
+    first, last, loop = value.get("start_frame"), value.get("end_frame"), value.get("loop")
+    if not isinstance(first, str) or not isinstance(last, str) or type(loop) is not bool:
+        raise ValueError("Choose both tag endpoints and whether the tag loops.")
+    items, _ = _frames(root, frame_set, sources, state)
+    _, _, error = _range_positions({frame.id: i for i, frame in enumerate(items)}, first, last)
+    if error:
+        raise ValueError(error)
+    tag_id = uuid4().hex if tag_id is None else tag_id
+    tag = {"id": tag_id, "name": name, "start_frame": first, "end_frame": last, "loop": loop}
+    if index is None:
+        # One slot remains for the ordinary Aseprite animation tag.
+        if len(tags) >= 65_534:
+            raise ValueError("This clip is already at the Aseprite tag limit.")
+        tags.append(tag)
+    else:
+        tags[index] = tag
+    state["tags"] = tags
+    return tag_id
+
+
+def selected_result(operation: str, selected: str | None) -> dict:
+    if operation in TAG_OPERATIONS:
+        return {"selected_frame": None, "selected_tag": selected}
+    return {"selected_frame": selected}
+
+
 def update(root: Path, frame_set: Path, name: str | None, operation: str, value=None) -> str | None:
     from . import manifest
     from .job import Job
 
-    if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback"):
+    if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback"):
         raise ValueError("Unknown timeline operation.")
-    if operation not in ("undo", "redo", "playback") and (
+    if operation not in (*TAG_OPERATIONS, "undo", "redo", "playback") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|(?:copy|insert)-[1-9][0-9]*)", name) is None
     ):
         raise ValueError("Choose a frame ID from this timeline.")
@@ -529,6 +622,8 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
         selected = name
         if operation in ORDER_OPERATIONS:
             selected = _edit_order(root, frame_set, state, sources, name, operation, value)
+        elif operation in TAG_OPERATIONS:
+            selected = _edit_tag(root, frame_set, state, sources, name, operation, value)
         elif operation == "playback":
             _edit_playback(root, frame_set, state, sources, value)
         elif not _edit_frame(root, frame_set, state, sources, name, operation, value):
@@ -572,7 +667,7 @@ def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
         with Image.open(items[0].source if items else clip.sources[0]) as image:
             cell = list(image.size)
     return {"facing": facing, "action": action, "frame_set": name, "cell": cell, "loop": playback.loop,
-            "playback": asdict(playback),
+            "playback": asdict(playback), "tags": clip.describe_tags(),
             "default_ms": default_ms, "max_duration_ms": MAX_DURATION_MS, "max_image_bytes": MAX_IMAGE_BYTES,
             "qa_needs_review": qa_needs_review(report, clip), "unavailable": clip.unavailable,
             "can_undo": bool(state.get("undo")), "can_redo": bool(state.get("redo")),

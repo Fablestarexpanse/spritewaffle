@@ -67,6 +67,26 @@ function showTimeline(action) {
               <div class="row"><button type="submit">Save playback</button></div>
             </form>
           </details>
+          <details id="tlTags">
+            <summary>Animation tags <span id="tlTagCount" class="muted"></span></summary>
+            <div class="row"><label class="field">Tag <select id="tlTagPick"></select></label></div>
+            <form id="tlTagForm">
+              <div class="row">
+                <label class="field">Name <input id="tlTagName" type="text" required></label>
+                <label><input type="checkbox" id="tlTagLoop"> Loop tag</label>
+              </div>
+              <div class="row">
+                <label>First frame <select id="tlTagFirst"></select></label>
+                <label>Last frame <select id="tlTagLast"></select></label>
+              </div>
+              <p id="tlTagError" class="warn" role="status" hidden></p>
+              <div class="row">
+                <button id="tlTagSave" type="submit">Save tag</button>
+                <button id="tlTagPreview" type="button">Preview tag</button>
+                <button id="tlTagRemove" type="button">Remove tag</button>
+              </div>
+            </form>
+          </details>
         </div>
         <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
@@ -113,7 +133,9 @@ function showTimeline(action) {
   const history = find("#tlHistory"), version = find("#tlVersion");
   const historyPreview = find("#tlHistoryPreview"), useVersion = find("#tlUseVersion");
   const mode = find("#tlMode"), limited = find("#tlLimit"), first = find("#tlFirst"), last = find("#tlLast");
-  let clip, selected = 0, timer, playing = false;
+  const tagPick = find("#tlTagPick"), tagName = find("#tlTagName"), tagLoop = find("#tlTagLoop");
+  const tagFirst = find("#tlTagFirst"), tagLast = find("#tlTagLast"), tagPreview = find("#tlTagPreview");
+  let clip, selected = 0, timer, playing = false, playingTag = null;
   try { onion.checked = localStorage.getItem("sw.timeline.onion") === "true"; } catch {}
 
   const open = () => controls.isConnected && dialog.open;
@@ -126,7 +148,9 @@ function showTimeline(action) {
   const stop = () => {
     clearTimeout(timer);
     playing = false;
+    playingTag = null;
     play.textContent = "Play";
+    tagPreview.textContent = "Preview tag";
     paintOnion();
   };
   dialog.addEventListener("close", stop, {once: true});
@@ -197,17 +221,21 @@ function showTimeline(action) {
     if (frameBox.left < stripBox.left) strip.scrollLeft -= stripBox.left - frameBox.left;
   }
 
+  function frameOptions(input, current, fallback) {
+    input.replaceChildren(...clip.frames.map((frame, i) => new Option(`${i + 1} · ${frame.id}`, frame.id)));
+    if (current && !clip.frames.some(frame => frame.id === current)) {
+      input.add(new Option(`Missing · ${current}`, current));
+    }
+    input.value = current || fallback || "";
+  }
+
   function displayPlayback(data) {
     const playback = data.playback;
     mode.value = playback.mode;
     limited.checked = !!playback.start_frame;
     for (const [input, current, fallback] of [[first, playback.start_frame, data.frames[0]?.id],
                                               [last, playback.end_frame, data.frames.at(-1)?.id]]) {
-      input.replaceChildren(...data.frames.map((frame, i) => new Option(`${i + 1} · ${frame.id}`, frame.id)));
-      if (current && !data.frames.some(frame => frame.id === current)) {
-        input.add(new Option(`Missing · ${current}`, current));
-      }
-      input.value = current || fallback || "";
+      frameOptions(input, current, fallback);
       input.disabled = !limited.checked;
     }
     find("#tlWindow").textContent = playback.error ? "· Range needs repair" : limited.checked
@@ -217,7 +245,36 @@ function showTimeline(action) {
     error.hidden = !playback.error;
     if (playback.error) find("#tlPlayback").open = true;
     const blocked = !data.frames.length || !!playback.error || Object.keys(data.unavailable).length > 0;
-    play.disabled = find("#tlQa").disabled = find("#tlExport").disabled = blocked;
+    play.disabled = blocked;
+    find("#tlQa").disabled = find("#tlExport").disabled = blocked || data.tags.some(tag => tag.error);
+  }
+
+  function showTagForm() {
+    const tag = clip.tags.find(item => item.id === tagPick.value);
+    const {start, end, loop} = clip.playback;
+    tagName.value = tag?.name || "";
+    tagLoop.checked = tag?.loop ?? loop;
+    frameOptions(tagFirst, tag?.start_frame, clip.frames[start]?.id);
+    frameOptions(tagLast, tag?.end_frame, clip.frames[end]?.id);
+    const empty = !clip.frames.length;
+    tagName.disabled = tagLoop.disabled = tagFirst.disabled = tagLast.disabled = find("#tlTagSave").disabled = empty;
+    tagPreview.disabled = !tag || !!tag.error || Object.keys(clip.unavailable).length > 0;
+    find("#tlTagRemove").disabled = !tag;
+    const error = find("#tlTagError");
+    error.textContent = tag?.error || "";
+    error.hidden = !tag?.error;
+  }
+
+  function displayTags(selectedTag) {
+    const issue = clip.tags.find(tag => tag.error);
+    const count = clip.tags.length;
+    find("#tlTagCount").textContent = issue ? "· Needs repair" : count ? `· ${count}` : "";
+    tagPick.replaceChildren(new Option("New tag", ""), ...clip.tags.map(tag =>
+      new Option(tag.error ? `Needs repair · ${tag.name}` : tag.name, tag.id)));
+    tagPick.value = selectedTag ?? issue?.id ?? "";
+    if (tagPick.selectedIndex < 0) tagPick.value = issue?.id || "";
+    if (issue) find("#tlTags").open = true;
+    showTagForm();
   }
 
   function displayUnavailable(data) {
@@ -233,7 +290,7 @@ function showTimeline(action) {
     }));
   }
 
-  function display(data, index = 0) {
+  function display(data, index = 0, selectedTag = tagPick.value || null) {
     clip = data;
     controls.hidden = false;
     const noFrames = !data.frames.length;
@@ -251,6 +308,7 @@ function showTimeline(action) {
     find("#tlRedo").disabled = !data.can_redo;
     displayUnavailable(data);
     displayPlayback(data);
+    displayTags(selectedTag);
     const {start, end, start_frame, error} = data.playback;
     strip.innerHTML = data.frames.map((frame, i) => {
       const inPlayback = start_frame && !error && start <= i && i <= end;
@@ -294,13 +352,18 @@ function showTimeline(action) {
   async function save(operation, value, target = clip.frames[selected]?.id) {
     stop();
     busy(true);
-    message(operation === "playback" ? "Saving playback…" : "Saving frame…");
+    const tagOperation = operation === "save_tag" || operation === "remove_tag";
+    message(tagOperation ? "Saving tags…" : operation === "playback" ? "Saving playback…" : "Saving frame…");
     try {
       const body = {operation, frame: target};
       if (operation === "duration") body.duration_ms = value;
       if (operation === "activate") body.version = value;
       if (operation === "move") body.position = value;
       if (operation === "playback") body.playback = value;
+      if (tagOperation) {
+        body.tag_id = tagPick.value || null;
+        if (operation === "save_tag") body.tag = value;
+      }
       if (operation === "replace" || operation === "insert") body.png = await new Promise((resolve, reject) => {
         if (value.size > clip.max_image_bytes) return reject(new Error("Choose a PNG no larger than 32 MiB."));
         const reader = new FileReader();
@@ -311,10 +374,11 @@ function showTimeline(action) {
       const data = await api(endpoint + query(), body);
       if (!open()) return;
       const next = data.frames.findIndex(frame => frame.id === (data.selected_frame || body.frame));
-      display(data, next >= 0 ? next : selected);
+      display(data, next >= 0 ? next : selected, tagOperation ? data.selected_tag || "" : tagPick.value || null);
       const labels = {activate: `Version ${value} applied.`, duplicate: "Frame duplicated.", move: "Frame moved.",
                       insert: "PNG frame inserted.", insert_blank: "Blank frame inserted.", remove: "Frame removed from the sequence.",
-                      undo: "Frame order change undone.", redo: "Frame order change redone.", playback: "Playback saved."};
+                      undo: "Frame order change undone.", redo: "Frame order change redone.", playback: "Playback saved.",
+                      save_tag: "Tag saved.", remove_tag: "Tag removed."};
       message(labels[operation] || "Saved.");
     } catch (error) {
       if (open()) message(error.message, true);
@@ -323,25 +387,41 @@ function showTimeline(action) {
     }
   }
 
-  function advance() {
+  function advance(bounds) {
+    const {start, end, loop} = bounds;
     timer = setTimeout(() => {
       if (!open() || !playing) return stop();
-      const {start, end, loop} = clip.playback;
       if (selected === end && !loop) return stop();
       select(selected === end ? start : selected + 1);
-      advance();
+      advance(bounds);
     }, clip.frames[selected].duration_ms);
   }
-  play.onclick = () => {
-    if (playing) return stop();
-    const {start, end, loop} = clip.playback;
-    if (selected < start || selected > end || (!loop && selected === end)) select(start);
+  function startPlayback(bounds, tagId = null) {
+    stop();
+    const {start, end, loop} = bounds;
+    if (tagId || selected < start || selected > end || (!loop && selected === end)) select(start);
     playing = true;
+    playingTag = tagId;
     play.textContent = "Pause";
+    if (tagId) tagPreview.textContent = "Pause tag";
     paintOnion();
-    advance();
-  };
+    advance(bounds);
+  }
+  play.onclick = () => playing ? stop() : startPlayback(clip.playback);
   set.onchange = load;
+  tagPick.onchange = () => { if (playingTag) stop(); showTagForm(); };
+  find("#tlTagForm").onsubmit = event => {
+    event.preventDefault();
+    save("save_tag", {name: tagName.value, start_frame: tagFirst.value, end_frame: tagLast.value, loop: tagLoop.checked});
+  };
+  find("#tlTagRemove").onclick = () => save("remove_tag");
+  tagPreview.onclick = () => {
+    const tag = clip.tags.find(item => item.id === tagPick.value);
+    if (tag && !tag.error) {
+      if (playingTag === tag.id) stop();
+      else startPlayback(tag, tag.id);
+    }
+  };
   limited.onchange = () => { first.disabled = last.disabled = !limited.checked; };
   find("#tlPlaybackForm").onsubmit = event => {
     event.preventDefault();
