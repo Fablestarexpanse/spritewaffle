@@ -24,6 +24,8 @@
 - Added a frame pixel editor with pencil, eraser, color picker, job palette swatches, zoom,
   pixel grid, keyboard editing, and draft undo and redo. Saves preserve unedited RGBA pixels
   and appear in replacement history. A draft whose frame has changed is refused.
+- Added exact RGBA flood fill and rectangular selection with pointer and keyboard controls.
+  Selections limit the paint tools and support erasing the selected area as one undoable edit.
 
 ## 2026-11-21: directional sprite readiness
 

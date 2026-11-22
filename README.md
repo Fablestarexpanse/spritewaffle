@@ -105,9 +105,18 @@ follows its original source frame through the sequence.
 Choose **Edit pixels** on the selected frame or copy. Pencil, Eraser, and Pick color work
 on the effective image. Choose an RGBA color or use a swatch from the job palette. Zoom
 in to use the pixel grid. With the canvas focused, move with the arrow keys and apply the
-tool with Enter or Space. **Undo stroke** and **Redo stroke** work inside the open draft.
-**Save pixel edit** stores a replacement version, preserving the processed PNG. If the
-underlying frame changes while you edit, reopen the editor to start from the current image.
+tool with Enter or Space. **Fill** recolors pixels connected above, below, left, or right
+that have the same RGBA value as the clicked pixel.
+
+Use **Select** to drag a rectangle. With the keyboard, press Enter to set the first corner,
+move with the arrow keys, and press Enter again to set the opposite corner. Escape cancels
+an unfinished rectangle. Pencil, Eraser, and Fill stay inside the selection until you
+choose **Deselect**. **Erase selected pixels** makes the rectangle transparent in one step.
+**Undo edit** and **Redo edit** apply to artwork changes inside the open draft.
+
+**Save pixel edit** stores a replacement version, preserving the processed PNG. Selections
+are temporary. If the underlying frame changes while you edit, reopen the editor to start
+from the current image.
 
 Run **QA** after replacing or restoring artwork, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry

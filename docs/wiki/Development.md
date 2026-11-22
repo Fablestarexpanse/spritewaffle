@@ -10,6 +10,8 @@ About 220 tests, about 1 minute, no GPU or ComfyUI needed: generation is faked (
 `StubClient` in the tests), frames come from `tests/synth.py`. When gating a commit on the tests,
 use the exit code, not `pytest | tail` (the pipe hides failures).
 
+The pixel editor's geometry and fill tests also run with `node --test tests/pixel_editor.test.cjs`.
+
 ## Conventions
 
 - **Additive, backward-compatible.** Old jobs must keep loading; new fields get defaults

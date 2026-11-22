@@ -188,10 +188,11 @@
   #pxStage { display: block; position: relative; width: max-content; margin-inline: auto;
     background: var(--preview-color) var(--preview-pattern) 0 0 / 16px 16px; }
   #pxCanvas { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
-  #pxGrid, #pxCursor { position: absolute; pointer-events: none; }
+  #pxGrid, #pxSelection, #pxCursor { position: absolute; pointer-events: none; }
   #pxGrid { inset: 0; opacity: .52; background-size: var(--px-step) var(--px-step);
     background-image: linear-gradient(to right, var(--ink-contrast, #808080) 1px, transparent 1px),
       linear-gradient(to bottom, var(--ink-contrast, #808080) 1px, transparent 1px); }
+  #pxSelection { outline: 1px dashed white; box-shadow: 0 0 0 2px black; }
   #pxCursor { width: var(--px-step); height: var(--px-step); outline: 1px solid white;
     box-shadow: inset 0 0 0 1px black; }
   #pxStage:not(:focus-within) #pxCursor { display: none; }

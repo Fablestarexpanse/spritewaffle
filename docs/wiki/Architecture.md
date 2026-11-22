@@ -35,6 +35,12 @@ and persistence. Saving writes one replacement version. Invalid and stale patche
 active version intact. QA, export receipts, and the manifest use the resulting replacement
 through the existing timeline path.
 
+Flood fill compares all four channels and follows only horizontal and vertical neighbors.
+Its queue is bounded by the active selection or by the frame. Pencil, eraser, fill, and erase
+selection record the original RGBA value of each touched pixel once per edit. Selection
+bounds belong to the browser draft. The existing pixel patch is sufficient for saving any
+of these edits through the UI, HTTP, CLI, or MCP.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA
