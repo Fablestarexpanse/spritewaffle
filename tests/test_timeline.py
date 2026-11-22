@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from spritewaffle import cli
-from spritewaffle.core import attach, job_palette, manifest, stages, timeline
+from spritewaffle.core import attach, frame_repair, job_palette, manifest, stages, timeline
 from spritewaffle.core.job import Job
 from spritewaffle.core.profile import resolve
 from spritewaffle.export import aseprite, character
@@ -37,6 +37,130 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     data = io.BytesIO()
     sprite.save(data, format="PNG")
     return data.getvalue()
+
+
+@pytest.fixture
+def retained_frame(clip):
+    job, directory = clip
+    master = job.root / "03_actions/S/walk/selected_12f/002_src00006.png"
+    master.parent.mkdir()
+    rgba = Image.new("RGB", (16, 16), (0, 255, 0))
+    rgba.paste((32, 165, 48), (4, 4, 12, 12))
+    rgba.save(master)
+    report = {"style": "painted", "scale": 1.0, "palette": [], "cell": 16,
+              "sets": {"12": {"frames": 12, "sources": list(range(0, 36, 3))}}}
+    (directory.parent / "pixel_report.json").write_text(json.dumps(report), encoding="utf-8")
+    places = [{"scale": 1.0, "crop": [0, 0, 16, 16], "paste": [0, 0]}] * 12
+    (directory / "placements.json").write_text(json.dumps(places), encoding="utf-8")
+    return job, directory, master
+
+
+def test_reprocess_preview_is_read_only_and_apply_saves_a_copy_version(retained_frame):
+    job, directory, master = retained_frame
+    profile = resolve(None)
+    copy = timeline.update(job.root, directory, "002.png", "duplicate")
+    timeline.update(job.root, directory, copy, "duration", 140)
+    stages.qa(job, profile)
+    stages.export(job, profile)
+    files = {path: path.read_bytes() for path in job.root.rglob("*") if path.is_file()}
+
+    before = frame_repair.preview(job.root, directory, copy)
+    preferred = frame_repair.preview(job.root, directory, copy, despill="edge")
+    assert preferred["source"] == master.relative_to(job.root).as_posix()
+    assert preferred["changed_pixels"] > 0 and [preferred["width"], preferred["height"]] == [16, 16]
+    assert preferred["fingerprint"] != before["fingerprint"]
+    with Image.open(io.BytesIO(b64decode(preferred["before_png"]))) as current:
+        assert current.getpixel((7, 7)) == (70, 20, 180, 255)
+        original_pixels = np.asarray(current).copy()
+    with Image.open(io.BytesIO(b64decode(preferred["after_png"]))) as candidate:
+        assert candidate.getpixel((7, 7)) == (32, 165, 48, 255)
+        different = np.any(np.asarray(candidate) != original_pixels, axis=2)
+    with Image.open(io.BytesIO(b64decode(preferred["change_mask_png"]))) as mask:
+        assert np.array_equal(np.asarray(mask)[..., 3] > 0, different)
+    assert preferred["changed_pixels"] == np.count_nonzero(different)
+    assert {path: path.read_bytes() for path in job.root.rglob("*") if path.is_file()} == files
+
+    patch = {"fingerprint": preferred["fingerprint"], "despill": "edge"}
+    timeline.update(job.root, directory, copy, "reprocess", patch)
+    current, repaired = timeline.frames(job.root, directory)[2:4]
+    assert not current.replaced and repaired.replaced and repaired.duration_ms == 140
+    assert master.read_bytes() == files[master] and current.source.read_bytes() == files[current.source]
+    assert timeline.describe(job.root, directory, 12)["qa_needs_review"]
+    assert stages.export_status(job, profile)["formats"]["png"]["status"] == "stale"
+    stages.qa(job, profile)
+    exported = aseprite.read(stages.export(job, profile)["12f"]["aseprite"])
+    assert exported.frames[3][7, 7].tolist() == [32, 165, 48, 255] and exported.durations[3] == 140
+    again = frame_repair.preview(job.root, directory, copy, despill="edge", include_png=False)
+    assert again["changed_pixels"] == 0 and "after_png" not in again
+    timeline.update(job.root, directory, copy, "reprocess", patch | {"fingerprint": again["fingerprint"]})
+    assert len(timeline.describe(job.root, directory, 12)["frames"][3]["history"]) == 1
+
+
+def test_reprocess_rejects_stale_comparison_and_missing_provenance(retained_frame):
+    job, directory, master = retained_frame
+    frame = "002.png"
+    current = frame_repair.preview(job.root, directory, frame)
+    timeline.update(job.root, directory, frame, "replace", _image())
+    with pytest.raises(RuntimeError, match="compare again"):
+        timeline.update(job.root, directory, frame, "reprocess", {"fingerprint": current["fingerprint"]})
+    current = frame_repair.preview(job.root, directory, frame)
+    raw = master.read_bytes()
+    with Image.open(io.BytesIO(raw)) as source:
+        source.putpixel((7, 7), (200, 45, 130))
+        source.save(master)
+    with pytest.raises(RuntimeError, match="compare again"):
+        timeline.update(job.root, directory, frame, "reprocess", {"fingerprint": current["fingerprint"]})
+    assert len(timeline.describe(job.root, directory, 12)["frames"][2]["history"]) == 1
+    with pytest.raises(FileNotFoundError, match="retained"):
+        frame_repair.preview(job.root, directory, "001.png")
+    inserted = timeline.update(job.root, directory, frame, "insert", _image())
+    with pytest.raises(ValueError, match="inserted"):
+        frame_repair.preview(job.root, directory, inserted)
+    report_path = directory.parent / "pixel_report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["method"] = "mirror"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(ValueError, match="mirror"):
+        frame_repair.preview(job.root, directory, frame)
+
+
+def test_reprocess_pixel_candidate_uses_report_palette_and_locked_grid(retained_frame):
+    job, directory, _ = retained_frame
+    report_path = directory.parent / "pixel_report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report.pop("scale")
+    report.update(style="pixel", palette=["#203030", "#20a530"], grid={"size": 1, "ox": 0, "oy": 0, "resample": 1.0})
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    for despill, expected in (("all", (32, 48, 48, 255)), ("edge", (32, 165, 48, 255))):
+        result = frame_repair.preview(job.root, directory, "002.png", despill=despill)
+        with Image.open(io.BytesIO(b64decode(result["after_png"]))) as candidate:
+            assert candidate.getpixel((7, 7)) == expected
+
+
+def test_reprocess_is_available_in_http_cli_and_mcp(retained_frame, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    endpoint = "/api/jobs/hero/j/timeline"
+    query = "?facing=S&action=walk"
+    frame = "002.png"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk", "--frame", frame]
+    with TestClient(create_app(worker=False)) as client:
+        response = client.get(endpoint + "/reprocess" + query + "&frame=" + frame + "&despill=edge")
+        assert response.status_code == 200
+        view = response.json()
+        body = {"operation": "reprocess", "frame": frame, "fingerprint": view["fingerprint"], "despill": "all"}
+        assert client.post(endpoint + query, json=body).status_code == 400
+    assert cli.main([*args, "--preview-reprocess", "--despill", "edge"]) == 0
+    assert json.loads(capsys.readouterr().out) == view
+    mcp, _ = build(tmp_path)
+    options = {"character": "hero", "job_id": "j", "facing": "S", "action": "walk", "frame": frame, "despill": "edge"}
+    mcp_view = text(call(mcp, "preview_frame_reprocess", **options))
+    assert mcp_view["fingerprint"] == view["fingerprint"] and "after_png" not in mcp_view
+    result = text(call(mcp, "edit_timeline_frame", **options, operation="reprocess", fingerprint=view["fingerprint"]))
+    assert result["frames"][2]["replaced"]
+    assert cli.main([*args, "--restore"]) == 0
+    capsys.readouterr()
+    assert cli.main([*args, "--apply-reprocess", view["fingerprint"], "--despill", "edge"]) == 0
+    assert json.loads(capsys.readouterr().out)["frames"][2]["replaced"]
 
 
 def test_named_tags_are_additive_in_both_exporters_and_the_manifest(clip):

@@ -90,7 +90,10 @@ function showTimeline(action) {
         </div>
         <div class="tl-pane" id="tlEditor">
           <h3 id="tlFrameLabel"></h3>
-          <div class="row"><button id="tlPixels" type="button">Edit pixels</button></div>
+          <div class="row">
+            <button id="tlPixels" type="button">Edit pixels</button>
+            <button id="tlReprocess" type="button">Reprocess frame</button>
+          </div>
           <form id="tlTiming">
             <label>Duration (ms) <input id="tlDuration" type="number" min="1" step="1" required></label>
             <div class="row">
@@ -205,6 +208,8 @@ function showTimeline(action) {
     scrub.value = index;
     find("#tlPosition").textContent = `${index + 1} / ${clip.frames.length}`;
     find("#tlFrameLabel").textContent = label;
+    find("#tlReprocess").disabled = frame.inserted;
+    find("#tlReprocess").title = frame.inserted ? "An inserted frame has no retained animation master." : "";
     find("#tlEarlier").disabled = index === 0;
     find("#tlLater").disabled = index === clip.frames.length - 1;
     duration.value = frame.duration_ms;
@@ -439,18 +444,27 @@ function showTimeline(action) {
   };
   find("#tlTiming").onsubmit = event => { event.preventDefault(); save("duration", duration.valueAsNumber); };
   find("#tlReset").onclick = () => save("duration", null);
+  function savedArtwork(data, id, label) {
+    if (!open()) return;
+    const index = data.frames.findIndex(item => item.id === id);
+    display(data, index >= 0 ? index : selected);
+    message(label);
+  }
   find("#tlPixels").onclick = () => {
     stop();
     const frame = clip.frames[selected];
     const label = find("#tlFrameLabel").textContent;
     const saveUrl = endpoint + query();
     const readUrl = endpoint + "/pixels" + query() + "&frame=" + encodeURIComponent(frame.id);
-    showPixelEditor(readUrl, saveUrl, frame.id, label, data => {
-      if (!open()) return;
-      const index = data.frames.findIndex(item => item.id === frame.id);
-      display(data, index >= 0 ? index : selected);
-      message("Pixel edit saved to replacement history.");
-    });
+    showPixelEditor(readUrl, saveUrl, frame.id, label, data => savedArtwork(data, frame.id, "Pixel edit saved to replacement history."));
+  };
+  find("#tlReprocess").onclick = () => {
+    stop();
+    const frame = clip.frames[selected];
+    const label = find("#tlFrameLabel").textContent;
+    const saveUrl = endpoint + query();
+    const readUrl = endpoint + "/reprocess" + query() + "&frame=" + encodeURIComponent(frame.id);
+    showFrameRepair(readUrl, saveUrl, frame.id, label, data => savedArtwork(data, frame.id, "Reprocessed frame saved to replacement history."));
   };
   upload.onchange = () => { replace.disabled = insert.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };

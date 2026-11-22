@@ -387,6 +387,15 @@ def cmd_timeline(a):
     directory = timeline.directory(job.root, a.facing, a.action, a.set)
     if (a.range_start is not None or a.range_end is not None) and not a.playback:
         raise ValueError("Pass --playback when setting a frame range.")
+    if a.despill is not None and not (a.preview_reprocess or a.apply_reprocess):
+        raise ValueError("Pass --preview-reprocess or --apply-reprocess with --despill.")
+    if a.preview_reprocess:
+        from .core import frame_repair
+
+        if not a.frame:
+            raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
+        _print(frame_repair.preview(job.root, directory, a.frame, despill=a.despill or "profile"))
+        return
     if a.pixels:
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
@@ -410,7 +419,7 @@ def cmd_timeline(a):
     elif a.undo_order or a.redo_order:
         timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
     elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
-          or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove):
+          or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove or a.apply_reprocess):
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
         if a.replace or a.insert:
@@ -422,6 +431,9 @@ def cmd_timeline(a):
         elif a.paint:
             patch = json.loads(Path(a.paint).read_text(encoding="utf-8-sig"))
             selected = timeline.update(job.root, directory, a.frame, "paint", patch)
+        elif a.apply_reprocess:
+            selected = timeline.update(job.root, directory, a.frame, "reprocess",
+                                       {"fingerprint": a.apply_reprocess, "despill": a.despill or "profile"})
         elif a.restore:
             selected = timeline.update(job.root, directory, a.frame, "restore")
         elif a.use_version is not None:
@@ -668,6 +680,9 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--redo-order", action="store_true", help="redo the last undone frame order change")
     edits.add_argument("--pixels", action="store_true", help="read exact RGBA bytes and the frame fingerprint")
     edits.add_argument("--paint", metavar="PATCH_JSON", help="save a pixel patch as a replacement version")
+    edits.add_argument("--preview-reprocess", action="store_true", help="compare the current frame with local reprocessing")
+    edits.add_argument("--apply-reprocess", metavar="FINGERPRINT", help="apply a matching reprocessed frame preview")
+    ep.add_argument("--despill", choices=("profile", "all", "edge"), help="green spill cleanup for frame reprocessing")
     edits.add_argument("--playback", choices=("source", "loop", "once"), help="set playback mode and optional range")
     edits.add_argument("--save-tag", metavar="TAG_JSON", help="create or edit a named range from JSON")
     edits.add_argument("--remove-tag", metavar="TAG_ID", help="remove a named range by ID")

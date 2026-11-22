@@ -144,6 +144,18 @@ choose **Deselect**. **Erase selected pixels** makes the rectangle transparent i
 are temporary. If the underlying frame changes while you edit, reopen the editor to start
 from the current image.
 
+Choose **Reprocess frame** to compare the current artwork with a fresh pass from the retained
+master PNG. The comparison uses the saved cell and placement, and the recorded palette and
+grid or painted-art scale. Choose **Edges only** under **Green spill cleanup** to preserve
+green in the interior. **Highlight changes** marks the exact pixels that differ.
+**Apply as replacement** saves a version in replacement history. If the inputs change during
+review, choose **Compare again** before applying it.
+
+Single-frame reprocessing needs the retained selected master and its processing record.
+For mirrored or flow clips, use the existing clip reprocessing command. For inserted frames,
+use the pixel editor or PNG replacement. A pixel-art pass uses the recorded palette and grid
+with the selected frame alone, so its colour choices can differ from batch processing across frames.
+
 Run **QA** after changing artwork or playback, then re-export the action or character.
 Action sheets, previews, Aseprite files, and the SpriteWaffle character atlas metadata carry
 the edited frames and timing. Aseprite uses RGBA for replacements. Character export keeps any
@@ -184,6 +196,13 @@ channels range from 0 to 255. HTTP reads the snapshot from `GET /api/jobs/{chara
 with the same query parameters and a `frame` ID. POST the patch to the timeline with `operation: "paint"`
 and `frame`. MCP exposes `timeline_pixels` with optional `include_pixels` and `edit_timeline_frame`
 with the same `paint` operation.
+
+For reprocessing, choose a frame and run `--preview-reprocess --despill edge`. Use the returned
+`fingerprint` with `--apply-reprocess FINGERPRINT --despill edge`. HTTP reads the comparison at
+`GET /api/jobs/{character}/{job}/timeline/reprocess` with the same query parameters plus `frame`
+and `despill`. POST `operation: "reprocess"` with `frame`, `fingerprint`, and `despill`. MCP exposes
+`preview_frame_reprocess` and the same `reprocess` edit. Set `include_png` to include the two
+base64 PNGs and their change mask in the MCP comparison response.
 
 ## Workflows
 

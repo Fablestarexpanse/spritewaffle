@@ -66,6 +66,15 @@ tag's last-to-first transition using the steps within that tag. The action and c
 receipts include tag changes. Both Aseprite outputs retain the default tag and add the
 named ranges. Their JSON uses clip-relative positions, and the manifest groups tags by view.
 
+Selective reprocessing maps a timeline slot to the retained master using the processed
+set's source index. It reuses the painted-art premultiplied scale or the pixelizer with a
+locked grid and palette, then applies the recorded placement. Pixel-art batch hysteresis
+across frames is outside a one-frame pass. Comparison responses render two images and an
+optional exact change mask in memory. The fingerprint binds the master, processing record,
+profile settings used, and effective artwork. Apply rebuilds the candidate under the timeline
+lock and checks the inputs before activating a replacement. An identical result creates no
+version. Subsequent QA and exports read the replacement through the normal timeline path.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA

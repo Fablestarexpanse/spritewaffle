@@ -35,6 +35,9 @@
 - Added named animation ranges with independent loop or play-once preview. Tags follow frame
   IDs, contribute loop seam findings to QA, and export in Aseprite and JSON alongside the
   default animation.
+- Added local reprocessing of selected frames with a before-and-after comparison, green spill
+  controls, and exact changed-pixel highlighting. Applying saves a reversible version and
+  rejects a comparison whose retained master, processing record, or artwork has changed.
 
 ## 2026-11-21: directional sprite readiness
 

@@ -220,11 +220,11 @@ def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> tu
     return result, unavailable
 
 
-def _source_for(root: Path, frame_set: Path, sources: list[Path], state: dict, name: str | None) -> Path:
+def _selected_frame(root: Path, frame_set: Path, sources: list[Path], state: dict, name: str | None) -> Frame:
     items, unavailable = _frames(root, frame_set, sources, state)
     for frame in items:
         if frame.id == name:
-            return frame.source
+            return frame
     raise FileNotFoundError(unavailable.get(name, f"Frame {name or '(unspecified)'} is unavailable in this timeline."))
 
 
@@ -374,14 +374,20 @@ def _pixel_snapshot(root: Path, frame_set: Path, source: Path, edit: dict) -> tu
         return image.convert("RGBA"), source_digest, fingerprint
 
 
+def frame_artwork(root: Path, frame_set: Path, frame: str) -> tuple[Frame, Image.Image, str, str]:
+    """Read a frame's effective image, source digest, and current image fingerprint."""
+    state = _state(_edit_directory(root, frame_set) / "timeline.json")
+    selected = _selected_frame(root, frame_set, colour_frames(frame_set / "frames"), state, frame)
+    image, source_digest, fingerprint = _pixel_snapshot(root, frame_set, selected.source, state["frames"].get(frame, {}))
+    return selected, image, source_digest, fingerprint
+
+
 def describe_pixels(root: Path, frame_set: Path, frame: str, *, include_pixels: bool = True) -> dict:
     """Read a draft source and the fingerprint required to save changes to it."""
     from . import job_palette
     from .job import Job
 
-    state = _state(_edit_directory(root, frame_set) / "timeline.json")
-    source = _source_for(root, frame_set, colour_frames(frame_set / "frames"), state, frame)
-    image, _, fingerprint = _pixel_snapshot(root, frame_set, source, state["frames"].get(frame, {}))
+    _, image, _, fingerprint = frame_artwork(root, frame_set, frame)
     palette = (job_palette.get(Job(root)) or {}).get("colours", [])
     view = {"width": image.width, "height": image.height, "fingerprint": fingerprint, "palette": palette}
     if include_pixels:
@@ -505,7 +511,7 @@ def _edit_order(root: Path, frame_set: Path, state: dict, sources: list[Path], n
 
 
 def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], name: str | None, operation: str, value) -> bool:
-    source = _source_for(root, frame_set, sources, state, name)
+    source = _selected_frame(root, frame_set, sources, state, name).source
     edits = state["frames"]
     edit = edits.get(name, {})
     history = _history(edit)
@@ -519,8 +525,24 @@ def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], n
     elif operation == "restore":
         edit.pop("replacement", None)
     else:
-        active = (_paint(root, frame_set, source, edit, value) if operation == "paint" else
-                  _select_replacement(root, frame_set, source, history, operation, value))
+        if operation == "paint":
+            active = _paint(root, frame_set, source, edit, value)
+        elif operation == "reprocess":
+            from . import frame_repair
+
+            if not isinstance(value, dict) or not isinstance(value.get("fingerprint"), str):
+                raise ValueError("Compare the reprocessed frame before applying it.")
+            draft = frame_repair.prepare(root, frame_set, name, value.get("despill", "profile"))
+            if value["fingerprint"] != draft.fingerprint:
+                raise RuntimeError(frame_repair.STALE)
+            if not draft.changed_pixels:
+                return False
+            draft.require_current_inputs()
+            digest = _store_png(root, frame_set, draft.candidate)
+            draft.require_current_inputs()
+            active = {"digest": digest, "source": draft.source_digest}
+        else:
+            active = _select_replacement(root, frame_set, source, history, operation, value)
         if active is None:
             return False
         edit["replacement"] = active
@@ -607,7 +629,7 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
     from . import manifest
     from .job import Job
 
-    if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback"):
+    if operation not in (*ORDER_OPERATIONS, *TAG_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback", "reprocess"):
         raise ValueError("Unknown timeline operation.")
     if operation not in (*TAG_OPERATIONS, "undo", "redo", "playback") and (
         not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|(?:copy|insert)-[1-9][0-9]*)", name) is None

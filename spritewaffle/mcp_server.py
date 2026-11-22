@@ -187,18 +187,29 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return timeline.describe_pixels(job.root, directory, frame, include_pixels=include_pixels)
 
     @mcp.tool()
+    def preview_frame_reprocess(character: str, job_id: str, facing: str, action: str, frame: str,
+                                frame_set: str = "12f", despill: str = "profile", include_png: bool = False) -> dict:
+        """Compare one retained frame locally. Optionally include the two images as base64 PNGs."""
+        from .core import frame_repair, timeline
+
+        job = job_for(character, job_id)
+        directory = timeline.directory(job.root, facing, action, frame_set)
+        return frame_repair.preview(job.root, directory, frame, despill=despill, include_png=include_png)
+
+    @mcp.tool()
     def edit_timeline_frame(character: str, job_id: str, facing: str, action: str, operation: str,
                             frame: str | None = None, frame_set: str = "12f",
                             duration_ms: int | None = None, png_path: str | None = None,
                             version: int | None = None, position: int | None = None,
                             fingerprint: str | None = None, pixels: list[list[StrictInt]] | None = None,
-                            playback: dict | None = None, tag_id: str | None = None, tag: dict | None = None) -> dict:
+                            playback: dict | None = None, tag_id: str | None = None, tag: dict | None = None,
+                            despill: str = "profile") -> dict:
         """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
         Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
         Insert takes a PNG path and inserts after frame. Insert_blank adds a transparent frame.
         Remove hides a frame. Undo and redo reverse sequence edits.
         Save_tag takes name, start_frame, end_frame, loop in tag, with a tag_id to update.
-        Remove_tag uses tag_id."""
+        Remove_tag uses tag_id. Reprocess applies a comparison with its fingerprint and despill mode."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
@@ -214,6 +225,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             value = position
         elif operation == "paint":
             value = {"fingerprint": fingerprint, "pixels": pixels}
+        elif operation == "reprocess":
+            value = {"fingerprint": fingerprint, "despill": despill}
         elif operation == "playback":
             value = playback
         elif operation == "save_tag":

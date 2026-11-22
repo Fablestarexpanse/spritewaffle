@@ -67,10 +67,13 @@ def _fallback_grid(frames: list[np.ndarray], target_height: int | None) -> tuple
     return gridmod.Grid(size=s, confident=False, source="fallback"), s / s_float
 
 
-def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams()) -> PixelResult:
+def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams(), *,
+             locked_grid: tuple[gridmod.Grid, float] | None = None) -> PixelResult:
     rgba = [_ensure_rgba(f, p.speck_px, p.despill) for f in frames]
 
-    if p.pixel_size:
+    if locked_grid is not None:
+        g, scale = locked_grid
+    elif p.pixel_size:
         g = gridmod.Grid(size=p.pixel_size, ox=p.grid_offset[0], oy=p.grid_offset[1], source="override")
         scale = 1.0
     else:

@@ -81,7 +81,7 @@ def _facing_mirrors(job: Job) -> dict[str, str]:
     return out
 
 
-def _downscale(rep: dict, placement: dict | None, profile: GameProfile, mirrored_from: str | None) -> dict:
+def downscale_record(rep: dict, placement: dict | None, profile: GameProfile, mirrored_from: str | None = None) -> dict:
     method = rep.get("method") or ("smooth" if rep.get("style") and rep.get("style") != "pixel" and not rep.get("grid") else "pixelize")
     return {"method": method, "flip": bool(mirrored_from), "grid": rep.get("grid"), "scale": rep.get("scale"),
             "style": rep.get("style") or "pixel", "palette": rep.get("palette") or [], "cell": rep.get("cell"),
@@ -132,9 +132,9 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         downscale = None
         if k is not None:
             place = places[k] if k < len(places) else None
-            downscale = (_mirror_record(_downscale(src_rep, src_places[k] if k < len(src_places) else None, profile, None),
+            downscale = (_mirror_record(downscale_record(src_rep, src_places[k] if k < len(src_places) else None, profile),
                                         place, rep.get("cell"))
-                         if src_facing else _downscale(rep, place, profile, None))
+                         if src_facing else downscale_record(rep, place, profile))
         out.append({"view_index": angles.view_index(yaw, vc), "frame": position, "yaw_degrees": yaw,
                     **({"frame_id": edit.id, "source_frame": edit.source_id} if reordered else {}),
                     **({"inserted": True} if edit.inserted else {}),
