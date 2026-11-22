@@ -474,8 +474,26 @@ spritewaffle tileset export --job meadow/v1
 ```
 
 `tileset inspect` reports the grid and export status. Add `--clear` to a collision command
-to remove the rectangle. The MCP `tileset` tool offers the same four operations. The HTTP
-base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, and `export` POST routes.
+to remove the rectangle. The MCP `tileset` tool offers the same operations. The HTTP
+base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, `terrain`, `preview`,
+and `export` POST routes.
+
+#### Terrain transitions
+
+Save a list of terrain names, select a tile, and assign its four corners. A grass tile
+has Grass on all four corners. A tile transitioning from grass on the left to water on
+the right has Grass, Water, Water, Grass in top-left, top-right, bottom-right, bottom-left order.
+
+Use **Fill preview** and **Paint cell** to try the rules on an 8 × 6 map. Adjacent cells
+share corners, and the map picks the lowest matching tile ID when several tiles have the
+same corners. Dashed cells need a matching tile. The preview stays in the browser tab,
+including through reloads. Export saves the authored rule set in both metadata formats.
+
+CLI `tileset terrain --job meadow/v1 --file terrain.json` reads a `colors` list and a `tiles`
+object keyed by tile ID. Each tile has four corner names or `null` in the order above.
+`tileset preview --job meadow/v1 --file vertices.json` takes a rectangular array of corner
+names or `null` and reports tile IDs and missing cell coordinates. A 9 × 7 vertex grid
+produces the same 8 × 6 preview size as the browser.
 
 ### Prop (sprite stacking)
 

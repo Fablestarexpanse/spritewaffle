@@ -31,6 +31,7 @@ function paneTileset() {
         <p class="warn" id="tileError" role="alert" hidden></p>
       </div>
     </div>
+    <div id="terrainPanel" hidden></div>
   </section>`;
   const root = pane.querySelector("#tileWorkspace");
   const find = selector => root.querySelector(selector);
@@ -38,6 +39,7 @@ function paneTileset() {
   const solid = find("#tileSolid"), selection = find("#tileSelection"), exportButton = find("#tileExport");
   const image = new Image();
   let state, active = 0, scale = 1;
+  const terrain = bindTilesetTerrain(find("#terrainPanel"), route, request, image, result => render(result));
   const keys = ["tile_width", "tile_height", "margin", "spacing"];
   const names = {"tiles.png": "PNG", "tileset.json": "SpriteWaffle JSON", "tileset.tsj": "Tiled TSJ"};
   const states = {current: "Export current", stale: "Export stale", incomplete: "Export incomplete", untracked: "Export untracked"};
@@ -82,12 +84,14 @@ function paneTileset() {
     selection.value = id;
     solid.checked = state.tileset.solid_tiles.includes(id);
     find("#tileEmpty").textContent = state.tileset.empty_tiles.includes(id) ? "Transparent tile" : "";
+    terrain.selectTile(id);
     redraw();
   }
 
   function render(result, loadGrid = false) {
     state = result;
     const record = result.tileset;
+    terrain.sync(result);
     find("#tileControls").hidden = !record;
     find("#tileExportRow").hidden = !record;
     find("#tileImportHint").hidden = !record;
@@ -121,6 +125,7 @@ function paneTileset() {
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
     redraw();
+    terrain.draw();
   };
   image.onerror = () => error("The retained PNG could not be displayed. Import it again.");
   canvas.onclick = event => {

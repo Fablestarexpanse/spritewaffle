@@ -264,6 +264,11 @@
   #tileSelection { max-width: 8rem; }
   .tileset-workspace [hidden], [data-generation-option][hidden] { display: none; }
   @media (max-width: 720px) { .tileset-workspace { grid-template-columns: minmax(0, 1fr); } }
+  #terrainPanel { margin-top: 1.4rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  #terrainCorners .field { min-width: 0; }
+  #terrainCorners select, #terrainNames { width: 100%; }
+  #terrainCanvas { display: block; max-width: 100%; height: auto; cursor: crosshair; image-rendering: pixelated; }
+  #terrainCell { max-width: 5rem; }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
@@ -507,6 +512,7 @@
 </dialog>
 <div id="toasts"></div>
 
+<script src="/static/tileset_terrain.js"></script>
 <script src="/static/tileset.js"></script>
 <script>
 "use strict";

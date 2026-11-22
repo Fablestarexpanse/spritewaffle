@@ -91,3 +91,65 @@ def test_tileset_cli_mcp_preserve_empty_ids_and_import_history(tmp_path, monkeyp
     assert source.read_bytes() == file.read_bytes()
     assert replacement["export"]["status"] == "stale"
     assert tileset.inspect(job)["tileset"]["grid"]["columns"] == 4
+
+
+def test_terrain_preview_matches_shared_corners_and_exports_wang_ids(tmp_path):
+    from base64 import b64encode
+
+    route = "/api/jobs/ground/one/tileset"
+    grid = {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1}
+    ground = {"colors": ["Grass", "Water"], "tiles": {"0": ["Grass"] * 4,
+              "1": ["Grass", "Water", "Water", "Grass"]}}
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        assert client.post("/api/jobs", json={"character": "ground", "job_id": "one", "asset_type": "tileset"}).is_success
+        first = client.post(route + "/import", json={"data": b64encode(atlas_bytes()).decode("ascii"),
+                            "filename": "ground.png", "grid": grid}).json()
+        assert client.post(route + "/export").json()["export"]["status"] == "current"
+        saved = client.post(route + "/terrain", json={"terrain": ground, "revision": first["revision"]})
+        assert saved.status_code == 200
+        assert saved.json()["tileset"]["terrain"] == ground and saved.json()["export"]["status"] == "stale"
+        assert client.post(route + "/terrain", json={"terrain": ground, "revision": "old"}).status_code == 400
+        bad = client.post(route + "/terrain", json={"terrain": ground | {"colors": ["Grass"]}})
+        assert bad.status_code == 400 and "Water" in bad.json()["detail"]
+        assert client.get(route).json()["tileset"]["terrain"] == ground
+
+        vertices = [["Grass", "Grass", "Water", "Water"], ["Grass", "Grass", "Water", "Water"]]
+        preview = client.post(route + "/preview", json={"vertices": vertices}).json()
+        assert preview == {"width": 3, "height": 1, "tiles": [[0, 1, None]], "missing": [[2, 0]]}
+        blank = client.post(route + "/preview", json={"vertices": [[None, None], [None, None]]}).json()
+        assert blank["tiles"] == [[None]] and not blank["missing"]
+        assert client.post(route + "/preview", json={"vertices": [["Grass", "Grass"], ["Grass"]]}).status_code == 400
+
+        exported = client.post(route + "/export").json()
+        native, tiled = (client.get(exported["files"][f"tileset.{ext}"]).json() for ext in ("json", "tsj"))
+        assert native["terrain"] == ground
+        rules, = tiled["wangsets"]
+        assert rules["type"] == "corner" and [color["name"] for color in rules["colors"]] == ["Grass", "Water"]
+        assert rules["wangtiles"] == [{"tileid": 0, "wangid": [0, 1, 0, 1, 0, 1, 0, 1]},
+                                      {"tileid": 1, "wangid": [0, 2, 0, 2, 0, 1, 0, 1]}]
+
+
+def test_terrain_cli_mcp_and_reimport_share_tile_assignments(tmp_path, monkeypatch, capsys):
+    from spritewaffle import cli
+    from spritewaffle.core import tileset
+    from spritewaffle.mcp_server import build
+    from test_mcp import call, text
+
+    base = tmp_path / "jobs"
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(base))
+    job = tileset.create(base, "terrain", "one")
+    grid = {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1}
+    atlas = atlas_bytes()
+    tileset.import_bytes(job, atlas, "atlas.png", grid)
+    rules = tmp_path / "terrain.json"
+    terrain = {"colors": ["Grass"], "tiles": {"1": ["Grass"] * 4, "0": ["Grass"] * 4}}
+    rules.write_text(json.dumps(terrain), encoding="utf-8")
+    args = ["--job", "terrain/one"]
+    assert cli.main(["tileset", "terrain", *args, "--file", str(rules)]) == 0
+    assert json.loads(capsys.readouterr().out)["tileset"]["terrain"] == terrain
+    assert tileset.import_bytes(job, atlas, "atlas.png", grid)["tileset"]["terrain"] == terrain
+
+    mcp, _ = build(base)
+    params = {"character": "terrain", "job_id": "one"}
+    actual = text(call(mcp, "tileset", **params, operation="preview", vertices=[["Grass"] * 2] * 2))
+    assert actual["tiles"] == [[0]] and actual["missing"] == []

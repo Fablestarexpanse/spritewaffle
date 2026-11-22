@@ -389,6 +389,22 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
+    @app.post("/api/jobs/{char}/{jid}/tileset/terrain")
+    def update_tileset_terrain(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.update_terrain(j, body.get("terrain"), body.get("revision")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/preview")
+    def preview_tileset_terrain(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset.preview(j, body.get("vertices"), body.get("revision"))
+        except (ValueError, OSError) as error:
+            bad(error)
+
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):
         j = job_or_404(char, jid)

@@ -23,7 +23,7 @@ setup         doctor, profile, project-style, project-palette, project-reference
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
-tilesets      tileset import -> tileset collision -> tileset export
+tilesets      tileset import -> tileset collision / terrain / preview -> tileset export
 video->art    run (all of): extract, sheet, select, pixelize, qa, export
 motion lib    motion, transfer (TARA), flow (pixel-exact)          [experimental]
 services      ui (web app), worker, queue, mcp
@@ -80,6 +80,11 @@ def cmd_tileset(a):
             result = tileset.collision(job, a.tile, not a.clear)
         elif a.operation == "export":
             result = tileset.export(job)
+        elif a.operation in ("terrain", "preview"):
+            if not a.file:
+                raise ValueError("Pass --file with JSON terrain rules or preview vertices.")
+            data = json.loads(Path(a.file).read_text(encoding="utf-8"))
+            result = tileset.update_terrain(job, data) if a.operation == "terrain" else tileset.preview(job, data)
         else:
             result = tileset.inspect(job)
     _print(result)
@@ -653,9 +658,9 @@ def build() -> argparse.ArgumentParser:
     ACTION = (("--action",), {"required": True, "help": "idle, walk, run, attack, jump"})
     OPT_FACING = (("--facing",), {"choices": FACINGS, "help": "default: the job's last facing"})
     OPT_ACTION = (("--action",), {"help": "default: the job's last action"})
-    cmd("tileset", cmd_tileset, "import, inspect, mark collision, or export a local tileset",
-        (("operation",), {"choices": ("import", "inspect", "collision", "export")}), JOB,
-        (("--file",), {"help": "source PNG for import"}),
+    cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
+        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "preview", "export")}), JOB,
+        (("--file",), {"help": "source PNG for import, JSON for terrain or preview"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),

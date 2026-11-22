@@ -381,11 +381,14 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def tileset(character: str, job_id: str, operation: str = "inspect", path: str | None = None,
                 grid: dict | None = None, tile: int | None = None, solid: bool = True,
-                revision: str | None = None) -> dict:
-        """Import, inspect, mark collision, or export a local PNG tileset.
+                revision: str | None = None, terrain: dict | None = None,
+                vertices: list[list[str | None]] | None = None) -> dict:
+        """Import, inspect, edit, preview, or export a local PNG tileset.
 
         Import takes a local path and grid with tile_width, tile_height, margin and spacing.
         Collision takes a zero-based tile ID and solid true or false. Pass a revision to guard edits.
+        Terrain takes colors (named terrains) and tiles (ID keys with NW, NE, SE, SW names or null).
+        Preview resolves cells from a rectangular vertex lattice of terrain names or null.
         Export writes the PNG and two metadata files to the job's 06_export/tileset folder.
         """
         from .core import tileset as workspace
@@ -402,7 +405,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             return workspace.collision(job, tile, solid, revision)
         if operation == "export":
             return workspace.export(job)
-        raise ValueError("Choose import, inspect, collision, or export.")
+        if operation == "terrain":
+            return workspace.update_terrain(job, terrain, revision)
+        if operation == "preview":
+            return workspace.preview(job, vertices, revision)
+        raise ValueError("Choose import, inspect, collision, terrain, preview, or export.")
 
     @mcp.tool()
     def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,

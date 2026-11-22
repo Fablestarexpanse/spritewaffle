@@ -1,6 +1,7 @@
 """Local, source-preserving tilesets with a rectangular atlas and per-tile collision."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -10,7 +11,7 @@ import re
 from PIL import Image
 
 from ..export import receipt
-from . import fsutil
+from . import fsutil, terrain
 from .job import Job
 
 TYPE = "tileset"
@@ -62,6 +63,8 @@ def _read(directory: Path) -> dict | None:
         ids = record.get(key)
         if not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < grid["columns"] * grid["rows"] for i in ids):
             raise ValueError("The stored tile IDs are invalid.")
+    if "terrain" in record:
+        record["terrain"] = terrain.normalize(record["terrain"], grid["columns"] * grid["rows"])
     return record
 
 
@@ -125,6 +128,8 @@ def import_bytes(job: Job, data: bytes, filename: str, values: dict) -> dict:
         previous = _read(directory)
         if previous and (previous["digest"], previous["grid"]) == (digest, grid):
             record["solid_tiles"] = previous["solid_tiles"]
+            if "terrain" in previous:
+                record["terrain"] = previous["terrain"]
         elif previous:
             history = directory / "history"
             history.mkdir(exist_ok=True)
@@ -144,7 +149,8 @@ def import_file(job: Job, path: Path, values: dict) -> dict:
         return import_bytes(job, source.read(MAX_BYTES + 1), path.name, values)
 
 
-def collision(job: Job, tile: int, solid: bool, revision: str | None = None) -> dict:
+@contextmanager
+def _edit(job: Job, revision: str | None):
     directory = _workspace(job)
     if not directory.is_dir():
         raise ValueError("Import a tile sheet first.")
@@ -153,20 +159,45 @@ def collision(job: Job, tile: int, solid: bool, revision: str | None = None) -> 
         if not record:
             raise ValueError("Import a tile sheet first.")
         if revision is not None and revision != _revision(record):
-            raise ValueError("The tileset changed. Reload it before editing collision.")
+            raise ValueError("The tileset changed. Reload it before editing.")
+        yield record
+        fsutil.write_text(directory / "tileset.json", json.dumps(record, indent=2))
+
+
+def collision(job: Job, tile: int, solid: bool, revision: str | None = None) -> dict:
+    with _edit(job, revision) as record:
         grid = record["grid"]
         if type(solid) is not bool or type(tile) is not int or not 0 <= tile < grid["columns"] * grid["rows"]:
             raise ValueError("Choose a tile in the grid and set collision to true or false.")
         ids = set(record["solid_tiles"])
         (ids.add if solid else ids.discard)(tile)
         record["solid_tiles"] = sorted(ids)
-        fsutil.write_text(directory / "tileset.json", json.dumps(record, indent=2))
     return inspect(job)
+
+
+def update_terrain(job: Job, rules: dict, revision: str | None = None) -> dict:
+    with _edit(job, revision) as record:
+        grid = record["grid"]
+        rules = terrain.normalize(rules, grid["columns"] * grid["rows"])
+        if rules["colors"]:
+            record["terrain"] = rules
+        else:
+            record.pop("terrain", None)
+    return inspect(job)
+
+
+def preview(job: Job, vertices: list, revision: str | None = None) -> dict:
+    record = _read(_workspace(job))
+    if record is None:
+        raise ValueError("Import a tile sheet first.")
+    if revision is not None and revision != _revision(record):
+        raise ValueError("The tileset changed. Reload it before previewing.")
+    return terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices)
 
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
     return receipt.snapshot(job.root, [_source(directory, record)],
-                            {key: record[key] for key in ("grid", "solid_tiles")})
+                            {key: record[key] for key in ("grid", "solid_tiles", "terrain") if key in record})
 
 
 def inspect(job: Job) -> dict:
@@ -214,6 +245,9 @@ def export(job: Job) -> dict:
                  "imagewidth": grid["width"], "imageheight": grid["height"], "columns": grid["columns"],
                  "tilecount": len(rects), "tilewidth": w, "tileheight": h, "margin": grid["margin"],
                  "spacing": grid["spacing"], "tiles": [{"id": i, "objectgroup": collision_layer} for i in sorted(ids)]}
+        if rules := record.get("terrain"):
+            native["terrain"] = rules
+            tiled["wangsets"] = [terrain.tiled_wangset(rules)]
         before = _snapshot(job, directory, record)
         if before["files"].get(path.relative_to(job.root).as_posix()) != record["digest"]:
             raise ValueError("The retained PNG changed during export. Import it again.")
