@@ -18,6 +18,10 @@ function showTimeline(action) {
     </div>
     <p id="tlStatus" role="status" class="muted"></p>
     <fieldset id="timelineControls" disabled hidden>
+      <section id="tlUnavailable" hidden>
+        <p class="warn" role="status">Restore or remove unavailable inserted frames before playback, QA, or export.</p>
+        <ul id="tlUnavailableList"></ul>
+      </section>
       <div class="tl-workspace">
         <div class="tl-pane">
           <div class="tl-stage">
@@ -37,6 +41,8 @@ function showTimeline(action) {
           <div id="tlStrip" role="group" aria-label="Animation frames"></div>
           <div class="row" role="group" aria-label="Frame order">
             <button id="tlDuplicate" type="button">Duplicate</button>
+            <button id="tlBlank" type="button">Insert blank after</button>
+            <button id="tlRemove" type="button">Remove frame</button>
             <button id="tlEarlier" type="button">Move earlier</button>
             <button id="tlLater" type="button">Move later</button>
             <button id="tlUndo" type="button">Undo order</button>
@@ -73,9 +79,10 @@ function showTimeline(action) {
             </div>
           </form>
           <form id="tlReplacement">
-            <div class="row"><label class="field">Replacement PNG <input id="tlFile" type="file" accept="image/png,.png" required></label></div>
+            <div class="row"><label class="field">Same-size PNG <input id="tlFile" type="file" accept="image/png,.png" required></label></div>
             <div class="row">
               <button type="submit" id="tlReplace">Replace frame</button>
+              <button type="button" id="tlInsert">Insert PNG after</button>
               <button id="tlRestore" type="button">Restore source</button>
             </div>
           </form>
@@ -100,6 +107,7 @@ function showTimeline(action) {
   const controls = find("#timelineControls"), set = find("#tlSet"), status = find("#tlStatus");
   const strip = find("#tlStrip"), preview = find("#tlPreview"), play = find("#tlPlay"), scrub = find("#tlRange");
   const duration = find("#tlDuration"), upload = find("#tlFile"), replace = find("#tlReplace");
+  const insert = find("#tlInsert"), remove = find("#tlRemove");
   const onion = find("#tlOnion"), onionKey = find("#tlOnionKey");
   const previousGhost = find("#tlPrevGhost"), nextGhost = find("#tlNextGhost");
   const history = find("#tlHistory"), version = find("#tlVersion");
@@ -167,7 +175,8 @@ function showTimeline(action) {
     selected = index;
     const frame = clip.frames[index];
     preview.src = frame.url;
-    const label = frame.id === frame.name ? "Frame " + frame.name : "Copy of " + frame.name;
+    const label = frame.id !== frame.name ? "Copy of " + frame.name :
+      frame.inserted ? "Inserted " + frame.id : "Frame " + frame.name;
     preview.alt = label;
     scrub.value = index;
     find("#tlPosition").textContent = `${index + 1} / ${clip.frames.length}`;
@@ -192,13 +201,13 @@ function showTimeline(action) {
     const playback = data.playback;
     mode.value = playback.mode;
     limited.checked = !!playback.start_frame;
-    for (const [input, current, fallback] of [[first, playback.start_frame, data.frames[0].id],
-                                              [last, playback.end_frame, data.frames.at(-1).id]]) {
+    for (const [input, current, fallback] of [[first, playback.start_frame, data.frames[0]?.id],
+                                              [last, playback.end_frame, data.frames.at(-1)?.id]]) {
       input.replaceChildren(...data.frames.map((frame, i) => new Option(`${i + 1} · ${frame.id}`, frame.id)));
       if (current && !data.frames.some(frame => frame.id === current)) {
         input.add(new Option(`Missing · ${current}`, current));
       }
-      input.value = current || fallback;
+      input.value = current || fallback || "";
       input.disabled = !limited.checked;
     }
     find("#tlWindow").textContent = playback.error ? "· Range needs repair" : limited.checked
@@ -207,33 +216,62 @@ function showTimeline(action) {
     error.textContent = playback.error || "";
     error.hidden = !playback.error;
     if (playback.error) find("#tlPlayback").open = true;
-    play.disabled = find("#tlQa").disabled = find("#tlExport").disabled = !!playback.error;
+    const blocked = !data.frames.length || !!playback.error || Object.keys(data.unavailable).length > 0;
+    play.disabled = find("#tlQa").disabled = find("#tlExport").disabled = blocked;
+  }
+
+  function displayUnavailable(data) {
+    const entries = Object.entries(data.unavailable);
+    find("#tlUnavailable").hidden = !entries.length;
+    find("#tlUnavailableList").replaceChildren(...entries.map(([id, issue]) => {
+      const item = document.createElement("li"), button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `Remove ${id}`;
+      button.onclick = () => save("remove", null, id);
+      item.append(`${id} · ${issue} `, button);
+      return item;
+    }));
   }
 
   function display(data, index = 0) {
     clip = data;
     controls.hidden = false;
-    scrub.max = data.frames.length - 1;
+    const noFrames = !data.frames.length;
+    scrub.max = Math.max(0, data.frames.length - 1);
+    scrub.disabled = preview.hidden = find("#tlEditor").hidden = find("#tlPlayback").hidden = noFrames;
+    find("#tlDuplicate").disabled = find("#tlBlank").disabled = noFrames;
+    remove.disabled = data.frames.length < 2;
     duration.max = data.max_duration_ms;
     upload.value = "";
-    replace.disabled = true;
-    find("#tlClipInfo").textContent = `${data.cell.join(" × ")} px · ${data.loop ? "Loop" : "One shot"} · Default ${data.default_ms} ms`;
+    replace.disabled = insert.disabled = true;
+    find("#tlClipInfo").textContent = noFrames ? "No available frames" :
+      `${data.cell.join(" × ")} px · ${data.loop ? "Loop" : "One shot"} · Default ${data.default_ms} ms`;
     find("#tlQaNote").hidden = !data.qa_needs_review;
     find("#tlUndo").disabled = !data.can_undo;
     find("#tlRedo").disabled = !data.can_redo;
+    displayUnavailable(data);
     displayPlayback(data);
     const {start, end, start_frame, error} = data.playback;
     strip.innerHTML = data.frames.map((frame, i) => {
       const inPlayback = start_frame && !error && start <= i && i <= end;
+      const kind = frame.id !== frame.name ? "copy of" : frame.inserted ? "inserted" : "frame";
+      const caption = frame.id !== frame.name ? "Copy " : frame.inserted ? "New " : "";
       return `
       <button type="button" data-tl-index="${i}" data-frame-id="${esc(frame.id)}"
         ${inPlayback ? 'data-in-playback="true"' : ""}
-        aria-label="${i + 1}, ${frame.id === frame.name ? "frame" : "copy of"} ${esc(frame.name)}, ${frame.duration_ms} ms${inPlayback ? ", in playback range" : ""}">
+        aria-label="${i + 1}, ${kind} ${esc(frame.name)}, ${frame.duration_ms} ms${inPlayback ? ", in playback range" : ""}">
         <img class="pix" src="${esc(frame.url)}" alt="">
-        ${frame.id === frame.name ? "" : "Copy "}${esc(frame.name.replace(/\.png$/, ""))} · ${frame.duration_ms} ms
+        ${caption}${esc(frame.name.replace(/\.png$/, "").replace(/^insert-/, ""))} · ${frame.duration_ms} ms
       </button>`;
     }).join("");
-    select(Math.min(index, data.frames.length - 1));
+    if (noFrames) {
+      selected = 0;
+      find("#tlEarlier").disabled = find("#tlLater").disabled = true;
+      find("#tlPosition").textContent = "";
+      paintOnion();
+    } else {
+      select(Math.min(index, data.frames.length - 1));
+    }
   }
 
   async function load() {
@@ -253,17 +291,17 @@ function showTimeline(action) {
     }
   }
 
-  async function save(operation, value) {
+  async function save(operation, value, target = clip.frames[selected]?.id) {
     stop();
     busy(true);
     message(operation === "playback" ? "Saving playback…" : "Saving frame…");
     try {
-      const body = {operation, frame: clip.frames[selected].id};
+      const body = {operation, frame: target};
       if (operation === "duration") body.duration_ms = value;
       if (operation === "activate") body.version = value;
       if (operation === "move") body.position = value;
       if (operation === "playback") body.playback = value;
-      if (operation === "replace") body.png = await new Promise((resolve, reject) => {
+      if (operation === "replace" || operation === "insert") body.png = await new Promise((resolve, reject) => {
         if (value.size > clip.max_image_bytes) return reject(new Error("Choose a PNG no larger than 32 MiB."));
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(",")[1]);
@@ -275,6 +313,7 @@ function showTimeline(action) {
       const next = data.frames.findIndex(frame => frame.id === (data.selected_frame || body.frame));
       display(data, next >= 0 ? next : selected);
       const labels = {activate: `Version ${value} applied.`, duplicate: "Frame duplicated.", move: "Frame moved.",
+                      insert: "PNG frame inserted.", insert_blank: "Blank frame inserted.", remove: "Frame removed from the sequence.",
                       undo: "Frame order change undone.", redo: "Frame order change redone.", playback: "Playback saved."};
       message(labels[operation] || "Saved.");
     } catch (error) {
@@ -333,10 +372,13 @@ function showTimeline(action) {
       message("Pixel edit saved to replacement history.");
     });
   };
-  upload.onchange = () => { replace.disabled = !upload.files.length; };
+  upload.onchange = () => { replace.disabled = insert.disabled = !upload.files.length; };
   find("#tlReplacement").onsubmit = event => { event.preventDefault(); save("replace", upload.files[0]); };
+  insert.onclick = () => save("insert", upload.files[0]);
   find("#tlRestore").onclick = () => save("restore");
   find("#tlDuplicate").onclick = () => save("duplicate");
+  find("#tlBlank").onclick = () => save("insert_blank");
+  remove.onclick = () => save("remove");
   find("#tlEarlier").onclick = () => save("move", selected - 1);
   find("#tlLater").onclick = () => save("move", selected + 1);
   find("#tlUndo").onclick = () => save("undo");

@@ -98,9 +98,17 @@ wrap on loops and stop at the ends of one-shot clips. The toggle is saved in thi
 
 Use **Duplicate**, **Move earlier**, and **Move later** to change the sequence.
 A copy starts with the selected frame's timing, artwork, and replacement history. It can
-then be edited independently. **Undo order** and **Redo order** apply to duplication and
-moves. Timing and artwork edits stay with their frame IDs. A saved effect attachment
-follows its original source frame through the sequence.
+then be edited independently. **Insert blank after** adds a transparent frame after the
+selection. QA flags it until it contains visible pixels. To add artwork, choose a single PNG at the same cell
+size and select **Insert PNG after**. The imported PNG becomes the new frame's source and
+can have its own timing and replacement history.
+
+**Remove frame** hides the selected frame and keeps at least one frame in the sequence.
+**Undo order** and **Redo order** apply to insertion, removal, duplication, and moves.
+Timing and artwork edits stay with their frame IDs. An effect attached to a removed frame
+is omitted from export until that frame returns. If an inserted PNG goes missing, changes
+on disk, or no longer fits a resized cell, restore the file or remove its entry before
+running QA or exporting.
 
 Open **Playback settings** to choose **Use source**, **Loop**, or **Play once**. To
 play a smaller section, enable **Limit playback range**, choose its first and last frames,
@@ -137,13 +145,16 @@ clips keep their preview export behavior until a playback override is saved.
 
 Use `spritewaffle timeline --job hero/job --facing S --action walk` to read a timeline.
 To edit, add `--frame 001.png` and one of `--duration 160`, `--reset-duration`,
-`--replace repair.png`, `--restore`, `--use-version 1`, `--duplicate`, or `--move-to 0`.
-Copies have IDs such as `copy-1`. Move positions count from zero. Use `--undo-order` and
+`--replace repair.png`, `--restore`, `--use-version 1`, `--duplicate`, `--move-to 0`,
+`--insert artwork.png`, `--insert-blank`, or `--remove`. Copies use IDs such as `copy-1`
+and inserted frames use IDs such as `insert-1`. Move positions count from zero. Use `--undo-order` and
 `--redo-order` to change the sequence history. MCP exposes
 `animation_timeline` and `edit_timeline_frame`. The HTTP route is
 `GET` or `POST /api/jobs/{character}/{job}/timeline`. Use operation `activate` with a
 one-based `version` to reuse history. The order operations are `duplicate`, `move`
 with a zero-based `position`, `undo`, and `redo`.
+Use `insert` with the anchor `frame` and `png` (HTTP base64) or `png_path` (MCP).
+`insert_blank` uses the same anchor. `remove` accepts the frame to hide.
 
 For playback, pass `--playback once --range-start 001.png --range-end 004.png`.
 Pass `--playback source` without endpoints to restore the source setting and the full clip.

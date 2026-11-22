@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from . import timeline
 from .job import Job
 
 DIRECTION = {"E": (1, 0), "W": (-1, 0), "S": (0, 1), "N": (0, -1),
@@ -78,18 +79,16 @@ def event(att: dict, fps_effect: int) -> dict:
             "effect_fps": fps_effect}
 
 
-def for_timeline(att: dict, items) -> dict | None:
+def for_timeline(att: dict, clip: timeline.Clip) -> dict | None:
     """Resolve one event to the original slot in the current sequence."""
-    from . import timeline
     source_name = att.get("source_frame")
     if source_name is None:
-        if not timeline.order_signature(items):
+        if not clip.order:
             return att
-        sources = sorted({f.source.name for f in items})
-        if not 0 <= att["frame"] < len(sources):
+        if not 0 <= att["frame"] < len(clip.sources):
             return None
-        source_name = sources[att["frame"]]
-    position = next((i for i, f in enumerate(items) if f.id == source_name), None)
+        source_name = clip.sources[att["frame"]].name
+    position = next((i for i, f in enumerate(clip.items) if f.id == source_name), None)
     return {**att, "frame": position} if position is not None else None
 
 
@@ -141,11 +140,13 @@ def preview(job: Job, facing: str, action: str, frame_set: str = "12f", fps: int
     if not att:
         raise FileNotFoundError("no effect attached to this animation")
     sd = job.root / "04_pixel" / facing / action / frame_set
-    from . import timeline
-    items = timeline.frames(job.root, sd)
+    clip = timeline.read_clip(job.root, sd)
+    if clip.unavailable:
+        raise ValueError(clip.error)
+    items = clip.items
     if not items:
         raise FileNotFoundError(f"{action} {facing} has no {frame_set} frames yet")
-    att = for_timeline(att, items)
+    att = for_timeline(att, clip)
     if att is None:
         raise ValueError("The attached effect's source frame is missing.")
     fx, meta, _ = effect_files(job.root.parent.parent / att["effect_job"])

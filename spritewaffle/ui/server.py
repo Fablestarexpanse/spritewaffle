@@ -655,7 +655,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             directory = timeline.directory(j.root, facing, action, frame_set)
             operation = body.get("operation")
             value = body.get("duration_ms")
-            if operation == "replace":
+            if operation in ("replace", "insert"):
                 encoded = body.get("png")
                 if not isinstance(encoded, str) or len(encoded) > 4 * ((timeline.MAX_IMAGE_BYTES + 2) // 3):
                     raise ValueError("Choose a PNG no larger than 32 MiB.")

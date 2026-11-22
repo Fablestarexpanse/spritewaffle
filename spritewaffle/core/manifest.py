@@ -97,15 +97,15 @@ def _mirror_record(source: dict, placement: dict | None, cell) -> dict:
 
 
 def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, elev: float, profile: GameProfile,
-               align: bool, source_loop: bool) -> tuple[list[dict], timeline.Playback]:
+               align: bool, source_loop: bool) -> tuple[list[dict], timeline.Clip]:
     sd = job.root / "04_pixel" / facing / action / f"{n}f"
     frames = colour_frames(sd / "frames")
-    items, playback = timeline.read_clip(job.root, sd, frames, source_loop=source_loop)
-    if not frames:
-        return [], playback
+    clip = timeline.read_clip(job.root, sd, frames, source_loop=source_loop)
+    if not clip.items:
+        return [], clip
     aligned = colour_frames(sd / "frames_aligned") if align else []
     use = aligned if len(aligned) == len(frames) else frames
-    reordered = bool(timeline.order_signature(items))
+    reordered = bool(clip.order)
     source_indices = {frame: index for index, frame in enumerate(frames)}
     pts = _footpoints(sd / ("frames_aligned" if use is aligned and aligned else "frames"), use)
     places = json.loads((sd / "placements.json").read_text()) if (sd / "placements.json").exists() else []
@@ -119,31 +119,37 @@ def _frame_set(job: Job, facing: str, action: str, n: str, rep: dict, vc: int, e
         src_places = json.loads(pf.read_text()) if pf.exists() else []
     yaw = angles.yaw_of(facing)
     out = []
-    for position, edit in enumerate(items):
-        k = source_indices[edit.source]
-        f = use[k]
-        foot = pts[k] if k < len(pts) else None
-        maps = _maps(job, frames[k])
-        if edit.replaced:
+    for position, edit in enumerate(clip.items):
+        k = source_indices.get(edit.source)
+        f = use[k] if k is not None else edit.source
+        foot = pts[k] if k is not None and k < len(pts) else None
+        maps = {"depth": None, "normal": None}
+        if edit.replaced or edit.inserted:
             foot = layout.foot_point(timeline.pixels([edit.image])[0])
-            maps = {"depth": None, "normal": None}
+        elif k is not None:
+            maps = _maps(job, frames[k])
+        mirrored = bool(src_facing and not (edit.replaced or edit.inserted))
+        downscale = None
+        if k is not None:
+            place = places[k] if k < len(places) else None
+            downscale = (_mirror_record(_downscale(src_rep, src_places[k] if k < len(src_places) else None, profile, None),
+                                        place, rep.get("cell"))
+                         if src_facing else _downscale(rep, place, profile, None))
         out.append({"view_index": angles.view_index(yaw, vc), "frame": position, "yaw_degrees": yaw,
-                    **({"frame_id": edit.id, "source_frame": edit.source.name} if reordered else {}),
+                    **({"frame_id": edit.id, "source_frame": edit.source_id} if reordered else {}),
+                    **({"inserted": True} if edit.inserted else {}),
                     "camera_elevation_degrees": elev, "view_count": vc,
-                    "mirrored": bool(src_facing and not edit.replaced),
-                    "source_view_index": angles.view_index(angles.yaw_of(src_facing), vc)
-                    if src_facing and not edit.replaced else None,
+                    "mirrored": mirrored,
+                    "source_view_index": angles.view_index(angles.yaw_of(src_facing), vc) if mirrored else None,
                     "foot_point": foot,
                     "color": _rel(job, edit.image if edit.replaced else f),
-                    "color_unaligned": _rel(job, frames[k]) if use is aligned and not edit.replaced else None,
+                    "color_unaligned": _rel(job, frames[k]) if k is not None and use is aligned and not edit.replaced else None,
                     **maps,
                     **({"duration_ms": edit.duration_ms} if edit.duration_ms is not None else {}),
                     **({"color_source": _rel(job, f)} if edit.replaced else {}),
-                    "master": _rel(job, masters[k]) if k < len(masters) else None,
-                    "downscale": (_mirror_record(_downscale(src_rep, src_places[k] if k < len(src_places) else None, profile, None),
-                                                 places[k] if k < len(places) else None, rep.get("cell"))
-                                  if src_facing else _downscale(rep, places[k] if k < len(places) else None, profile, None))})
-    return out, playback
+                    "master": _rel(job, masters[k]) if k is not None and k < len(masters) else None,
+                    "downscale": downscale})
+    return out, clip
 
 
 def build(job: Job) -> dict:
@@ -176,16 +182,18 @@ def build(job: Job) -> dict:
         for n in sorted(rep.get("sets") or {}, key=int):
             a = anims.setdefault((action, f"{n}f"), {"action": action, "frame_set": f"{n}f", "fps": profile.fps(action),
                                                      "loop": bool(loop), "frames": []})
-            frames, playback = _frame_set(job, facing, action, n, rep, vc, elev, profile,
-                                          bool(inputs.get("align_feet")), bool(loop))
+            frames, clip = _frame_set(job, facing, action, n, rep, vc, elev, profile,
+                                      bool(inputs.get("align_feet")), bool(loop))
             a["frames"] += frames
-            if saved := playback.signature():
-                view = str(angles.view_index(angles.yaw_of(facing), vc))
+            view = str(angles.view_index(angles.yaw_of(facing), vc))
+            if saved := clip.playback.signature():
                 a.setdefault("playback_by_view", {})[view] = saved
+            if clip.unavailable:
+                a.setdefault("unavailable_frames_by_view", {})[view] = clip.unavailable
     for a in anims.values():
         a["frames"].sort(key=lambda f: (f["yaw_degrees"], f["frame"]))
         a["views"] = sorted({f["view_index"] for f in a["frames"]})
-    cell = next((f["downscale"]["cell"] for a in anims.values() for f in a["frames"] if f["downscale"].get("cell")), profile.cell_size)
+    cell = next((f["downscale"]["cell"] for a in anims.values() for f in a["frames"] if (f["downscale"] or {}).get("cell")), profile.cell_size)
     return {"schema_version": SCHEMA_VERSION,
             "asset_id": f"{meta['character']}/{meta['job_id']}", "project_id": camera.project(base)["id"],
             "asset_type": inputs.get("asset_type", "character"), "style": inputs.get("style") or "pixel",

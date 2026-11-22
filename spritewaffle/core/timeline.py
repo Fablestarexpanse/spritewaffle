@@ -19,7 +19,7 @@ from . import fsutil
 
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_DURATION_MS = 65_535                  # Aseprite stores frame durations as unsigned 16-bit integers.
-ORDER_OPERATIONS = ("duplicate", "move", "undo", "redo")
+ORDER_OPERATIONS = ("duplicate", "move", "insert", "insert_blank", "remove", "undo", "redo")
 PLAYBACK_MODES = ("source", "loop", "once")
 STALE_PIXELS = "The frame changed after the editor opened. Close and reopen the editor to load the current frame."
 
@@ -31,10 +31,19 @@ class Frame:
     image: Path
     duration_ms: int | None = None
     conflict: bool = False
+    insertion_id: str | None = None
 
     @property
     def replaced(self) -> bool:
         return self.image != self.source
+
+    @property
+    def inserted(self) -> bool:
+        return self.insertion_id is not None
+
+    @property
+    def source_id(self) -> str:
+        return self.insertion_id or self.source.name
 
 
 @dataclass(frozen=True)
@@ -54,9 +63,28 @@ class Playback:
     def signature(self) -> dict:
         return asdict(self) if self.mode != "source" or self.start_frame is not None else {}
 
+
+@dataclass(frozen=True)
+class Clip:
+    items: list[Frame]
+    sources: list[Path]
+    playback: Playback
+    unavailable: dict[str, str]
+
+    @property
+    def order(self) -> list[str]:
+        order = [frame.id for frame in self.items]
+        return order if order != [source.name for source in self.sources] else []
+
+    @property
+    def error(self) -> str | None:
+        if self.unavailable:
+            return "Restore or remove unavailable inserted frames: " + ", ".join(self.unavailable) + "."
+        return self.playback.error
+
     def require_valid(self) -> None:
-        if self.error:
-            raise ValueError(self.error)
+        if error := self.error:
+            raise ValueError(error)
 
 
 def directory(root: Path, facing: str, action: str, frame_set: str) -> Path:
@@ -116,35 +144,66 @@ def _active_path(root: Path, frame_set: Path, replacement: dict | None, source_d
     return None
 
 
-def _source_for(sources: list[Path], state: dict, name: str | None) -> Path:
-    if name not in _order(sources, state):
-        raise FileNotFoundError(f"Frame {name or '(unspecified)'} is unavailable in this timeline.")
-    source_name = (state.get("copies") or {}).get(name, name)
-    for source in sources:
-        if source.name == source_name:
-            return source
-    raise FileNotFoundError(f"Frame {name} is unavailable in this timeline.")
+def _insertion_path(root: Path, frame_set: Path, digest: str, size: tuple[int, int] | None) -> tuple[Path | None, str]:
+    path = replacement_path(root, frame_set, digest)
+    if not path or not path.is_file():
+        return None, "Saved PNG is missing."
+    if _digest(path) != digest:
+        return None, "Saved PNG has changed."
+    with Image.open(path, formats=["PNG"]) as image:
+        if size is not None and image.size != size:
+            return None, f"Saved PNG no longer fits the {size[0]} × {size[1]} cell."
+    return path, ""
 
 
-def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> list[Frame]:
+def _frames(root: Path, frame_set: Path, sources: list[Path], state: dict) -> tuple[list[Frame], dict[str, str]]:
     by_name = {p.name: p for p in sources}
     copies = state.get("copies") or {}
+    removed = set(state.get("removed") or [])
+    insertions = state.get("insertions") or {}
+    imports = {}
+    size = None
+    unavailable = {}
     result = []
     for frame_id in _order(sources, state):
-        source = by_name.get(copies.get(frame_id, frame_id))
+        if frame_id in removed:
+            continue
+        source_id = copies.get(frame_id, frame_id)
+        insertion_id = source_id if source_id in insertions else None
+        if insertion_id:
+            if not imports and sources:
+                with Image.open(sources[0]) as original:
+                    size = original.size
+            if insertion_id not in imports:
+                imports[insertion_id] = _insertion_path(root, frame_set, insertions[insertion_id], size)
+            source, error = imports[insertion_id]
+            if error:
+                unavailable[frame_id] = error
+                continue
+        else:
+            source = by_name.get(source_id)
         if source is None:
             continue
         edit = state["frames"].get(frame_id, {})
         replacement = edit.get("replacement")
         active = _active_path(root, frame_set, replacement, _digest(source)) if replacement else None
-        result.append(Frame(frame_id, source, active or source, edit.get("duration_ms"), bool(replacement) and active is None))
-    return result
+        result.append(Frame(frame_id, source, active or source, edit.get("duration_ms"),
+                            bool(replacement) and active is None, insertion_id))
+    return result, unavailable
+
+
+def _source_for(root: Path, frame_set: Path, sources: list[Path], state: dict, name: str | None) -> Path:
+    items, unavailable = _frames(root, frame_set, sources, state)
+    for frame in items:
+        if frame.id == name:
+            return frame.source
+    raise FileNotFoundError(unavailable.get(name, f"Frame {name or '(unspecified)'} is unavailable in this timeline."))
 
 
 def frames(root: Path, frame_set: Path, sources: list[Path] | None = None) -> list[Frame]:
     if sources is None:
         sources = colour_frames(frame_set / "frames")
-    return _frames(root, frame_set, sources, _state(_edit_directory(root, frame_set) / "timeline.json"))
+    return _frames(root, frame_set, sources, _state(_edit_directory(root, frame_set) / "timeline.json"))[0]
 
 
 def _playback(root: Path, frame_set: Path, items: list[Frame], settings: dict, source_loop: bool | None) -> Playback:
@@ -167,28 +226,27 @@ def _playback(root: Path, frame_set: Path, items: list[Frame], settings: dict, s
     return Playback(mode, loop, 0, len(items) - 1, first, last, error)
 
 
-def read_clip(root: Path, frame_set: Path, sources: list[Path] | None = None, *,
-              source_loop: bool | None = None) -> tuple[list[Frame], Playback]:
+def _clip(root: Path, frame_set: Path, sources: list[Path], state: dict, source_loop: bool | None = None) -> Clip:
+    items, unavailable = _frames(root, frame_set, sources, state)
+    playback = _playback(root, frame_set, items, state.get("playback", {}), source_loop)
+    return Clip(items, sources, playback, unavailable)
+
+
+def read_clip(root: Path, frame_set: Path, sources: list[Path] | None = None, *, source_loop: bool | None = None) -> Clip:
     """Read the effective frames and playback from the same timeline snapshot."""
     state = _state(_edit_directory(root, frame_set) / "timeline.json")
     sources = colour_frames(frame_set / "frames") if sources is None else sources
-    items = _frames(root, frame_set, sources, state)
-    return items, _playback(root, frame_set, items, state.get("playback", {}), source_loop)
+    return _clip(root, frame_set, sources, state, source_loop)
 
 
-def replacements(items: list[Frame]) -> dict[str, str]:
-    return {frame.id: frame.image.stem for frame in items if frame.replaced}
+def alternate_images(items: list[Frame]) -> dict[str, str]:
+    return {frame.id: frame.image.stem for frame in items if frame.replaced or frame.inserted}
 
 
-def order_signature(items: list[Frame]) -> list[str]:
-    order = [f.id for f in items]
-    return order if order != sorted({f.source.name for f in items}) else []
-
-
-def qa_needs_review(report: dict, items: list[Frame], playback: Playback) -> bool:
-    return ((report.get("timeline_replacements") or {}) != replacements(items) or
-            (report.get("timeline_order") or []) != order_signature(items) or
-            (report.get("timeline_playback") or {}) != playback.signature())
+def qa_needs_review(report: dict, clip: Clip) -> bool:
+    return (bool(clip.error) or (report.get("timeline_replacements") or {}) != alternate_images(clip.items) or
+            (report.get("timeline_order") or []) != clip.order or
+            (report.get("timeline_playback") or {}) != clip.playback.signature())
 
 
 def pixels(paths: list[Path]) -> np.ndarray:
@@ -212,9 +270,9 @@ def _check_png(image: Image.Image, source: Path) -> None:
     with Image.open(source) as original:
         size = original.size
     if image.size != size:
-        raise ValueError(f"Replacement must be {size[0]} × {size[1]} pixels.")
+        raise ValueError(f"PNG must be {size[0]} × {size[1]} pixels.")
     if image.n_frames != 1:
-        raise ValueError("Choose a single-frame PNG for the replacement.")
+        raise ValueError("Choose a single-frame PNG.")
 
 
 def _png(data: bytes, source: Path) -> bytes:
@@ -226,7 +284,7 @@ def _png(data: bytes, source: Path) -> bytes:
             _check_png(image, source)
             image.convert("RGBA").save(buffer, format="PNG")
     except (OSError, Image.DecompressionBombError) as error:
-        raise ValueError("The replacement could not be read as a PNG.") from error
+        raise ValueError("The artwork could not be read as a PNG.") from error
     return buffer.getvalue()
 
 
@@ -277,7 +335,7 @@ def describe_pixels(root: Path, frame_set: Path, frame: str, *, include_pixels: 
     from .job import Job
 
     state = _state(_edit_directory(root, frame_set) / "timeline.json")
-    source = _source_for(colour_frames(frame_set / "frames"), state, frame)
+    source = _source_for(root, frame_set, colour_frames(frame_set / "frames"), state, frame)
     image, _, fingerprint = _pixel_snapshot(root, frame_set, source, state["frames"].get(frame, {}))
     palette = (job_palette.get(Job(root)) or {}).get("colours", [])
     view = {"width": image.width, "height": image.height, "fingerprint": fingerprint, "palette": palette}
@@ -322,27 +380,66 @@ def _paint(root: Path, frame_set: Path, source: Path, edit: dict, patch) -> dict
     return {"digest": digest, "source": source_digest}
 
 
-def _edit_order(state: dict, sources: list[Path], name: str | None, operation: str, value) -> str | None:
+def _order_checkpoint(state: dict) -> list | dict | None:
+    if removed := state.get("removed"):
+        return {"order": state.get("order"), "removed": removed}
+    return state.get("order")
+
+
+def _edit_order(root: Path, frame_set: Path, state: dict, sources: list[Path], name: str | None,
+                operation: str, value) -> str | None:
     if operation in ("undo", "redo"):
         steps = state.get(operation) or []
         if not steps:
             raise ValueError(f"There is no frame order change to {operation}.")
         other = "redo" if operation == "undo" else "undo"
-        state.setdefault(other, []).append(state.get("order"))
-        state["order"] = steps.pop()
+        state.setdefault(other, []).append(_order_checkpoint(state))
+        checkpoint = steps.pop()
+        # Older timelines saved just the order list, without any hidden frame IDs.
+        if isinstance(checkpoint, dict):
+            state.update(checkpoint)
+        else:
+            state["order"] = checkpoint
+            state.pop("removed", None)
         return None
 
-    copies = state.setdefault("copies", {})
     order = _order(sources, state)
-    names = {p.name for p in sources}
-    visible = [key for key in order if copies.get(key, key) in names]
-    if name not in visible:
+    items, unavailable = _frames(root, frame_set, sources, state)
+    visible = [frame.id for frame in items]
+    if name not in visible and not (operation == "remove" and name in unavailable):
         raise ValueError("Choose a frame in this timeline.")
-    state.setdefault("undo", []).append(state.get("order"))
+    state.setdefault("undo", []).append(_order_checkpoint(state))
     state["redo"] = []
+    if operation == "remove":
+        if name in visible and len(visible) == 1:
+            raise ValueError("Cannot remove the last available frame in this timeline.")
+        state["removed"] = [*(state.get("removed") or []), name]
+        if name not in visible:
+            return None
+        position = visible.index(name)
+        visible.pop(position)
+        return visible[min(position, len(visible) - 1)]
+
+    if operation in ("duplicate", "insert", "insert_blank") and len(visible) + len(unavailable) >= 65_535:
+        raise ValueError("This frame set is already at the Aseprite frame limit.")
+    if operation in ("insert", "insert_blank"):
+        source = items[visible.index(name)].source
+        if operation == "insert":
+            png = _png(value, source)
+        else:
+            buffer = io.BytesIO()
+            with Image.open(source) as cell:
+                Image.new("RGBA", cell.size).save(buffer, format="PNG")
+            png = buffer.getvalue()
+        insertions = state.setdefault("insertions", {})
+        new_id = f"insert-{len(insertions) + 1}"
+        insertions[new_id] = _store_png(root, frame_set, png)
+        order.insert(order.index(name) + 1, new_id)
+        state["order"] = order
+        return new_id
+
     if operation == "duplicate":
-        if len(visible) >= 65_535:    # The Aseprite frame count is an unsigned 16-bit field.
-            raise ValueError("This frame set is already at the Aseprite frame limit.")
+        copies = state.setdefault("copies", {})
         new_id = f"copy-{len(copies) + 1}"
         copies[new_id] = copies.get(name, name)
         order.insert(order.index(name) + 1, new_id)
@@ -357,13 +454,13 @@ def _edit_order(state: dict, sources: list[Path], name: str | None, operation: s
     visible.insert(value, name)
     available = set(visible)
     moved = iter(visible)
-    # Unavailable source frames retain their saved positions if they return later.
+    # Hidden or unavailable frames retain their saved positions if they return later.
     state["order"] = [next(moved) if key in available else key for key in order]
     return name
 
 
 def _edit_frame(root: Path, frame_set: Path, state: dict, sources: list[Path], name: str | None, operation: str, value) -> bool:
-    source = _source_for(sources, state, name)
+    source = _source_for(root, frame_set, sources, state, name)
     edits = state["frames"]
     edit = edits.get(name, {})
     history = _history(edit)
@@ -404,7 +501,9 @@ def _edit_playback(root: Path, frame_set: Path, state: dict, sources: list[Path]
     settings = {"mode": value["mode"]}
     if first is not None:
         settings.update(start_frame=first, end_frame=last)
-    _playback(root, frame_set, _frames(root, frame_set, sources, state), settings, None).require_valid()
+    playback = _playback(root, frame_set, _frames(root, frame_set, sources, state)[0], settings, None)
+    if playback.error:
+        raise ValueError(playback.error)
     if first is None and settings["mode"] == "source":
         state.pop("playback", None)
     else:
@@ -418,7 +517,7 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
     if operation not in (*ORDER_OPERATIONS, "duration", "replace", "restore", "activate", "paint", "playback"):
         raise ValueError("Unknown timeline operation.")
     if operation not in ("undo", "redo", "playback") and (
-        not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|copy-[1-9][0-9]*)", name) is None
+        not isinstance(name, str) or re.fullmatch(r"(?:[0-9]{3}\.png|(?:copy|insert)-[1-9][0-9]*)", name) is None
     ):
         raise ValueError("Choose a frame ID from this timeline.")
     folder = _edit_directory(root, frame_set)
@@ -429,7 +528,7 @@ def update(root: Path, frame_set: Path, name: str | None, operation: str, value=
         sources = colour_frames(frame_set / "frames")
         selected = name
         if operation in ORDER_OPERATIONS:
-            selected = _edit_order(state, sources, name, operation, value)
+            selected = _edit_order(root, frame_set, state, sources, name, operation, value)
         elif operation == "playback":
             _edit_playback(root, frame_set, state, sources, value)
         elif not _edit_frame(root, frame_set, state, sources, name, operation, value):
@@ -461,21 +560,24 @@ def _history_view(root: Path, frame_set: Path, frame: Frame, edit: dict) -> list
 
 def describe(root: Path, frame_set: Path, base_fps: int) -> dict:
     state = _state(_edit_directory(root, frame_set) / "timeline.json")
-    items = _frames(root, frame_set, colour_frames(frame_set / "frames"), state)
-    if not items:
+    clip = _clip(root, frame_set, colour_frames(frame_set / "frames"), state)
+    items, playback = clip.items, clip.playback
+    if not items and not clip.unavailable:
         raise FileNotFoundError("Pixelize the action to open its timeline.")
     facing, action, name = frame_set.relative_to(root / "04_pixel").parts
     report = checks.read(root / "05_qa" / facing / action / name / "report.json") or {}
-    playback = _playback(root, frame_set, items, state.get("playback", {}), None)
     default_ms = round(1000 / action_fps(base_fps, name))
-    with Image.open(items[0].source) as image:
-        cell = list(image.size)
+    cell = None
+    if items or clip.sources:
+        with Image.open(items[0].source if items else clip.sources[0]) as image:
+            cell = list(image.size)
     return {"facing": facing, "action": action, "frame_set": name, "cell": cell, "loop": playback.loop,
             "playback": asdict(playback),
             "default_ms": default_ms, "max_duration_ms": MAX_DURATION_MS, "max_image_bytes": MAX_IMAGE_BYTES,
-            "qa_needs_review": qa_needs_review(report, items, playback),
+            "qa_needs_review": qa_needs_review(report, clip), "unavailable": clip.unavailable,
             "can_undo": bool(state.get("undo")), "can_redo": bool(state.get("redo")),
-            "frames": [{"id": f.id, "name": f.source.name, "image": f.image.relative_to(root).as_posix(),
+            "frames": [{"id": f.id, "name": f.source_id, "image": f.image.relative_to(root).as_posix(),
+                        "inserted": f.inserted,
                         "duration_ms": t, "timing_edited": f.duration_ms is not None,
                         "replaced": f.replaced, "conflict": f.conflict,
                         "history": _history_view(root, frame_set, f, state["frames"].get(f.id, {}))}

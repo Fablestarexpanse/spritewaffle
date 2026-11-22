@@ -39,6 +39,153 @@ def _image(size=(16, 16), color=(190, 60, 104, 128)):
     return data.getvalue()
 
 
+def test_inserted_frames_export_with_exact_rgba_and_can_be_undone(clip):
+    job, directory = clip
+    profile = resolve(None)
+    stages.align(job, profile)
+    processed = {p.name: p.read_bytes() for p in colour_frames(directory / "frames")}
+    aligned = (directory / "frames_aligned/003.png").read_bytes()
+    (directory / "frames/003_depth.png").write_bytes(_image())
+    stages.export(job, profile)
+    output = job.root / "06_export/S/walk"
+    before = {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()}
+    character_dir = job.root / "06_export/character"
+    character.export(job.root, character_dir, "hero", profile.fps)
+
+    inserted = timeline.update(job.root, directory, "001.png", "insert", _image(color=(19, 71, 203, 121)))
+    view = timeline.describe(job.root, directory, profile.fps("walk"))
+    assert inserted == "insert-1" and len(view["frames"]) == 13
+    assert view["frames"][2]["id"] == inserted and view["frames"][2]["inserted"]
+    path = job.root / view["frames"][2]["image"]
+    assert path.is_file() and path.is_relative_to(job.root / "edits")
+    assert view["qa_needs_review"]
+    assert stages.export_status(job, profile)["formats"]["png"]["status"] == "stale"
+    assert character.export_status(job.root, character_dir, profile.fps)["status"] == "stale"
+    assert timeline.update(job.root, directory, "002.png", "remove") == "003.png"
+    stages.qa(job, profile)
+    result = stages.export(job, profile)["12f"]
+    bundle = character.export(job.root, character_dir, "hero", profile.fps)
+    for product in (result, bundle):
+        document = aseprite.read(product["aseprite"])
+        assert document.depth == 32 and len(document.frames) == 12
+        assert document.durations[2] == round(1000 / profile.fps("walk"))
+        assert document.frames[2][5, 5].tolist() == [19, 71, 203, 121]
+    packed = character.collect(job.root)[0][0]
+    assert packed["maps"]["depth"][3].any() and not packed["maps"]["depth"][2].any()
+    with Image.open(io.BytesIO(aligned)) as original:
+        assert np.array_equal(packed["cells"][3], np.asarray(original))
+    data = manifest.read(job)["animations"][0]["frames"]
+    assert data[2]["inserted"] and data[2]["frame_id"] == inserted and data[2]["downscale"] is None
+    assert data[2]["depth"] is None and data[3]["source_frame"] == "003.png"
+    assert timeline.update(job.root, directory, None, "undo") is None
+    assert timeline.update(job.root, directory, None, "undo") is None
+    stages.qa(job, profile)
+    stages.export(job, profile)
+    assert {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()} == before
+    assert path.is_file() and {p.name: p.read_bytes() for p in colour_frames(directory / "frames")} == processed
+    timeline.update(job.root, directory, None, "redo")
+    assert timeline.frames(job.root, directory)[2].source == path
+
+
+def test_removal_keeps_playback_endpoints_and_does_not_retarget_legacy_attachment(clip):
+    job, directory = clip
+    profile = resolve(None)
+    effect = _effect(job.root.parent.parent)
+    attach.set_attachment(job, "S", "walk", effect, 2, 8, 8)
+    with job.mutate() as meta:
+        del meta["inputs"]["attachments"]["walk_S"]["source_frame"]
+    timeline.update(job.root, directory, None, "playback", {"mode": "once", "start_frame": "000.png", "end_frame": "003.png"})
+    timeline.update(job.root, directory, "002.png", "remove")
+    stages.qa(job, profile)
+    output = stages.export(job, profile)["12f"]
+    metadata = json.loads(Path(output["json"]).read_text(encoding="utf-8"))
+    assert metadata["events"] == [] and metadata["playback_range"] == [0, 2]
+    assert [frame["frame_id"] for frame in metadata["frames"][:3]] == ["000.png", "001.png", "003.png"]
+    timeline.update(job.root, directory, "003.png", "remove")
+    assert "missing" in timeline.describe(job.root, directory, profile.fps("walk"))["playback"]["error"]
+    with pytest.raises(ValueError, match="missing"):
+        stages.export(job, profile)
+    timeline.update(job.root, directory, None, "undo")
+    timeline.update(job.root, directory, None, "undo")
+    stages.qa(job, profile)
+    metadata = json.loads(Path(stages.export(job, profile)["12f"]["json"]).read_text(encoding="utf-8"))
+    assert metadata["events"][0]["frame"] == 2 and metadata["playback_range"] == [0, 3]
+
+
+def test_insert_validation_and_last_frame_removal_preserve_the_timeline(clip):
+    job, directory = clip
+    with pytest.raises(ValueError, match="16"):
+        timeline.update(job.root, directory, "000.png", "insert", _image((8, 8)))
+    assert len(timeline.frames(job.root, directory)) == 12
+    for source in colour_frames(directory / "frames")[1:]:
+        timeline.update(job.root, directory, source.name, "remove")
+    with pytest.raises(ValueError, match="last"):
+        timeline.update(job.root, directory, "000.png", "remove")
+    view = timeline.describe(job.root, directory, 12)
+    assert [frame["id"] for frame in view["frames"]] == ["000.png"]
+    imported = timeline.update(job.root, directory, "000.png", "insert_blank")
+    snapshot = timeline.describe_pixels(job.root, directory, imported)
+    assert not any(b64decode(snapshot["rgba"]))
+    assert stages.qa(job, resolve(None))["12f"] == "fail"
+    patch = {"fingerprint": snapshot["fingerprint"], "pixels": [[5, 5, 19, 71, 203, 121]]}
+    timeline.update(job.root, directory, imported, "paint", patch)
+    copied = timeline.update(job.root, directory, imported, "duplicate")
+    assert timeline.frames(job.root, directory)[2].insertion_id == imported
+    timeline.update(job.root, directory, imported, "remove")
+    assert timeline.frames(job.root, directory)[1].id == copied
+    timeline.update(job.root, directory, None, "undo")
+    assert timeline.frames(job.root, directory)[1].id == imported
+    assert timeline.describe_pixels(job.root, directory, imported) == timeline.describe_pixels(job.root, directory, copied)
+
+
+def test_unavailable_insertions_block_qa_and_export_until_repaired_or_removed(clip):
+    job, directory = clip
+    profile = resolve(None)
+    inserted = timeline.update(job.root, directory, "000.png", "insert_blank")
+    path = timeline.frames(job.root, directory)[1].source
+    original = path.read_bytes()
+    path.write_bytes(_image())
+    view = timeline.describe(job.root, directory, profile.fps("walk"))
+    assert view["unavailable"] == {inserted: "Saved PNG has changed."}
+    assert view["qa_needs_review"]
+    with pytest.raises(ValueError, match="unavailable.*insert-1"):
+        stages.export(job, profile)
+    with pytest.raises(ValueError, match="unavailable.*insert-1"):
+        stages.qa(job, profile)
+    with pytest.raises(RuntimeError, match="unavailable.*insert-1"):
+        character.export(job.root, job.root / "06_export/character", "hero", profile.fps, require_pass=False)
+    timeline.update(job.root, directory, inserted, "remove")
+    assert timeline.describe(job.root, directory, 12)["unavailable"] == {}
+    stages.export(job, profile)
+    timeline.update(job.root, directory, None, "undo")
+    path.write_bytes(original)
+    assert timeline.frames(job.root, directory)[1].id == inserted
+    for source in colour_frames(directory / "frames"):
+        source.write_bytes(_image((8, 8)))
+    assert timeline.describe(job.root, directory, 12)["unavailable"] == {inserted: "Saved PNG no longer fits the 8 × 8 cell."}
+
+
+def test_insertion_and_removal_are_shared_by_http_cli_and_mcp(clip, tmp_path, monkeypatch, capsys):
+    job, directory = clip
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    route = "/api/jobs/hero/j/timeline?facing=S&action=walk"
+    args = ["timeline", "--job", "hero/j", "--facing", "S", "--action", "walk"]
+    png = tmp_path / "insert.png"
+    png.write_bytes(_image())
+    assert cli.main([*args, "--frame", "001.png", "--insert", str(png)]) == 0
+    inserted = json.loads(capsys.readouterr().out)["selected_frame"]
+    with TestClient(create_app(worker=False)) as client:
+        data = client.post(route, json={"frame": inserted, "operation": "remove"}).json()
+        assert data["selected_frame"] == "002.png"
+        assert len(data["frames"]) == 12
+        assert client.post(route, json={"frame": "000.png", "operation": "insert", "png": "invalid"}).status_code == 400
+    mcp, _ = build(tmp_path)
+    result = text(call(mcp, "edit_timeline_frame", character="hero", job_id="j", facing="S", action="walk",
+                       operation="undo"))
+    assert result["frames"][2]["id"] == inserted
+    assert timeline.frames(job.root, directory)[2].inserted
+
+
 def test_saved_playback_range_reaches_qa_manifest_and_both_exporters(clip):
     job, directory = clip
     profile = resolve(None)

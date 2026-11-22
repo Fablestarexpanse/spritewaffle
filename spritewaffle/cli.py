@@ -399,12 +399,15 @@ def cmd_timeline(a):
     elif a.undo_order or a.redo_order:
         timeline.update(job.root, directory, None, "undo" if a.undo_order else "redo")
     elif (a.duration is not None or a.reset_duration or a.replace or a.restore or a.use_version is not None
-          or a.duplicate or a.move_to is not None or a.paint):
+          or a.duplicate or a.move_to is not None or a.paint or a.insert or a.insert_blank or a.remove):
         if not a.frame:
             raise ValueError("Pass the frame ID with --frame, such as --frame 001.png.")
-        if a.replace:
-            with Path(a.replace).open("rb") as stream:
-                selected = timeline.update(job.root, directory, a.frame, "replace", stream.read(timeline.MAX_IMAGE_BYTES + 1))
+        if a.replace or a.insert:
+            with Path(a.replace or a.insert).open("rb") as stream:
+                operation = "replace" if a.replace else "insert"
+                selected = timeline.update(job.root, directory, a.frame, operation, stream.read(timeline.MAX_IMAGE_BYTES + 1))
+        elif a.insert_blank or a.remove:
+            selected = timeline.update(job.root, directory, a.frame, "insert_blank" if a.insert_blank else "remove")
         elif a.paint:
             patch = json.loads(Path(a.paint).read_text(encoding="utf-8-sig"))
             selected = timeline.update(job.root, directory, a.frame, "paint", patch)
@@ -638,7 +641,7 @@ def build() -> argparse.ArgumentParser:
         JOB, PROFILE, OPT_FACING, OPT_ACTION)
     ep = cmd("timeline", cmd_timeline, "read or edit the timing, artwork, and order of one action",
              JOB, PROFILE, FACING, ACTION, (("--set",), {"default": "12f"}),
-             (("--frame",), {"help": "frame ID, such as 001.png or copy-1"}))
+             (("--frame",), {"help": "frame ID, such as 001.png, copy-1, or insert-1"}))
     edits = ep.add_mutually_exclusive_group()
     edits.add_argument("--duration", type=int, help="frame duration in milliseconds")
     edits.add_argument("--reset-duration", action="store_true", help="restore the profile duration")
@@ -646,6 +649,9 @@ def build() -> argparse.ArgumentParser:
     edits.add_argument("--restore", action="store_true", help="restore the source image")
     edits.add_argument("--use-version", type=int, help="apply a saved replacement version")
     edits.add_argument("--duplicate", action="store_true", help="copy the frame and its edits")
+    edits.add_argument("--insert", metavar="PNG", help="insert a same-size PNG after the frame")
+    edits.add_argument("--insert-blank", action="store_true", help="insert a transparent frame after the frame")
+    edits.add_argument("--remove", action="store_true", help="hide the frame from this timeline")
     edits.add_argument("--move-to", type=int, metavar="POSITION", help="move the frame to a zero-based position")
     edits.add_argument("--undo-order", action="store_true", help="undo the last frame order change")
     edits.add_argument("--redo-order", action="store_true", help="redo the last undone frame order change")

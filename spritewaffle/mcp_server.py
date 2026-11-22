@@ -195,14 +195,15 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                             playback: dict | None = None) -> dict:
         """Playback takes a mode (source, loop, once) and optional start_frame and end_frame IDs.
         Paint takes a fingerprint and [x, y, r, g, b, a] rows. Move uses a zero-based position.
-        Undo and redo change order only."""
+        Insert takes a PNG path and inserts after frame. Insert_blank adds a transparent frame.
+        Remove hides a frame. Undo and redo reverse sequence edits."""
         from .core import timeline
         job = job_for(character, job_id)
         directory = timeline.directory(job.root, facing, action, frame_set)
         value = duration_ms
-        if operation == "replace":
+        if operation in ("replace", "insert"):
             if not png_path:
-                raise ValueError("Pass png_path to replace a frame.")
+                raise ValueError("Pass the PNG path in png_path.")
             with Path(png_path).open("rb") as stream:
                 value = stream.read(timeline.MAX_IMAGE_BYTES + 1)
         elif operation == "activate":

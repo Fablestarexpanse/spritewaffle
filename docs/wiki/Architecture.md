@@ -51,6 +51,14 @@ previews use the range, while exported sheets and atlases keep all frames and ev
 The Aseprite tag stores the range as document-relative indices. The JSON export stores
 `playback_range` as inclusive clip-relative indices.
 
+Each insertion gets a stable `insert-N` ID and an independent source PNG in the same
+content-addressed store as replacements. A removal records the hidden ID in the sidecar.
+Undo restores the order and the hidden IDs together. It accepts order-only checkpoints
+written by older versions. The processed source list still determines alignment lookup,
+default timing, and legacy attachment targets. Inserted frames use their own RGBA and have
+no generated depth or normal maps. A missing, changed, or mismatched insertion is recorded
+as unavailable and must be repaired or removed before QA and export can use the clip.
+
 Sequence edits add an ordered list of stable IDs. Originals use their source filenames
 and copies have their own IDs with pointers to the numbered source. Order undo and redo
 restore sequence snapshots, while timing and artwork edits stay with their IDs. QA

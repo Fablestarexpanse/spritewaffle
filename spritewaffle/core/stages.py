@@ -153,14 +153,14 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     return info
 
 
-def _events(job: Job, facing: str, action: str, items: list[timeline.Frame] | None = None) -> list:
+def _events(job: Job, facing: str, action: str, clip: timeline.Clip | None = None) -> list:
     """Attached effects as export events (see core/attach.py)."""
     from . import attach
     att = attach.get(job, facing, action)
     if not att:
         return []
-    if items is not None:
-        att = attach.for_timeline(att, items)
+    if clip is not None:
+        att = attach.for_timeline(att, clip)
         if att is None:
             return []
     try:
@@ -210,13 +210,12 @@ def _load_set(sd: Path, items: list[timeline.Frame]) -> tuple[np.ndarray, list[d
     return cells, json.loads((sd / "placements.json").read_text(encoding="utf-8"))
 
 
-def _playable_clips(root: Path, sets: list[Path]) -> list[tuple[Path, list[Path], list[timeline.Frame], timeline.Playback]]:
+def _playable_clips(root: Path, sets: list[Path]) -> list[tuple[Path, timeline.Clip]]:
     clips = []
     for sd in sets:
-        sources = video.colour_frames(sd / "frames")
-        items, playback = timeline.read_clip(root, sd, sources)
-        playback.require_valid()
-        clips.append((sd, sources, items, playback))
+        clip = timeline.read_clip(root, sd)
+        clip.require_valid()
+        clips.append((sd, clip))
     return clips
 
 
@@ -229,21 +228,23 @@ def qa(job: Job, profile: GameProfile, facing=None, action=None) -> dict:
     jp = job_palette.get(job)
     cap = len(jp["colours"]) if jp else profile.palette_size     # a loaded palette may be larger than the profile's
     results = {}
-    for sd, sources, items, playback in _playable_clips(job.root, _action_sets(pdir)):
+    for sd, clip in _playable_clips(job.root, _action_sets(pdir)):
+        sources, items, playback = clip.sources, clip.items, clip.playback
         cells, places = _load_set(sd, items)
         if len(places) == len(sources):
             placement_by_source = dict(zip(sources, places))
-            places = [placement_by_source[f.source] for f in items]
+            if places:
+                places = [placement_by_source.get(f.source, places[0]) for f in items]
         limit = min(pal_n, cap) if pal_n else 1 << 30      # full-colour styles: no palette limit
         r = checks.run(cells, places, "preserve-canvas", palette_size=limit, loop=playback.loop,
                        playback_range=playback.frame_range)
-        r["frame_files"] = [frame.source.name for frame in items]
+        r["frame_files"] = [frame.source_id for frame in items]
         if settings := playback.signature():
             r["timeline_playback"] = settings
-        if active := timeline.replacements(items):
+        if active := timeline.alternate_images(items):
             r["timeline_replacements"] = active
-        if order := timeline.order_signature(items):
-            r["timeline_order"] = order
+        if clip.order:
+            r["timeline_order"] = clip.order
         r.setdefault("warnings", []).extend(prep.get("warnings", []))
         checks.write(r, job.stage_dir("05_qa") / facing / action / sd.name / "report.json")
         results[sd.name] = r["status"]
@@ -291,15 +292,18 @@ def _action_snapshot(job: Job, profile: GameProfile, facing: str, action: str, p
         settings["palette"] = json.loads(report.read_text(encoding="utf-8"))["palette"] if report.is_file() else None
         files.extend(indices)
     for sd in sets:
-        items, playback = timeline.read_clip(job.root, sd)
+        clip = timeline.read_clip(job.root, sd)
+        items, playback = clip.items, clip.playback
         files.extend(frame.image for frame in items)
+        if clip.unavailable:
+            settings.setdefault("timeline_unavailable", {})[sd.name] = clip.unavailable
         if saved := playback.signature():
             settings.setdefault("timeline_playback", {})[sd.name] = saved
         if edits := timeline.export_settings(items):
             settings.setdefault("timeline", {})[sd.name] = edits
-        if order := timeline.order_signature(items):
-            settings.setdefault("timeline_order", {})[sd.name] = order
-        if fmt == "png" and (events := _events(job, facing, action, items)) != settings["events"]:
+        if clip.order:
+            settings.setdefault("timeline_order", {})[sd.name] = clip.order
+        if fmt == "png" and (events := _events(job, facing, action, clip)) != settings["events"]:
             settings.setdefault("events_by_set", {})[sd.name] = events
     return receipt.snapshot(job.root, files, settings)
 
@@ -355,7 +359,8 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
     base_fps = profile.fps(action)
     written = {}
     artifacts = {kind: [] for kind in formats}
-    for sd, sources, items, playback in _playable_clips(job.root, sets):
+    for sd, clip in _playable_clips(job.root, sets):
+        sources, items, playback = clip.sources, clip.items, clip.playback
         fps = timeline.action_fps(base_fps, sd.name)
         cells, places = _load_set(sd, items)
         durations = timeline.timings(items, round(1000 / fps))
@@ -364,7 +369,7 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
         out = out_dir / sd.name
         files = {}
         original_indexed = (sd / "indices.npy").is_file()
-        indexed = original_indexed and not timeline.replacements(items)
+        indexed = original_indexed and not timeline.alternate_images(items)
         if "aseprite" in formats and indexed:
             ind = np.load(sd / "indices.npy")
             opaque = cells[..., 3] > 0
@@ -380,10 +385,10 @@ def _write_action_export(job, profile, facing, action, pdir, out_dir, sets, form
             if not artifacts["png"]:
                 receipt.incomplete(_action_receipt(out_dir, "png"))
             png = sheetmod.export_png(out, name, cells, fps, loop=playback.loop, pivot=pivot,
-                                      events=_events(job, facing, action, items),
+                                      events=_events(job, facing, action, clip),
                                       preview_scale=4 if original_indexed else 1,
                                       durations_ms=durations if any(f.duration_ms is not None for f in items) else None,
-                                      frame_ids=timeline.order_signature(items),
+                                      frame_ids=clip.order,
                                       playback_range=playback.frame_range,
                                       preview_once=not playback.loop and bool(playback.signature()))
             artifacts["png"].extend(png.pop("frames"))

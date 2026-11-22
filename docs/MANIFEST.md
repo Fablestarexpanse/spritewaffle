@@ -50,12 +50,16 @@ IDs when a custom range is set. If an endpoint is missing or crossed, `error` ex
 what to repair and the clip cannot export. Views without an override use their source
 playback settings.
 
+`unavailable_frames_by_view` appears when a saved insertion cannot be read. It maps view
+indices to the unavailable frame IDs and their repair messages.
+
 ## Frame entries (`animations[].frames[]`)
 
 | field | type | meaning |
 |---|---|---|
 | `view_index`, `view_count`, `yaw_degrees` | int, int, float | the view this frame belongs to |
 | `frame` | int | index within the effective animation sequence |
+| `inserted` | bool, optional | `true` for a frame supplied by the timeline, including a copy of an insertion. Its source lives in the edit store. Generated maps, master, and downscale data are absent. |
 | `frame_id` | optional str | stable ID in a reordered or duplicated frame set, such as `001.png` or `copy-1` |
 | `source_frame` | optional str | numbered processed filename behind a frame in an edited sequence |
 | `camera_elevation_degrees` | float | from the camera profile |

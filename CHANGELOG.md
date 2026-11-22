@@ -29,6 +29,9 @@
 - Added per-frame-set playback modes and inclusive ranges. The timeline, onion skins, QA seam
   checks, action previews, and Aseprite tags use the saved range. All frames still export.
   A missing or crossed endpoint needs repair before the clip can export.
+- Added reversible blank and PNG frame insertion and removal. Inserted frames keep their
+  own editable source PNG. Removing a frame leaves its files and edits intact and omits any
+  attachment event at that frame until the frame is restored.
 
 ## 2026-11-21: directional sprite readiness
 
