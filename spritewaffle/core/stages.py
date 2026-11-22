@@ -12,7 +12,7 @@ from ..export import aseprite, receipt, sheet as sheetmod
 from ..frames import analysis, contact, layout, picker, video
 from ..pixel.pipeline import PixelParams, pixelize
 from ..qa import checks
-from . import timeline
+from . import fsutil, processing, timeline
 from .job import Job
 from .profile import GameProfile
 
@@ -36,16 +36,30 @@ def _save_pngs(frames, folder: Path, names) -> None:
 
 
 def extract(job: Job, src: str | Path, facing: str, action: str) -> dict:
-    d = job.action_dir(facing, action)
+    d = _clip_path(job, "03_actions", facing, action)
+    d.mkdir(parents=True, exist_ok=True)
     raw = d / ("raw" + Path(src).suffix.lower())
+    extracted = d / "extracted"
+    if not extracted.resolve().is_relative_to(d.resolve()):
+        raise ValueError("Extracted frames must stay inside the action directory.")
     if Path(src).resolve() != raw.resolve():
         shutil.copyfile(src, raw)
-    rep = video.extract(raw, d / "extracted")
-    frames = video.load(video.list_frames(d / "extracted"))
+    digest = receipt.digest(raw)
+    extracted.mkdir(exist_ok=True)
+    report = extracted / "extraction_report.json"
+    fsutil.write_text(report, json.dumps({"clip_source": {"name": raw.name, "incomplete": True}}))
+    rep = video.extract(raw, extracted, write_report=False)
+    if receipt.digest(raw) != digest:
+        raise RuntimeError("The saved clip changed during extraction. Re-process frames again.")
+    # The decoder overwrites its numbered frames. A shorter replacement leaves an old tail.
+    for path in extracted.glob("*.png"):
+        if len(path.stem) >= 5 and path.stem.isdecimal() and int(path.stem) >= rep["frame_count"]:
+            path.unlink()
+    frames = video.load(video.list_frames(extracted))
     frozen, diff = analysis.is_frozen(frames)
-    rep.update(frozen=frozen, mean_frame_diff=round(diff, 3))
-    (d / "extracted" / "extraction_report.json").write_text(json.dumps(rep, indent=2))
+    rep.update(frozen=frozen, mean_frame_diff=round(diff, 3), clip_source={"name": raw.name, "sha256": digest})
     contact.write(frames, d / "contact_sheet.png")
+    fsutil.write_text(report, json.dumps(rep, indent=2))
     job.update_inputs(facing=facing, action=action)
     job.log_provenance(str(raw.relative_to(job.root)), source=str(src))
     job.set_stage(f"extract:{facing}/{action}", "warn" if frozen else "done", frames=rep["frame_count"], frozen=frozen)
@@ -64,6 +78,7 @@ def select(job: Job, facing=None, action=None, counts=(12, 24), indices: str | N
            loop: bool | None = None) -> dict:
     facing, action = _ctx(job, facing, action)
     d = job.action_dir(facing, action)
+    processing.require_extracted(d)
     paths = video.list_frames(d / "extracted")
     frames = video.load(paths)
     if loop is None:                                   # the action's own setting (edited, AI, animal preset)
@@ -88,37 +103,39 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
     every set out with preserve-canvas."""
     facing, action = _ctx(job, facing, action)
     d = job.action_dir(facing, action)
-    rep = json.loads((d / "selection_report.json").read_text())
-    sets = {n: [e["source"] for e in rows] for n, rows in rep["sets"].items()}
-    union = sorted({i for v in sets.values() for i in v})
-    src = video.list_frames(d / "extracted")
-    frames = video.load([src[i] for i in union])
+    processing.require_extracted(d)
+    inputs = processing.selection(d)
+    sets, loop, paths = inputs
     from ..prompts import styles
+    from . import camera, job_palette
     st = styles.get(styles.of_job(job))
+    pal = (palette or job_palette.resolve(job, profile)[0]) if st["post"] == "pixel" else None
+    tracked = {"version": 1, "palette_override": palette, "profile_palette": profile.locked_palette is not None,
+               "inputs": processing.snapshot(job, profile, d, inputs, palette, pal)}
+    frames = video.load(list(paths.values()))
+    pos = {source: n for n, source in enumerate(paths)}
     if st["post"] == "smooth":                       # hand-painted / anime / comic: no grid, no palette
         from ..pixel import smooth
-        from . import camera
         art, k = smooth.process(frames, camera.character_height(job, profile) * st["scale"], despill=profile.despill)
-        pos = {s: n for n, s in enumerate(union)}
         info = _write_pixel_sets(job, profile, facing, action,
                                  {n: ([art[pos[i]] for i in idxs], idxs) for n, idxs in sets.items()},
-                                 None, {"style": st["name"], "scale": round(k, 4)}, cell=profile.cell_size * st["scale"])
+                                 None, {"style": st["name"], "scale": round(k, 4), "processing": tracked},
+                                 cell=profile.cell_size * st["scale"])
+        processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
         job.set_stage(f"pixelize:{facing}/{action}", "done", style=st["name"], scale=round(k, 4))
         return info
-    from . import job_palette
-    pal = palette or job_palette.resolve(job, profile)[0]    # explicit size = a one-off per-clip fit
-    from . import camera
     params = PixelParams(palette=pal, pixel_size=profile.pixel_size, target_height=camera.character_height(job, profile),
-                         loop=rep["loop"], outline=profile.outline, despill=profile.despill)
+                         loop=loop, outline=profile.outline, despill=profile.despill)
     res = pixelize(frames, params)
     if not palette and not isinstance(pal, list):
         job_palette.lock_from_clip(job, res.palette, f"{facing}/{action}")
-    pos = {s: k for k, s in enumerate(union)}
+        tracked["inputs"]["settings"]["palette"] = [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in res.palette.tolist()]
     grid = {"size": res.grid.size, "ox": res.grid.ox, "oy": res.grid.oy, "source": res.grid.source,
             "score": round(res.grid.score, 3), "resample": res.resample}
     info = _write_pixel_sets(job, profile, facing, action,
                              {n: ([res.rgba(pos[i]) for i in idxs], idxs) for n, idxs in sets.items()},
-                             res.palette, {"grid": grid})
+                             res.palette, {"grid": grid, "processing": tracked})
+    processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
     job.set_stage(f"pixelize:{facing}/{action}", "done", grid=info["grid"], palette_size=len(res.palette))
     return info
 
@@ -132,6 +149,10 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
     cell = cell or profile.cell_size
     pal_list = [] if palette is None else [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in np.asarray(palette).tolist()]
     info = {**info, "palette": pal_list, "cell": cell, "sets": {}, "warnings": list(info.get("warnings", []))}
+    report_path = out / "pixel_report.json"
+    if "processing" in info:
+        out.mkdir(parents=True, exist_ok=True)
+        fsutil.write_text(report_path, json.dumps({**info, "processing": {"version": 1, "incomplete": True}}))
     for n, (art, sources) in sets.items():
         cells, places = layout.preserve_canvas(list(art), (cell, cell))
         for w in (x.replace(" in this clip", "").replace(" (a ", f" in the {n}f frames (a ", 1)
@@ -149,7 +170,7 @@ def _write_pixel_sets(job: Job, profile: GameProfile, facing: str, action: str, 
         k = 4 if palette is not None else 1                      # pixel art previews upscaled, smooth art as is
         Image.fromarray(prev).resize((prev.shape[1] * k, prev.shape[0] * k), Image.NEAREST).save(sd / "preview_4x.png")
         info["sets"][str(n)] = {"frames": len(cells), "sources": list(sources)}
-    (out / "pixel_report.json").write_text(json.dumps(info, indent=2))
+    fsutil.write_text(report_path, json.dumps(info, indent=2))
     return info
 
 
@@ -321,6 +342,7 @@ def export_status(job: Job, profile: GameProfile, facing=None, action=None) -> d
     facing, action = _ctx(job, facing, action)
     pdir = _clip_path(job, "04_pixel", facing, action)
     out = _clip_path(job, "06_export", facing, action)
+    upstream = processing.status(job, profile, facing, action)
     result = {}
     for fmt, patterns in (("png", ("*.png", "*.json", "*_preview.gif", "frames/*.png")), ("aseprite", ("*.aseprite",))):
         path = _action_receipt(out, fmt)
@@ -330,9 +352,11 @@ def export_status(job: Job, profile: GameProfile, facing=None, action=None) -> d
             result[fmt] = {"status": "untracked" if legacy else "missing"}
         elif record.get("incomplete"):
             result[fmt] = {"status": "incomplete"}
+        elif upstream["status"] in ("stale", "incomplete"):
+            result[fmt] = {"status": "stale"}
         else:
             result[fmt] = receipt.compare(record, out, _action_snapshot(job, profile, facing, action, pdir, fmt))
-    return {"facing": facing, "action": action, "formats": result}
+    return {"facing": facing, "action": action, "formats": result, "processing": upstream}
 
 
 def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = "both") -> dict:
@@ -344,6 +368,8 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
     formats = ("png", "aseprite") if fmt == "both" else (fmt,)
     out.parent.mkdir(parents=True, exist_ok=True)
     with receipt.locked(out):
+        upstream = processing.status(job, profile, facing, action)
+        processing.require_current(upstream, f"{facing}/{action}")
         previous_png = (receipt.load(_action_receipt(out, "png")) or {}) if "png" in formats else {}
         before = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
         sets = [pdir / name for name in before[formats[0]]["settings"]["sets"]]
@@ -351,7 +377,7 @@ def export(job: Job, profile: GameProfile, facing=None, action=None, fmt: str = 
             raise RuntimeError(f"No processed frame sets for {facing}/{action}. Pixelize the action first.")
         written, artifacts = _write_action_export(job, profile, facing, action, pdir, out, sets, formats)
         after = {kind: _action_snapshot(job, profile, facing, action, pdir, kind) for kind in formats}
-        if before != after:
+        if before != after or upstream != processing.status(job, profile, facing, action):
             raise RuntimeError("Action export inputs changed during export. Wait for processing to finish, then export again.")
         if previous_png:
             receipt.prune_exported_frames(out, previous_png, artifacts["png"])

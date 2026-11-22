@@ -239,6 +239,13 @@ class Queue:
             extra = {"motion": motion} if motion else {}
             tasks.append(self.submit(job, stage, {**base, **extra, **action_args}, profile))
             prev = [tasks[-1]["id"]]
+        else:
+            from . import processing, stages
+            directory = stages._clip_path(Job.open(job), "03_actions", facing, action)
+            raw = processing.clip_to_decode(directory)
+            if raw and raw.is_file():
+                tasks.append(self.submit(job, "extract", {**base, "video": str(raw)}, profile))
+                prev = [tasks[-1]["id"]]
         for st in POST_ACTION:
             tasks.append(self.submit(job, st, dict(base), profile, after=prev))
             prev = [tasks[-1]["id"]]
@@ -296,12 +303,18 @@ class Queue:
         """Re-run every pixelized clip of a job from its frames (no rendering), e.g. after the job
         palette changed: renders -> pixelize, flow -> flow, then qa + export; mirrored facings are
         flipped again after their source's pixelize."""
-        from . import job_palette
+        from . import job_palette, processing
         from .job import Job
         clips = job_palette.clips(Job.open(Path(job)))
         tasks, pix = [], {}
         for c in [c for c in clips if c["method"] != "mirror"]:
             base = {"facing": c["facing"], "action": c["action"]}
+            directory = Path(job) / "03_actions" / c["facing"] / c["action"]
+            if c["method"] == "render" and processing.clip_to_decode(directory):
+                chain = self.submit_action_pipeline(job, **base, profile=profile, generate=False)
+                pix[(c["facing"], c["action"])] = next(t["id"] for t in chain if t["stage"] == "pixelize")
+                tasks.extend(chain)
+                continue
             first = (self.submit(job, "flow", {**base, "motion": c["motion"]}, profile) if c["method"] == "flow"
                      else self.submit(job, "pixelize", dict(base), profile))
             pix[(c["facing"], c["action"])] = first["id"]

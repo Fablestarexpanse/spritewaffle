@@ -13,8 +13,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ..core import attach, timeline
+from ..core import attach, processing, timeline
 from ..core.job import Job
+from ..core.profile import GameProfile, resolve
 from ..frames.video import colour_frames
 from ..qa import checks
 from . import aseprite, receipt
@@ -103,8 +104,11 @@ def merged_palette(anims: list[dict]) -> np.ndarray:
     return np.array(sorted(colours), np.uint8).reshape(-1, 3)
 
 
-def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> dict:
-    inputs = Job(root).read_meta()["inputs"]
+def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool, profile: GameProfile | None) -> dict:
+    job = Job(root)
+    inputs = job.read_meta()["inputs"]
+    if profile is None and inputs.get("profile"):
+        profile = resolve(inputs["profile"])
     aligned = bool(inputs.get("align_feet"))
     attachments = inputs.get("attachments") or {}
     jobs_root = root.parent.parent.resolve()
@@ -128,6 +132,9 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
                 continue
         if not items:
             continue
+        check = processing.status(job, profile, facing, action)
+        if check["status"] in ("stale", "incomplete"):
+            settings.setdefault("processing", {})[f"{facing}/{action}"] = check
         settings["fps"][action] = fps_for(action)
         files.extend(_images(directory, aligned, clip))
         files.extend(directory / "frames" / f"{f.source.stem}_{kind}.png" for f in items
@@ -155,7 +162,7 @@ def _input_snapshot(root: Path, fps_for, frame_set: str, require_pass: bool) -> 
     return receipt.snapshot(root, files, settings)
 
 
-def export_status(job_root: Path, out_dir: Path, fps_for) -> dict:
+def export_status(job_root: Path, out_dir: Path, fps_for, *, profile: GameProfile | None = None) -> dict:
     """Check the latest character bundle using the options it was exported with."""
     out_dir = Path(out_dir)
     path = _receipt(out_dir)
@@ -171,20 +178,26 @@ def export_status(job_root: Path, out_dir: Path, fps_for) -> dict:
             return {"status": "untracked"}
     except (KeyError, TypeError):
         return {"status": "untracked"}
-    current = _input_snapshot(Path(job_root), fps_for, frame_set, require_pass)
-    return {"frame_set": frame_set, **receipt.compare(record, out_dir, current)}
+    current = _input_snapshot(Path(job_root), fps_for, frame_set, require_pass, profile)
+    result = {"frame_set": frame_set, **receipt.compare(record, out_dir, current)}
+    if stale := current["settings"].get("processing"):
+        result["processing"] = stale
+    return result
 
 
 def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: str = "12f",
-           require_pass: bool = True, max_size: int = 4096, mirror: str = "pack") -> dict:
+           require_pass: bool = True, max_size: int = 4096, mirror: str = "pack", *,
+           profile: GameProfile | None = None) -> dict:
     """fps_for(action) -> fps. Returns paths + what was included/skipped. max_size: atlas page
     limit in px; mirror='flip' leaves exact W/NW/SW mirrors out of the atlas (flip at runtime)."""
     job_root, out_dir = Path(job_root), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     with receipt.locked(out_dir):
-        snapshot = _input_snapshot(job_root, fps_for, frame_set, require_pass)
+        snapshot = _input_snapshot(job_root, fps_for, frame_set, require_pass, profile)
+        for clip, result in snapshot["settings"].get("processing", {}).items():
+            processing.require_current(result, clip)
         result, files = _write_bundle(job_root, out_dir, character, fps_for, frame_set, require_pass, max_size, mirror)
-        if snapshot != _input_snapshot(job_root, fps_for, frame_set, require_pass):
+        if snapshot != _input_snapshot(job_root, fps_for, frame_set, require_pass, profile):
             raise RuntimeError("Character export inputs changed during export. Wait for processing to finish, then export again.")
         receipt.save(_receipt(out_dir), out_dir, snapshot, files, options={
             "frame_set": frame_set, "require_pass": require_pass, "max_size": max_size, "mirror": mirror,

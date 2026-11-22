@@ -3,8 +3,14 @@
 The character exporter keeps an internal receipt next to the character bundle under
 `06_export/`. It records the selected frame set, QA policy, resolved FPS, and SHA-256
 fingerprints for the relevant inputs and resulting files. The UI, CLI, and MCP use the
-same read-only check. Generation and preprocessing have their own inputs, so a change
-to a raw clip is outside this receipt until the processed frames or selection change.
+same read-only check.
+
+The extract stage records the saved clip fingerprint in `extraction_report.json`.
+Pixel processing adds a versioned section to `pixel_report.json` with the selected
+source frames, the clip fingerprint, and effective palette settings. Action and character
+exports check that section before writing. An interrupted decode or pixel write leaves
+an incomplete marker. Older reports without fingerprints remain usable and gain evidence
+when reprocessed. Mirroring and optical-flow transfer have their own processing paths.
 
 Action exports reuse the receipt format and bundle lock. Each facing and action has a
 receipt for PNG and one for Aseprite beside its export directory. PNG includes the

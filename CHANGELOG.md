@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Action and character exports detect stale processed frames after changes to a tracked clip, selection, or palette. Re-process frames can decode a replaced saved clip locally, and stale exports stay intact until they can be rebuilt.
 - Fixed standalone Item generation so a library or approved hero reference supplies colour swatches without uploading the subject image. Browser, CLI, and MCP generation preserve the saved Item type when no override is given. Character fitting stays available through Make a variant.
 - Added freshness checks for item and effect bundles. A check reports changed inputs, missing or changed outputs, and interrupted writes. Existing bundles can be tracked by exporting the item again or reprocessing the saved effect clip.
 - Added project-library image selection for new anchors. The browser previews the chosen image, and the queue rejects archived or missing references. The generated take records the reference ID and opens for review.

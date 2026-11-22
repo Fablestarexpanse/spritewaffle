@@ -131,7 +131,11 @@ In **Animations**, open a facing to review its saved QA report. Expand **frames 
 to inspect individual processed frames. QA numbers frames from zero and keeps the source
 filenames so a missing frame cannot shift a finding to another image.
 Use **Check action exports** to see freshness for PNG and Aseprite separately.
-**Re-export action** queues export from the existing processed frames. The CLI equivalents are
+After processing an action, the check tracks its saved clip, selected source frames, and effective
+palette. If one changes, use **Re-process frames** before exporting the action or character again.
+A changed saved clip is decoded and processed locally. **Re-export action** queues export from the
+existing processed frames. Older actions gain processing records when reprocessed.
+The CLI equivalents are
 `qa-review` and `export-action-status`. Both accept `--job`, `--facing`, and `--action`.
 MCP exposes QA findings in `status`, export freshness in `action_export_status`,
 and export from processed frames in `export_action`.

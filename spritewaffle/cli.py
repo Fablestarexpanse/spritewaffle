@@ -312,7 +312,8 @@ def cmd_export_character(a):
     job = _job(a.job)
     prof = _profile(a, job)
     out = character.export(job.root, job.stage_dir("06_export") / "character", job.read_meta()["character"],
-                           prof.fps, a.set, require_pass=not a.include_failed, max_size=a.max_size, mirror=a.mirror)
+                           prof.fps, a.set, require_pass=not a.include_failed, max_size=a.max_size, mirror=a.mirror,
+                           profile=prof)
     job.set_stage("export:character", "done", pages=len(out["pages"]), mirror=a.mirror,
                   **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
     _print(out)
@@ -321,7 +322,8 @@ def cmd_export_character(a):
 def cmd_character_export_status(a):
     from .export import character
     job = _job(a.job)
-    _print(character.export_status(job.root, job.root / "06_export" / "character", _profile(a, job).fps))
+    prof = _profile(a, job)
+    _print(character.export_status(job.root, job.root / "06_export" / "character", prof.fps, profile=prof))
 
 
 def cmd_showcase(a):

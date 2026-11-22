@@ -1554,7 +1554,7 @@ function showAnim(a) {
       <button id="dCheckExports">Check action exports</button>
       <button id="dExportAction" ${hasFrames ? "" : "disabled"}>Re-export action</button>
     </div>
-    <p id="dExportStatus" class="muted" role="status" hidden></p>
+    <div id="dExportStatus" class="muted" role="status" hidden></div>
     ${r.spec ? `<h3>Motion text <span class="chip">${esc(r.spec.writer || "template")}</span></h3>
       <p class="muted" style="margin:0">${esc(r.spec.motion)}<br>first step: ${esc(r.spec.transition)}<br>sound: ${esc(r.spec.sound)}</p>` : ""}
     ${(r.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
@@ -1595,7 +1595,7 @@ function showAnim(a) {
     note.textContent = "Checking action export files…";
     const query = new URLSearchParams({facing: a.facing, action: a.action});
     try {
-      const {formats} = await api(jobPath() + "/action_export_status?" + query);
+      const {formats, processing} = await api(jobPath() + "/action_export_status?" + query);
       const messages = {current: "Current", missing: "Missing", untracked: "Untracked. Re-export to track freshness.",
                         incomplete: "Incomplete. Check again or re-export."};
       note.replaceChildren(...Object.entries({png: "PNG", aseprite: "Aseprite"}).map(([kind, label]) => {
@@ -1604,9 +1604,19 @@ function showAnim(a) {
         const extra = changes.length > 3 ? ` and ${changes.length - 3} more` : "";
         line.style.display = "block";
         line.className = ["stale", "untracked", "incomplete"].includes(result.status) ? "warn" : "muted";
-        line.textContent = `${label} · ${messages[result.status] || `Stale. Changed or missing: ${changes.slice(0, 3).join(", ")}${extra}.`}`;
+        line.textContent = `${label} · ${messages[result.status] || (changes.length
+          ? `Stale. Changed or missing: ${changes.slice(0, 3).join(", ")}${extra}.` : "Stale")}`;
         return line;
       }));
+      if (["stale", "incomplete"].includes(processing.status)) {
+        const warning = document.createElement("div");
+        const reason = processing.step === "extract" ? "The saved clip changed or is missing."
+          : processing.settings_changed?.includes("palette") ? "The processing palette changed."
+          : "Processed frames need updating.";
+        warning.className = "warn";
+        warning.textContent = `${reason} Use Re-process frames before exporting.`;
+        note.prepend(warning);
+      }
     } catch {
       note.textContent = "The export check failed. See the error message for details.";
     } finally {
@@ -1643,10 +1653,13 @@ function bindBundleCheck(path, kind, rebuild) {
         incomplete: `The ${kind} export is in progress or stopped before completion. Check again or rebuild it.`
       };
       if (result.status === "stale") {
-        const changes = [...result.settings_changed, ...result.changed_inputs, ...result.changed_outputs];
+        const clips = Object.keys(result.processing || {});
+        const changes = [...result.settings_changed.filter(key => key !== "processing"), ...result.changed_inputs, ...result.changed_outputs];
         const extra = changes.length > 4 ? ` and ${changes.length - 4} more` : "";
         note.className = "warn";
-        note.textContent = `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. ${rebuild}`;
+        note.textContent = clips.length
+          ? `Export is stale. Re-process ${clips.slice(0, 4).join(", ")}${clips.length > 4 ? ` and ${clips.length - 4} more` : ""} from Actions. ${rebuild}`
+          : `Export is stale. Changed or missing: ${changes.slice(0, 4).join(", ")}${extra}. ${rebuild}`;
       } else note.textContent = reasons[result.status];
     } catch {
       note.textContent = "The export check failed. See the error message for details.";

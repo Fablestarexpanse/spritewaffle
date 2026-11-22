@@ -9,7 +9,7 @@ from pathlib import Path
 from ..core import fsutil
 
 
-def _digest(path: Path) -> str | None:
+def digest(path: Path) -> str | None:
     try:
         with path.open("rb") as stream:
             return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -24,8 +24,8 @@ def _digest(path: Path) -> str | None:
 def snapshot(root: Path, files, settings: dict) -> dict:
     return {
         "settings": settings,
-        "files": {Path(os.path.relpath(p, root)).as_posix(): digest for p in files
-                  if (digest := _digest(p)) is not None},
+        "files": {Path(os.path.relpath(p, root)).as_posix(): hashed for p in files
+                  if (hashed := digest(p)) is not None},
     }
 
 
@@ -60,35 +60,38 @@ def prune_exported_frames(out_dir: Path, previous: dict, files: list[Path]) -> N
     frame_directories = {file.parent.resolve() for file in files if file.parent.name == "frames"}
     for name in recorded.keys() - expected:
         path = out_dir / name
-        digest = recorded[name]
+        expected_digest = recorded[name]
         if (path.suffix == ".png" and path.resolve().parent in frame_directories and
-                isinstance(digest, str) and _digest(path) == digest):
+                isinstance(expected_digest, str) and digest(path) == expected_digest):
             path.unlink(missing_ok=True)
 
 
 def save(path: Path, out_dir: Path, inputs: dict, files, *, options: dict | None = None) -> None:
-    outputs = {file.relative_to(out_dir).as_posix(): _digest(file) for file in files}
-    if not outputs or any(digest is None for digest in outputs.values()):
+    outputs = {file.relative_to(out_dir).as_posix(): digest(file) for file in files}
+    if not outputs or any(value is None for value in outputs.values()):
         raise RuntimeError("An export file disappeared before the bundle finished. Export again.")
     fsutil.write_text(path, json.dumps({
         "version": 1, "options": options or {}, "inputs": inputs, "outputs": outputs,
     }, indent=2))
 
 
-def compare(record: dict, out_dir: Path, current: dict) -> dict:
-    previous = record["inputs"]
+def input_changes(previous: dict, current: dict) -> dict:
     changed_inputs = sorted(name for name in previous["files"].keys() | current["files"].keys()
                             if previous["files"].get(name) != current["files"].get(name))
     settings_changed = sorted(name for name in previous["settings"].keys() | current["settings"].keys()
                               if previous["settings"].get(name) != current["settings"].get(name))
+    return {"changed_inputs": changed_inputs, "settings_changed": settings_changed}
+
+
+def compare(record: dict, out_dir: Path, current: dict) -> dict:
+    changes = input_changes(record["inputs"], current)
     changed_outputs = []
     resolved_out = out_dir.resolve()
-    for name, digest in record["outputs"].items():
+    for name, expected_digest in record["outputs"].items():
         path = (out_dir / name).resolve()
-        if resolved_out not in path.parents or _digest(path) != digest:
+        if resolved_out not in path.parents or digest(path) != expected_digest:
             changed_outputs.append(name)
-    return {"status": "stale" if changed_inputs or settings_changed or changed_outputs else "current",
-            "changed_inputs": changed_inputs, "settings_changed": settings_changed,
+    return {"status": "stale" if any(changes.values()) or changed_outputs else "current", **changes,
             "changed_outputs": sorted(changed_outputs)}
 
 

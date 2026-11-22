@@ -9,8 +9,8 @@ import numpy as np
 from PIL import Image
 
 
-def extract(video: str | Path, out_dir: str | Path) -> dict:
-    """Write every frame as RGB PNG (00000.png ...) + extraction_report.json. Returns the report."""
+def extract(video: str | Path, out_dir: str | Path, *, write_report: bool = True) -> dict:
+    """Write every frame as RGB PNG (00000.png ...) and return the extraction report."""
     video, out = Path(video), Path(out_dir)
     if not video.exists():
         raise FileNotFoundError(video)
@@ -34,7 +34,8 @@ def extract(video: str | Path, out_dir: str | Path) -> dict:
         raise ValueError(f"no frames decoded from {video}")
     report = {"source": str(video), "source_size": size, "fps": fps, "frame_count": n,
               "duration_s": n / fps if fps else None}
-    (out / "extraction_report.json").write_text(json.dumps(report, indent=2))
+    if write_report:
+        (out / "extraction_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
 

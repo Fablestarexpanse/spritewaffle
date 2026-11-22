@@ -157,7 +157,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         from .export import character as char_export
         job = job_for(character, job_id)
         prof = resolve(job.read_meta()["inputs"].get("profile"))
-        out = char_export.export(job.root, job.stage_dir("06_export") / "character", character, prof.fps, frame_set)
+        out = char_export.export(job.root, job.stage_dir("06_export") / "character", character, prof.fps, frame_set,
+                                 profile=prof)
         job.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
 
@@ -168,7 +169,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         from .export import character as char_export
         job = job_for(character, job_id)
         profile = resolve(job.read_meta()["inputs"].get("profile"))
-        return char_export.export_status(job.root, job.root / "06_export" / "character", profile.fps)
+        return char_export.export_status(job.root, job.root / "06_export" / "character", profile.fps, profile=profile)
 
     @mcp.tool()
     def export_action(character: str, job_id: str, facing: str, action: str, format: str = "both") -> dict:
