@@ -23,6 +23,7 @@ setup         doctor, profile, project-style, project-palette, project-reference
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
+tilesets      tileset import -> tileset collision -> tileset export
 video->art    run (all of): extract, sheet, select, pixelize, qa, export
 motion lib    motion, transfer (TARA), flow (pixel-exact)          [experimental]
 services      ui (web app), worker, queue, mcp
@@ -62,6 +63,26 @@ def _profile(a, job: Job | None = None) -> GameProfile:
 
 def _print(obj) -> None:
     print(json.dumps(obj, indent=2, default=str))
+
+
+def cmd_tileset(a):
+    from .core import tileset
+
+    if a.operation == "import":
+        if not a.file:
+            raise ValueError("Pass --file with a PNG tile sheet.")
+        job = _job(a.job, create=True, asset_type=tileset.TYPE)
+        grid = {key: getattr(a, key) for key in ("tile_width", "tile_height", "margin", "spacing")}
+        result = tileset.import_file(job, Path(a.file), grid)
+    else:
+        job = _job(a.job)
+        if a.operation == "collision":
+            result = tileset.collision(job, a.tile, not a.clear)
+        elif a.operation == "export":
+            result = tileset.export(job)
+        else:
+            result = tileset.inspect(job)
+    _print(result)
 
 
 def _kv(items) -> dict:
@@ -632,6 +653,13 @@ def build() -> argparse.ArgumentParser:
     ACTION = (("--action",), {"required": True, "help": "idle, walk, run, attack, jump"})
     OPT_FACING = (("--facing",), {"choices": FACINGS, "help": "default: the job's last facing"})
     OPT_ACTION = (("--action",), {"help": "default: the job's last action"})
+    cmd("tileset", cmd_tileset, "import, inspect, mark collision, or export a local tileset",
+        (("operation",), {"choices": ("import", "inspect", "collision", "export")}), JOB,
+        (("--file",), {"help": "source PNG for import"}),
+        (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
+        (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
+        (("--tile",), {"type": int, "help": "zero-based tile ID"}),
+        (("--clear",), {"action": "store_true", "help": "remove collision from the tile"}))
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",

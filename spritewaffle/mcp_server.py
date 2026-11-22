@@ -379,6 +379,32 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return job_palette.current(job, resolve(job.read_meta()["inputs"].get("profile"))) or {}
 
     @mcp.tool()
+    def tileset(character: str, job_id: str, operation: str = "inspect", path: str | None = None,
+                grid: dict | None = None, tile: int | None = None, solid: bool = True,
+                revision: str | None = None) -> dict:
+        """Import, inspect, mark collision, or export a local PNG tileset.
+
+        Import takes a local path and grid with tile_width, tile_height, margin and spacing.
+        Collision takes a zero-based tile ID and solid true or false. Pass a revision to guard edits.
+        Export writes the PNG and two metadata files to the job's 06_export/tileset folder.
+        """
+        from .core import tileset as workspace
+
+        if operation == "import":
+            if not path or grid is None:
+                raise ValueError("Import requires a local PNG path and grid.")
+            job = workspace.create(base, character, job_id)
+            return workspace.import_file(job, Path(path), grid)
+        job = job_for(character, job_id)
+        if operation == "inspect":
+            return workspace.inspect(job)
+        if operation == "collision":
+            return workspace.collision(job, tile, solid, revision)
+        if operation == "export":
+            return workspace.export(job)
+        raise ValueError("Choose import, inspect, collision, or export.")
+
+    @mcp.tool()
     def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,
                            fields: dict | None = None, include_archived: bool = False) -> dict:
         """Manage images in the local project's reference library. List hides archived images by default.

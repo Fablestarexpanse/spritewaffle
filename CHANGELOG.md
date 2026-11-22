@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a native Tileset workspace for PNG grid import, tile inspection, full-tile collision, and tracked export to SpriteWaffle JSON and Tiled TSJ.
 - Foot alignment now carries depth and normal maps, the character pivot, and effect spawn points with the colour frames. Atlas packing keeps distinct auxiliary texels even when the colour frames are identical.
 - Character exports detect stale foot alignment after processed frames, aligned copies, or the camera border change. The export check offers a local rebuild before replacing the existing bundle.
 - Mirror and optical-flow export checks now report changes to their source frames or guide. Palette-only rebuilds retain manual frame selections. QA and export use the latest processed frame sets.

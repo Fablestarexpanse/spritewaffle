@@ -451,6 +451,32 @@ For a throw, write the action in **Prompts… → Actions** (e.g. "throws the sh
 set **Ends: anywhere** so the clip doesn't end with the object back in the hand; then attach the
 thrown object (an effect, e.g. a spinning shield) as a projectile at the release frame.
 
+### Tileset
+
+Choose **New → tileset**, select a PNG sheet, and enter the tile width and height.
+Margin is the space around the sheet. Spacing is the gap between cells. The grid must
+fit the image exactly. Imports accept still PNGs up to 16 MiB and 4096 × 4096 pixels,
+with at most 4096 tiles.
+
+Click the grid or enter a **Tile ID** to select a cell. IDs start at zero and run left
+to right, top to bottom. Transparent cells keep their IDs. **Full-tile collision**
+sets a rectangle the size of that cell. Importing a different sheet or grid preserves
+the earlier PNG and grid record and starts a new collision layout.
+
+**Export tileset** writes `tiles.png`, `tileset.json`, and `tileset.tsj` to the job's
+`06_export/tileset` folder. Keep the PNG next to either metadata file. Collision changes
+flag the previous export as stale. The PNG in the bundle is an exact copy of the source.
+
+```powershell
+spritewaffle tileset import --job meadow/v1 --file meadow.png --tile-width 16 --tile-height 16
+spritewaffle tileset collision --job meadow/v1 --tile 1
+spritewaffle tileset export --job meadow/v1
+```
+
+`tileset inspect` reports the grid and export status. Add `--clear` to a collision command
+to remove the rectangle. The MCP `tileset` tool offers the same four operations. The HTTP
+base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, and `export` POST routes.
+
 ### Prop (sprite stacking)
 
 New → **New sprite stack** (type `prop`) → anchor (a straight front view) → approve → **Sprite

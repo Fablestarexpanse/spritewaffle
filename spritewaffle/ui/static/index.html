@@ -255,6 +255,15 @@
   #styleCheckResults li + li { margin-top: .7em; }
   #anchorReferencePreview img { display: block; width: 3.6rem; height: 3.6rem; object-fit: contain; }
   #styleRef { max-width: min(21rem, 100%); }
+  .tileset-workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); gap: var(--space); }
+  .tileset-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tileset-form .field { min-width: 0; align-items: stretch; }
+  .tileset-form .full { grid-column: 1 / -1; }
+  .tileset-form input { width: 100%; min-width: 0; }
+  #tileCanvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
+  #tileSelection { max-width: 8rem; }
+  .tileset-workspace [hidden], [data-generation-option][hidden] { display: none; }
+  @media (max-width: 720px) { .tileset-workspace { grid-template-columns: minmax(0, 1fr); } }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
@@ -498,6 +507,7 @@
 </dialog>
 <div id="toasts"></div>
 
+<script src="/static/tileset.js"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -507,7 +517,7 @@ const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
                animal: ["anchor", "facings", "animations", "export"],
                prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings", "export"],
-               base_body: ["anchor", "facings", "animations", "export"]};
+               base_body: ["anchor", "facings", "animations", "export"], tileset: ["tileset"]};
 // What each kind of job is, in the words the UI shows (never the raw id: audit #11).
 const TYPES = {
   character: {label: "character", group: "Characters", help: "anchor → 8 facings → animations → .aseprite"},
@@ -517,10 +527,11 @@ const TYPES = {
   creature: {label: "creature", group: "Characters", help: "monster or creature, built like a character"},
   effect: {label: "effect", group: "Effects", help: "spell, fire, explosion: one looping flipbook"},
   prop: {label: "prop", group: "Props", help: "sprite stack: slices you can spin"},
+  tileset: {label: "tileset", group: "Terrain", help: "import a tile sheet, mark collision, and export"},
 };
 const typeLabel = t => (TYPES[t] || {}).label || String(t || "").replace(/_/g, " ");
 const SHEET_TYPES = ["animal", "base_body"];        // facings come from one turnaround sheet
-const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack"};
+const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack", tileset: "Tileset"};
 
 let status = {profiles: [], actions: [], asset_types: []};
 let jobsCache = [];
@@ -756,13 +767,14 @@ function toast(msg, bad = false) {
   t.className = "toast" + (bad ? " bad" : ""); t.textContent = msg;
   $("#toasts").append(t); setTimeout(() => t.remove(), bad ? 7000 : 3500);
 }
-async function api(path, body) {
+async function api(path, body, {announceErrors = true} = {}) {
   const r = await fetch(path, body === undefined ? {} :
     {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
   if (!r.ok) {
     let msg = await r.text();
     try { msg = JSON.parse(msg).detail || msg; } catch {}
-    toast(msg, true); throw new Error(msg);
+    if (announceErrors) toast(msg, true);
+    throw new Error(msg);
   }
   return r.json();
 }
@@ -874,26 +886,32 @@ async function showNew(type = "character") {
   if (d.open) return;
   const projectArt = art.find(s => s.name === (guide.default_style || "pixel"))?.label || "Pixel art";
   const projectProfile = guide.default_profile || "Built-in sizes";
-  const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop"].filter(t => status.asset_types.includes(t));
+  const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop", "tileset"].filter(t => status.asset_types.includes(t));
   d.innerHTML = `<h2>New job <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
     <div class="types">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
       <b>${esc(typeLabel(t))}</b><small>${esc(TYPES[t]?.help || "")}</small></label>`).join("")}</div>
     <div class="row" style="margin-top:14px">
       <label class="field" style="flex:1;min-width:200px"><span>Name</span><input id="nName" placeholder="e.g. knight, red_cape, human"></label>
-      <label class="field" style="min-width:0"><span>Style</span><select id="nStyle"><option value="">Project default (${esc(projectArt)})</option>${artOptions(art)}</select></label>
-      <label class="field" style="min-width:0"><span>Profile (sizes)</span><select id="nProfile"><option value="">Project default (${esc(projectProfile)})</option><option value="__builtin">Built-in sizes</option>${profileOptions(profiles)}</select></label>
+      <label class="field" data-generation-option style="min-width:0"><span>Style</span><select id="nStyle"><option value="">Project default (${esc(projectArt)})</option>${artOptions(art)}</select></label>
+      <label class="field" data-generation-option style="min-width:0"><span>Profile (sizes)</span><select id="nProfile"><option value="">Project default (${esc(projectProfile)})</option><option value="__builtin">Built-in sizes</option>${profileOptions(profiles)}</select></label>
     </div>
     <p id="nError" class="muted" role="alert" hidden></p>
     <div class="row" style="margin-top:14px"><button class="primary" id="nCreate">Create job</button></div>`;
   $("#nClose").onclick = () => d.close();
+  const showOptions = () => {
+    const tiles = $('input[name="nType"]:checked').value === "tileset";
+    $$('[data-generation-option]').forEach(field => field.hidden = tiles);
+  };
+  $$('input[name="nType"]').forEach(input => input.onchange = showOptions);
+  showOptions();
   const create = async () => {
     const name = $("#nName").value.trim(), t = $('input[name="nType"]:checked').value;
     const error = $("#nError");
     if (!name) { error.textContent = "Give the job a name"; error.hidden = false; $("#nName").focus(); return; }
     const style = $("#nStyle").value, profile = $("#nProfile").value;
     const payload = {character: name, asset_type: t};
-    if (style) payload.style = style;
-    if (profile) payload.profile = profile === "__builtin" ? null : profile;
+    if (style && t !== "tileset") payload.style = style;
+    if (profile && t !== "tileset") payload.profile = profile === "__builtin" ? null : profile;
     const button = $("#nCreate");
     if (button.disabled) return;
     button.disabled = true;
@@ -972,6 +990,7 @@ function saveJf() { try { localStorage.setItem("sw.jobfilters", JSON.stringify(j
 function stepDone(step, stages) {
   const st = k => stages[k]?.status ?? stages[k];
   if (step === "effect") return st("effect:export") === "done";
+  if (step === "tileset") return st("tileset") === "done";
   if (step === "anchor") return st("anchor") === "approved";
   if (step === "facings") return st("facings") === "approved";
   if (step === "animations") return Object.keys(stages).some(k => k.startsWith("export:") && k !== "export:character");
@@ -1166,7 +1185,7 @@ function renderJob() {
       ${j.asset_type === "item" ? `<button ${itemReady ? 'class="primary"' : "disabled"} id="jFit" title="${itemReady ? "Put this item on a character or base body" : "Approve the front and back first (Facings)"}">Fit on…</button>` : ""}
       <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
-    <div class="jobsettings">
+    ${j.asset_type === "tileset" ? "" : `<div class="jobsettings">
       <label>Profile <select id="jProfile"><option value="">default</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
         <button class="ghost" id="jSizes" title="Cell size, sprite height, palette size, fps…">Sizes…</button></label>
@@ -1178,11 +1197,11 @@ function renderJob() {
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
       ${j.inputs.style_guide ? '<button class="ghost" id="jProjectStyle" aria-haspopup="dialog">Saved style guide…</button>' : ""}
       <button class="ghost" id="jStyleCheck" aria-haspopup="dialog">Check project style…</button>
-    </div>
+    </div>`}
     <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
       <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
     <div id="pane"></div>`;
-  ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack})[tab](j, st);
+  ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack, tileset: paneTileset})[tab](j, st);
   $$(".tab").forEach(b => b.onclick = () => {
     tab = b.dataset.tab;
     setHash();
@@ -1190,12 +1209,15 @@ function renderJob() {
     renderJob();
     $(".tab.on").focus({preventScroll: true});
   });
-  $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
-  $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
-  $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
-  $("#jPrompts").onclick = () => showPrompts();
-  $("#jCamera").onclick = () => showCamera(j);
-  $("#jStyleCheck").onclick = showStyleCheck;
+  if (j.asset_type !== "tileset") {
+    $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
+    $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
+    $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
+    $("#jPrompts").onclick = () => showPrompts();
+    $("#jCamera").onclick = () => showCamera(j);
+    $("#jStyleCheck").onclick = showStyleCheck;
+    $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
+  }
   if ($("#jProjectStyle")) $("#jProjectStyle").onclick = () => {
     const d = $("#dlg"), guide = j.inputs.style_guide;
     const style = status.styles.find(s => guide.default_style === s.name)?.label || "Pixel art";
@@ -1209,7 +1231,6 @@ function renderJob() {
   };
   if ($("#jVariant")) $("#jVariant").onclick = () => showVariant(j);
   if ($("#jFit") && itemReady) $("#jFit").onclick = () => showFitOn(j);
-  $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
     await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };
@@ -1916,7 +1937,7 @@ function startStackViewer(s) {
 }
 
 function renderHome() {
-  const kinds = ["character", "base_body", "item", "animal", "effect", "prop"].filter(t => status.asset_types.includes(t));
+  const kinds = ["character", "base_body", "item", "animal", "effect", "prop", "tileset"].filter(t => status.asset_types.includes(t));
   const signature = JSON.stringify([kinds, status.comfy]);
   if ($("#workspaceHome") && renderHome.signature === signature) return;
   renderHome.signature = signature;

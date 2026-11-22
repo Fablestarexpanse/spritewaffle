@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, job_palette, processing, project, project_references, timeline
+from ..core import generate, job_palette, processing, project, project_references, tileset, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -171,7 +171,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts, "running": running,
                 "now": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "jobs": str(base), "profiles": list_profiles(), "actions": sorted(builder.ACTIONS),
-                "asset_types": sorted(builder.ASSET_TYPES),
+                "asset_types": sorted([*builder.ASSET_TYPES, tileset.TYPE]),
                 "styles": [{"name": k, "label": v["label"]} for k, v in styles.STYLES.items()]}
 
     # --- jobs -----------------------------------------------------------------------------
@@ -199,6 +199,12 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         if not char or any(c in char + (jid or "") for c in "/\\:") or char.startswith("_"):
             raise HTTPException(400, "character (and job_id) must be plain names")
         asset_type = body.get("asset_type") or "character"
+        if asset_type == tileset.TYPE:
+            try:
+                j = tileset.create(base, char, jid)
+            except (ValueError, OSError) as error:
+                bad(error)
+            return {"character": char, "job_id": j.root.name}
         if asset_type not in builder.ASSET_TYPES:
             raise HTTPException(400, f"unknown asset type {asset_type}")
         try:
@@ -248,6 +254,9 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         from ..qa import checks
         j = job_or_404(char, jid)
         meta = j.read_meta()
+        if meta["inputs"].get("asset_type") == tileset.TYPE:
+            return {"character": char, "job_id": jid, "asset_type": tileset.TYPE, "style": "pixel",
+                    "stages": meta["stages"], "inputs": meta["inputs"]}
         fr = read_json(j.root / "02_facings" / "facings_report.json") or {}
         def takes_of(rel: str, still: bool = True) -> list[dict]:
             from ..core import takes
@@ -338,6 +347,47 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "palette": palette_info(j),
                 "showcase": next((url(p) for p in (exp / "showcase").glob("*_showcase.gif")), None)
                             if (exp / "showcase").is_dir() else None}
+
+    def tileset_view(j: Job, state: dict) -> dict:
+        return {**state, "preview": url(j.root / state["preview"]) if state["preview"] else None,
+                "files": {name: link + "&download=1" for name, path in state["files"].items()
+                          if (link := url(j.root / path))}}
+
+    @app.get("/api/jobs/{char}/{jid}/tileset")
+    def inspect_tileset(char: str, jid: str):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.inspect(j))
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/import")
+    def import_tileset(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            encoded = body.get("data")
+            if not isinstance(encoded, str) or len(encoded) > 4 * ((tileset.MAX_BYTES + 2) // 3):
+                raise ValueError("Choose a PNG no larger than 16 MiB.")
+            result = tileset.import_bytes(j, b64decode(encoded, validate=True), body.get("filename"), body.get("grid"))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+        return tileset_view(j, result)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/collision")
+    def tileset_collision(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.collision(j, body.get("tile"), body.get("solid"), body.get("revision")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/export")
+    def export_tileset(char: str, jid: str):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.export(j))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
 
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):
