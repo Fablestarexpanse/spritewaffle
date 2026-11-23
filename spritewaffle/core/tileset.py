@@ -1,4 +1,4 @@
-"""Local, source-preserving tilesets with a rectangular atlas and per-tile collision."""
+"""Local tilesets with a retained atlas, collision, terrain, and animation."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -20,6 +20,8 @@ RECORD = f"{DIRECTORY}/tileset.json"
 MAX_BYTES = 16 * 1024**2
 MAX_DIMENSION = 4096
 MAX_TILES = 4096
+MAX_ANIMATION_FRAMES = 64
+MAX_FRAME_DURATION_MS = 60_000
 FILES = ("tiles.png", "tileset.json", "tileset.tsj")
 
 
@@ -59,12 +61,20 @@ def _read(directory: Path) -> dict | None:
                                           for key in ("width", "height"))
             or _grid((grid["width"], grid["height"]), grid) != grid):
         raise ValueError("The stored tileset grid is invalid.")
+    count = grid["columns"] * grid["rows"]
     for key in ("empty_tiles", "solid_tiles"):
         ids = record.get(key)
-        if not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < grid["columns"] * grid["rows"] for i in ids):
+        if not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < count for i in ids):
             raise ValueError("The stored tile IDs are invalid.")
     if "terrain" in record:
-        record["terrain"] = terrain.normalize(record["terrain"], grid["columns"] * grid["rows"])
+        record["terrain"] = terrain.normalize(record["terrain"], count)
+    if "animations" in record:
+        animations = record["animations"]
+        valid_ids = {str(i) for i in range(count)}
+        if not isinstance(animations, dict) or any(key not in valid_ids or not frames for key, frames in animations.items()):
+            raise ValueError("The stored tile animations are invalid.")
+        for frames in animations.values():
+            _validate_frames(frames, count)
     return record
 
 
@@ -128,8 +138,9 @@ def import_bytes(job: Job, data: bytes, filename: str, values: dict) -> dict:
         previous = _read(directory)
         if previous and (previous["digest"], previous["grid"]) == (digest, grid):
             record["solid_tiles"] = previous["solid_tiles"]
-            if "terrain" in previous:
-                record["terrain"] = previous["terrain"]
+            for key in ("terrain", "animations"):
+                if key in previous:
+                    record[key] = previous[key]
         elif previous:
             history = directory / "history"
             history.mkdir(exist_ok=True)
@@ -186,6 +197,37 @@ def update_terrain(job: Job, rules: dict, revision: str | None = None) -> dict:
     return inspect(job)
 
 
+def _validate_frames(frames: list, count: int) -> None:
+    if not isinstance(frames, list) or (frames and not 2 <= len(frames) <= MAX_ANIMATION_FRAMES):
+        raise ValueError(f"Use 2 to {MAX_ANIMATION_FRAMES} frames or an empty list to remove the animation.")
+    for frame in frames:
+        if not isinstance(frame, dict) or set(frame) != {"tile", "duration_ms"}:
+            raise ValueError("Each animation frame needs a tile ID and a duration in milliseconds.")
+        tile, duration = frame["tile"], frame["duration_ms"]
+        if type(tile) is not int or not 0 <= tile < count:
+            raise ValueError("Every animation frame must use a tile ID within the grid.")
+        if type(duration) is not int or not 1 <= duration <= MAX_FRAME_DURATION_MS:
+            raise ValueError(f"Frame durations must be whole milliseconds from 1 to {MAX_FRAME_DURATION_MS}.")
+
+
+def update_animation(job: Job, tile: int, frames: list, revision: str | None = None) -> dict:
+    with _edit(job, revision) as record:
+        grid = record["grid"]
+        count = grid["columns"] * grid["rows"]
+        if type(tile) is not int or not 0 <= tile < count:
+            raise ValueError("Choose a tile ID within the grid.")
+        _validate_frames(frames, count)
+        animations = record.get("animations", {})
+        if frames:
+            animations[str(tile)] = frames
+            record["animations"] = animations
+        else:
+            animations.pop(str(tile), None)
+            if not animations:
+                record.pop("animations", None)
+    return inspect(job)
+
+
 def preview(job: Job, vertices: list, revision: str | None = None) -> dict:
     record = _read(_workspace(job))
     if record is None:
@@ -197,7 +239,8 @@ def preview(job: Job, vertices: list, revision: str | None = None) -> dict:
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
     return receipt.snapshot(job.root, [_source(directory, record)],
-                            {key: record[key] for key in ("grid", "solid_tiles", "terrain") if key in record})
+                            {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations")
+                             if key in record})
 
 
 def inspect(job: Job) -> dict:
@@ -233,6 +276,7 @@ def export(job: Job) -> dict:
             raise ValueError("The retained PNG changed. Import a valid tile sheet again.")
         grid = record["grid"]
         ids, blank = set(record["solid_tiles"]), set(record["empty_tiles"])
+        animations = {int(tile): frames for tile, frames in record.get("animations", {}).items()}
         rects = list(_rectangles(grid))
         native = {"schema_version": 1, "image": "tiles.png", "grid": grid,
                   "tiles": [{"id": i, "rect": list(rect), "empty": i in blank, "solid": i in ids}
@@ -241,10 +285,20 @@ def export(job: Job) -> dict:
         collision_layer = {"type": "objectgroup", "draworder": "index", "name": "Collision", "visible": True,
                            "opacity": 1, "x": 0, "y": 0, "objects": [{"id": 1, "name": "", "x": 0, "y": 0,
                                "width": w, "height": h, "rotation": 0, "visible": True}]}
+        tiled_tiles = []
+        for tile in sorted(ids | animations.keys()):
+            entry = {"id": tile}
+            if tile in ids:
+                entry["objectgroup"] = collision_layer
+            if tile in animations:
+                frames = animations[tile]
+                native["tiles"][tile]["animation"] = frames
+                entry["animation"] = [{"tileid": frame["tile"], "duration": frame["duration_ms"]} for frame in frames]
+            tiled_tiles.append(entry)
         tiled = {"type": "tileset", "version": "1.10", "name": job.root.parent.name, "image": "tiles.png",
                  "imagewidth": grid["width"], "imageheight": grid["height"], "columns": grid["columns"],
                  "tilecount": len(rects), "tilewidth": w, "tileheight": h, "margin": grid["margin"],
-                 "spacing": grid["spacing"], "tiles": [{"id": i, "objectgroup": collision_layer} for i in sorted(ids)]}
+                 "spacing": grid["spacing"], "tiles": tiled_tiles}
         if rules := record.get("terrain"):
             native["terrain"] = rules
             tiled["wangsets"] = [terrain.tiled_wangset(rules)]

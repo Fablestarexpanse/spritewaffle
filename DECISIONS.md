@@ -1,6 +1,10 @@
-NEXT: Add per-tile animation frame timing and preview, then persist small maps as project assets.
+NEXT: Persist small maps as project assets and validate portable map exports.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 Tile animations use ordered local atlas IDs and whole-millisecond durations. The atlas, terrain rules, and collision still belong to the original tile. Playback starts paused and uses one clock for both previews. The optional record field preserves old tilesets and export receipts. The tileset rejects invalid frame IDs, invalid durations, and edits based on an out-of-date revision. [Tiled frame format](https://doc.mapeditor.org/en/stable/reference/json-map-format/#frame)
+- 2026-11-22 At the `1c10c45` starting point the recorded suite result was 321 passing Python tests. For this change, Chromium saved and reloaded a 260/520 ms animation in a 48-cell terrain preview, sampled the same frame in both canvases, and verified pause. Both metadata files retained timing and terrain rules, and the PNG matched its source bytes. Layout passed at 1440, 800, and 390 px. Six focused Python and eight Node tests passed. Tiled's editor was unavailable. Doctor confirmed the local ComfyUI endpoint was down and the H3 turntable template was absent.
+- 2026-11-22 The full suite passed 323 Python tests in 97.09 s with the existing Starlette warning.
 
 - 2026-11-22 Baseline at `882454d` passed 319 Python tests in 95.43 s. The first terrain slice uses one set of named corner rules on an existing tileset. Preview cells share vertices. An exact corner match selects the lowest local tile ID, and missing combinations are reported with coordinates. Old tilesets gain no fields until terrain is authored. Tiled export writes the documented eight Wang positions with only the four corner positions populated.
 - 2026-11-22 Chromium created a terrain set on the six-slot meadow fixture and painted a 48-cell scratch map. A partial grass and water boundary produced dashed gaps. Completing the water column resolved all 48 cells through the authored transition tile. Reload restored the scratch map. Both exports retained the rule, including Tiled tile 1's Wang ID `[0, 2, 0, 2, 0, 1, 0, 1]`. The PNG matched its source bytes. The browser run took 6.30 s and verified widths of 1440, 800, and 390 px. The focused HTTP, CLI, and MCP suite passed 23 tests.

@@ -153,3 +153,62 @@ def test_terrain_cli_mcp_and_reimport_share_tile_assignments(tmp_path, monkeypat
     params = {"character": "terrain", "job_id": "one"}
     actual = text(call(mcp, "tileset", **params, operation="preview", vertices=[["Grass"] * 2] * 2))
     assert actual["tiles"] == [[0]] and actual["missing"] == []
+
+
+def test_tile_animation_retains_collision_and_exports_frame_order(tmp_path):
+    from base64 import b64encode
+
+    route = "/api/jobs/water/one/tileset"
+    image = atlas_bytes()
+    payload = {"data": b64encode(image).decode("ascii"), "filename": "water.png",
+               "grid": {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1}}
+    frames = [{"tile": 1, "duration_ms": 70}, {"tile": 0, "duration_ms": 230}]
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        assert client.post("/api/jobs", json={"character": "water", "job_id": "one", "asset_type": "tileset"}).is_success
+        assert client.post(route + "/import", json=payload).is_success
+        first = client.post(route + "/collision", json={"tile": 1, "solid": True}).json()
+        client.post(route + "/export").raise_for_status()
+        saved = client.post(route + "/animation", json={"tile": 1, "frames": frames, "revision": first["revision"]})
+        assert saved.status_code == 200
+        assert saved.json()["tileset"]["animations"] == {"1": frames}
+        assert saved.json()["export"]["status"] == "stale"
+        for bad in ([frames[0]], [frames[0], {"tile": 2, "duration_ms": 70}],
+                    [frames[0], {"tile": 0, "duration_ms": 0}],
+                    [frames[0], {"tile": 0, "duration_ms": 60001}],
+                    [frames[0], {"tile": False, "duration_ms": 70}]):
+            assert client.post(route + "/animation", json={"tile": 1, "frames": bad}).status_code == 400
+        assert client.post(route + "/animation", json={"tile": 1, "frames": [], "revision": first["revision"]}).status_code == 400
+        assert client.post(route + "/import", json=payload).json()["tileset"]["animations"] == {"1": frames}
+        exported = client.post(route + "/export").json()
+        native, tiled = (client.get(exported["files"][f"tileset.{ext}"]).json() for ext in ("json", "tsj"))
+        assert native["tiles"][1]["animation"] == frames and native["tiles"][1]["solid"]
+        tile, = tiled["tiles"]
+        assert tile["id"] == 1 and tile["objectgroup"]["objects"][0]["width"] == 8
+        assert tile["animation"] == [{"tileid": 1, "duration": 70}, {"tileid": 0, "duration": 230}]
+        state = client.post(route + "/animation", json={"tile": 1, "frames": []}).json()
+        assert "animations" not in state["tileset"] and state["export"]["status"] == "stale"
+
+
+def test_tile_animation_cli_and_mcp_share_durations(tmp_path, monkeypatch, capsys):
+    from spritewaffle import cli
+    from spritewaffle.core import tileset
+    from spritewaffle.mcp_server import build
+    from test_mcp import call, text
+
+    base = tmp_path / "jobs"
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(base))
+    job = tileset.create(base, "terrain", "anim")
+    tileset.import_bytes(job, atlas_bytes(), "atlas.png", {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1})
+    file = tmp_path / "animation.json"
+    frames = [{"tile": 0, "duration_ms": 200}, {"tile": 1, "duration_ms": 120}]
+    file.write_text(json.dumps(frames), encoding="utf-8")
+    args = ["--job", "terrain/anim", "--tile", "0"]
+    assert cli.main(["tileset", "animation", *args, "--file", str(file)]) == 0
+    expected = json.loads(capsys.readouterr().out)
+    mcp, _ = build(base)
+    params = {"character": "terrain", "job_id": "anim"}
+    assert text(call(mcp, "tileset", **params)) == expected
+    changed = text(call(mcp, "tileset", **params, operation="animation", tile=0, frames=list(reversed(frames))))
+    assert changed["tileset"]["animations"] == {"0": list(reversed(frames))}
+    assert cli.main(["tileset", "animation", *args, "--clear"]) == 0
+    assert "animations" not in json.loads(capsys.readouterr().out)["tileset"]

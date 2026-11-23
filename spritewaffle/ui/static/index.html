@@ -263,6 +263,14 @@
   #tileCanvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
   #tileSelection { max-width: 8rem; }
   .tileset-workspace [hidden], [data-generation-option][hidden] { display: none; }
+  .tile-animation-layout { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: var(--space); }
+  .tile-animation-layout canvas { display: block; max-width: 100%; image-rendering: pixelated; background: var(--panel); border: 1px solid var(--line); }
+  .tile-animation-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+  #tileAnimationFrames { display: grid; gap: .5rem; margin: 0 0 .5rem; padding: 0; }
+  .tile-animation-frame { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
+  .tile-animation-frame label { display: grid; gap: .2rem; }
+  .tile-animation-frame input { width: 8rem; max-width: 100%; }
+  @media (max-width: 720px) { .tile-animation-layout { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 720px) { .tileset-workspace { grid-template-columns: minmax(0, 1fr); } }
   #terrainPanel { margin-top: 1.4rem; border-top: 1px solid var(--line); padding-top: 1rem; }
   #terrainCorners .field { min-width: 0; }
@@ -512,6 +520,7 @@
 </dialog>
 <div id="toasts"></div>
 
+<script src="/static/tileset_animation.js"></script>
 <script src="/static/tileset_terrain.js"></script>
 <script src="/static/tileset.js"></script>
 <script>

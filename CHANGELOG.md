@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added per-tile animations with ordered atlas frames, individual durations, and synchronized playback in the selected-tile and terrain map previews. SpriteWaffle JSON and Tiled TSJ retain the timing, and edits mark prior exports stale.
 - Added named corner terrain rules and an 8 × 6 map preview that flags missing transitions. Tileset exports include the saved rules in SpriteWaffle JSON and Tiled Wang-set metadata.
 - Added a native Tileset workspace for PNG grid import, tile inspection, full-tile collision, and tracked export to SpriteWaffle JSON and Tiled TSJ.
 - Foot alignment now carries depth and normal maps, the character pivot, and effect spawn points with the colour frames. Atlas packing keeps distinct auxiliary texels even when the colour frames are identical.

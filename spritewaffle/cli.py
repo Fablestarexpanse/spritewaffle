@@ -23,7 +23,7 @@ setup         doctor, profile, project-style, project-palette, project-reference
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
-tilesets      tileset import -> tileset collision / terrain / preview -> tileset export
+tilesets      tileset import -> tileset collision / terrain / animation / preview -> tileset export
 video->art    run (all of): extract, sheet, select, pixelize, qa, export
 motion lib    motion, transfer (TARA), flow (pixel-exact)          [experimental]
 services      ui (web app), worker, queue, mcp
@@ -80,6 +80,11 @@ def cmd_tileset(a):
             result = tileset.collision(job, a.tile, not a.clear)
         elif a.operation == "export":
             result = tileset.export(job)
+        elif a.operation == "animation":
+            if bool(a.file) == a.clear:
+                raise ValueError("Pass either --file with JSON animation frames or --clear.")
+            frames = [] if a.clear else json.loads(Path(a.file).read_text(encoding="utf-8"))
+            result = tileset.update_animation(job, a.tile, frames)
         elif a.operation in ("terrain", "preview"):
             if not a.file:
                 raise ValueError("Pass --file with JSON terrain rules or preview vertices.")
@@ -659,12 +664,12 @@ def build() -> argparse.ArgumentParser:
     OPT_FACING = (("--facing",), {"choices": FACINGS, "help": "default: the job's last facing"})
     OPT_ACTION = (("--action",), {"help": "default: the job's last action"})
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
-        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "preview", "export")}), JOB,
-        (("--file",), {"help": "source PNG for import, JSON for terrain or preview"}),
+        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "export")}), JOB,
+        (("--file",), {"help": "source PNG for import, JSON for terrain, animation or preview"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),
-        (("--clear",), {"action": "store_true", "help": "remove collision from the tile"}))
+        (("--clear",), {"action": "store_true", "help": "remove collision or animation from the tile"}))
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",

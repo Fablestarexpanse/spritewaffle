@@ -1,4 +1,4 @@
-function bindTilesetTerrain(panel, route, request, image, apply) {
+function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   panel.innerHTML = `<h2>Terrain transitions</h2>
     <div class="tileset-workspace">
       <div>
@@ -55,16 +55,15 @@ function bindTilesetTerrain(panel, route, request, image, apply) {
     const grid = state.tileset.grid, tw = grid.tile_width, th = grid.tile_height;
     const size = 40 / Math.max(tw, th);
     const w = Math.max(1, Math.round(tw * size)), h = Math.max(1, Math.round(th * size));
-    canvas.width = cols * w;
-    canvas.height = rows * h;
+    if (canvas.width !== cols * w) canvas.width = cols * w;
+    if (canvas.height !== rows * h) canvas.height = rows * h;
     const ctx = canvas.getContext("2d"), style = getComputedStyle(canvas);
     const missing = new Set(result.missing.map(([x, y]) => y * cols + x));
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = false;
     result.tiles.forEach((row, y) => row.forEach((id, x) => {
-      if (id !== null && image.complete && image.naturalWidth) {
-        const sx = grid.margin + id % grid.columns * (tw + grid.spacing);
-        const sy = grid.margin + Math.floor(id / grid.columns) * (th + grid.spacing);
-        ctx.drawImage(image, sx, sy, tw, th, x * w, y * h, w, h);
+      if (id !== null && state.preview && image.complete && image.naturalWidth) {
+        drawTilesetCell(ctx, image, grid, frameFor(id), x * w, y * h, w, h);
       }
       ctx.strokeStyle = style.getPropertyValue(missing.has(y * cols + x) ? "--warn" : "--line").trim();
       ctx.setLineDash(missing.has(y * cols + x) ? [3, 2] : []);

@@ -475,7 +475,7 @@ spritewaffle tileset export --job meadow/v1
 
 `tileset inspect` reports the grid and export status. Add `--clear` to a collision command
 to remove the rectangle. The MCP `tileset` tool offers the same operations. The HTTP
-base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, `terrain`, `preview`,
+base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, `terrain`, `animation`, `preview`,
 and `export` POST routes.
 
 #### Terrain transitions
@@ -494,6 +494,19 @@ object keyed by tile ID. Each tile has four corner names or `null` in the order 
 `tileset preview --job meadow/v1 --file vertices.json` takes a rectangular array of corner
 names or `null` and reports tile IDs and missing cell coordinates. A 9 × 7 vertex grid
 produces the same 8 × 6 preview size as the browser.
+
+#### Animated tiles
+
+Select a tile and add 2 to 64 frames under **Tile animation**. Enter zero-based IDs
+from the imported sheet and durations from 1 to 60,000 milliseconds. Move frames into
+playback order and select **Save animation** before switching tiles. The selected-tile
+preview and terrain map use the saved sequence. Select **Play previews** to start both.
+The selected tile keeps its collision and terrain rules throughout playback.
+
+`spritewaffle tileset animation --job meadow/v1 --tile 2 --file frames.json` saves a
+sequence such as `[{"tile":2,"duration_ms":260},{"tile":4,"duration_ms":520}]`. Use
+`--clear` to remove it. Each entry selects an atlas cell directly. Both metadata formats
+carry the saved timing. Export again after changing an animation to refresh the bundle.
 
 ### Prop (sprite stacking)
 

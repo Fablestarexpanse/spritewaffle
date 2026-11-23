@@ -24,13 +24,14 @@ function paneTileset() {
           <label class="field">Spacing (px) <input name="spacing" type="number" min="0" max="4096" value="0" required></label>
           <button class="primary full" id="tileImportSave" type="submit">Import PNG</button>
         </form>
-        <p id="tileImportHint" class="hint" hidden>A different sheet or grid starts a new collision layout. Earlier sources and layouts are retained.</p>
+        <p id="tileImportHint" class="hint" hidden>A different sheet or grid starts a new tile layout. Earlier sources and layouts are retained.</p>
         <div class="row" id="tileExportRow" hidden><button id="tileExport" type="button">Export tileset</button>
           <span class="muted" id="tileExportStatus" role="status"></span></div>
         <div class="row" id="tileDownloads"></div>
         <p class="warn" id="tileError" role="alert" hidden></p>
       </div>
     </div>
+    <div id="tileAnimationPanel" hidden></div>
     <div id="terrainPanel" hidden></div>
   </section>`;
   const root = pane.querySelector("#tileWorkspace");
@@ -39,7 +40,10 @@ function paneTileset() {
   const solid = find("#tileSolid"), selection = find("#tileSelection"), exportButton = find("#tileExport");
   const image = new Image();
   let state, active = 0, scale = 1;
-  const terrain = bindTilesetTerrain(find("#terrainPanel"), route, request, image, result => render(result));
+  const animation = bindTilesetAnimation(find("#tileAnimationPanel"), request, image, result => render(result),
+    () => terrain.draw());
+  const terrain = bindTilesetTerrain(find("#terrainPanel"), route, request, image, result => render(result),
+    animation.frameFor);
   const keys = ["tile_width", "tile_height", "margin", "spacing"];
   const names = {"tiles.png": "PNG", "tileset.json": "SpriteWaffle JSON", "tileset.tsj": "Tiled TSJ"};
   const states = {current: "Export current", stale: "Export stale", incomplete: "Export incomplete", untracked: "Export untracked"};
@@ -85,12 +89,15 @@ function paneTileset() {
     solid.checked = state.tileset.solid_tiles.includes(id);
     find("#tileEmpty").textContent = state.tileset.empty_tiles.includes(id) ? "Transparent tile" : "";
     terrain.selectTile(id);
+    animation.selectTile(id);
     redraw();
   }
 
   function render(result, loadGrid = false) {
     state = result;
     const record = result.tileset;
+    if (result.preview && image.getAttribute("src") !== result.preview) image.src = result.preview;
+    animation.sync(result);
     terrain.sync(result);
     find("#tileControls").hidden = !record;
     find("#tileExportRow").hidden = !record;
@@ -101,7 +108,6 @@ function paneTileset() {
       selection.max = grid.columns * grid.rows - 1;
       summary.textContent = `${filename} · ${grid.columns} × ${grid.rows} tiles · ${empty_tiles.length} transparent${result.preview ? "" : " · Source PNG missing"}`;
       if (loadGrid) keys.forEach(key => form.elements[key].value = grid[key]);
-      if (result.preview && image.getAttribute("src") !== result.preview) image.src = result.preview;
       select(Math.min(active, Number(selection.max)));
     } else summary.textContent = "Import a PNG tile sheet and enter its grid dimensions.";
     exportButton.disabled = !result.preview;
@@ -125,6 +131,7 @@ function paneTileset() {
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
     redraw();
+    animation.draw();
     terrain.draw();
   };
   image.onerror = () => error("The retained PNG could not be displayed. Import it again.");

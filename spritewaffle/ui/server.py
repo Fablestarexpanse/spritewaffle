@@ -397,6 +397,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
+    @app.post("/api/jobs/{char}/{jid}/tileset/animation")
+    def update_tileset_animation(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.update_animation(j, body.get("tile"), body.get("frames"),
+                                                            body.get("revision")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
     @app.post("/api/jobs/{char}/{jid}/tileset/preview")
     def preview_tileset_terrain(char: str, jid: str, body: dict = Body(...)):
         j = job_or_404(char, jid)
