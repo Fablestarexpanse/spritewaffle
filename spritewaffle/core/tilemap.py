@@ -8,7 +8,7 @@ import re
 from uuid import uuid4
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from . import fsutil, tileset
+from . import fsutil, map_objects, tileset
 from .job import Job
 
 MAX_MAPS = 64
@@ -61,9 +61,15 @@ def load(job: Job, map_id: str) -> dict:
     return _view(map_id, _get(_read(tileset._workspace(job)), map_id))
 
 
+def _objects(entries: list, layout: dict, record: dict) -> list[dict]:
+    grid = record["grid"]
+    return map_objects.normalize(entries, layout["width"] * layout["height"], grid["columns"] * grid["rows"],
+                                 tileset._atlas_revision(record), tileset.MAX_TILES)
+
+
 def save(job: Job, name: str, vertices: list, map_id: str | None = None, revision: str | None = None,
          tileset_revision: str | None = None, *, overrides: dict | None = None,
-         override_atlas: str | None = None) -> dict:
+         override_atlas: str | None = None, objects: list | None = None) -> dict:
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or len(name.strip().splitlines()) != 1:
         raise ValueError("Enter a map name of 1 to 80 characters on one line.")
     with tileset._locked_record(job) as (directory, record):
@@ -76,16 +82,22 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
                 raise ValueError("The saved map changed. Open it again before saving.")
             if overrides is None:
                 overrides, override_atlas = current.get("overrides"), current.get("override_atlas")
+            if objects is None:
+                objects = current.get("objects")
         else:
             if len(maps) >= MAX_MAPS:
                 raise ValueError(f"A tileset can hold up to {MAX_MAPS} saved maps.")
             map_id = uuid4().hex
-        tileset._preview(record, vertices, overrides=overrides, override_atlas=override_atlas)
+        layout = tileset._preview(record, vertices, overrides=overrides, override_atlas=override_atlas)
         draft = {"name": name.strip(), "vertices": vertices}
         if overrides:
             draft["overrides"] = overrides
             if any(tile is not None for tile in overrides.values()):
                 draft["override_atlas"] = override_atlas or tileset._atlas_revision(record)
+        if objects is not None:
+            objects = _objects(objects, layout, record)
+            if objects:
+                draft["objects"] = objects
         maps[map_id] = draft
         fsutil.write_text(_registry(directory), json.dumps({"version": 1, "maps": maps}, ensure_ascii=False))
     return _view(map_id, draft)
@@ -112,6 +124,11 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         corners = saved["vertices"]
         resolved = tileset._preview(record, corners, allow_unknown=True, overrides=saved.get("overrides"),
                                     override_atlas=saved.get("override_atlas"))
+        objects = _objects(saved.get("objects", []), resolved, record)
+        atlas = tileset._atlas_revision(record)
+        outdated = next((entry for entry in objects if entry["atlas"] != atlas), None)
+        if outdated:
+            raise ValueError(f"{outdated['name']} uses a previous atlas. Update its state tiles before exporting.")
         if missing := resolved["missing"]:
             x, y = missing[0]
             raise ValueError(f"The map has {len(missing)} unresolved cells, starting at ({x + 1}, {y + 1}). "
@@ -122,6 +139,12 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         if "overrides" in saved:
             native["overrides"] = saved["overrides"]
         tiled = _tiled_map(saved["name"], resolved, record["grid"])
+        if objects:
+            native["objects"] = objects
+            tiled["layers"].append(map_objects.tiled_layer(objects, resolved["width"], record["grid"],
+                                                           record["solid_tiles"]))
+            tiled["nextlayerid"] = 3
+            tiled["nextobjectid"] = len(objects) + 1
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as package:
             for filename, data in (("map.json", native), ("map.tmj", tiled),

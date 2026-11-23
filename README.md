@@ -542,6 +542,27 @@ Override keys are zero-based cell numbers in row order. Each value is an atlas t
 `/api/jobs/{character}/{job}/tileset/maps` expose the same operations. ZIPs are written under
 the job's `06_export/maps/` folder.
 
+#### Stateful map objects
+
+Open **Map objects** inside the map editor. Enter the object name, type, and zero-based
+cell. Give each state a name and tile ID from the current atlas, then choose the active
+state. Select **Apply object** to preview it and **Save map** to keep it. For a workshop
+door, use tiles named `closed` and `open` and mark the closed tile solid in the tileset.
+Both states sit above the same ground cell. **Clear ground** leaves objects in place.
+
+A map supports up to 64 objects, one per cell, and 2 to 8 named states per object.
+Replacing the atlas keeps recorded states and flags them for review. Enter new tile IDs
+for every state before exporting the object with the replacement atlas.
+
+The map ZIP retains all the object states in SpriteWaffle JSON. Tiled gets a tile object
+for the active state and properties for the stable ID, active state, alternate states,
+and whether the active tile is solid. A game's own logic can use that metadata to switch
+states during play. The CLI map draft and MCP save operation accept an `objects` array
+with `id`, `name`, `kind`, `cell`, `state`, and `states` entries such as
+`[{"name":"closed","tile":3},{"name":"open","tile":4}]`. When editing an existing object,
+keep the `atlas` binding from the loaded record, or omit it to bind the supplied tiles
+to the current atlas. Omit `objects` to keep them unchanged, or pass `[]` to clear them.
+
 ### Prop (sprite stacking)
 
 New → **New sprite stack** (type `prop`) → anchor (a straight front view) → approve → **Sprite

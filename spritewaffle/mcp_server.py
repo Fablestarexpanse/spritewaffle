@@ -418,13 +418,16 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     def tilemap(character: str, job_id: str, operation: str = "list", map_id: str | None = None,
                 name: str | None = None, vertices: list[list[str | None]] | None = None,
                 revision: str | None = None, tileset_revision: str | None = None,
-                overrides: dict | None = None, override_atlas: str | None = None) -> dict | list[dict]:
+                overrides: dict | None = None, override_atlas: str | None = None,
+                objects: list[dict] | None = None) -> dict | list[dict]:
         """List, load, save, or export named terrain maps in a tileset job.
 
         Save takes a name and a rectangular lattice of terrain names or null. Updates need
         the map ID and loaded revision. Export writes a portable ZIP to the job.
         Overrides map row-major cell IDs to atlas tile IDs or null. An empty object clears
         overrides. Pass the loaded override_atlas to retain its source binding.
+        Objects have an id, name, kind, cell, state, and list of named atlas states.
+        Pass [] to clear them and retain each loaded atlas binding when updating.
         """
         from .core import tilemap as maps
 
@@ -435,7 +438,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             return maps.load(job, map_id)
         if operation == "save":
             return maps.save(job, name, vertices, map_id, revision, tileset_revision,
-                             overrides=overrides, override_atlas=override_atlas)
+                             overrides=overrides, override_atlas=override_atlas, objects=objects)
         if operation == "export":
             return maps.export(job, map_id, revision, tileset_revision)
         raise ValueError("Choose list, load, save, or export.")

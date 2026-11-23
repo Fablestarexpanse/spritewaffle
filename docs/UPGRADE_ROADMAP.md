@@ -10,7 +10,7 @@ Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tr
 | Production reliability | Queue recovery and QA exist. Action and character exports have separate writers. | Character, action, item, and effect bundles have local freshness receipts. Action processing tracks imported and generated clips, mirrors, optical-flow inputs, and palettes. Palette-only rebuilds retain the source selection. Tracked alignment guards character exports and keeps auxiliary maps, pivots, and effect points registered to the colour frames. |
 | Animation and editing | Frame extraction, selection, pixel processing, takes, and animated preview exist. | The timeline supports timing, onion skins, ranges, tags, and pose markers. The comparison supports local reprocessing, whole-pixel offsets, and alignment to a reference foot. Saved edits are reversible and flow into QA or export metadata as appropriate. |
 | Project style | Job palettes, game profiles, camera defaults and overrides, and directional manifests exist. | Delivered style defaults, palettes, read-only consistency checks, and portable reference collections. One selected library image can guide an anchor and is recorded in its provenance. Multi-image generation and family palette rules remain open. |
-| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain and manual tile placement and export to a self-contained ZIP. Tiled 1.12.2 imported and rendered a representative map. Object-state metadata and modular buildings are next. |
+| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain, manual tile placement, and cell-aligned objects with named atlas states. Tiled 1.12.2 imported and rendered a workshop door above the ground layer. Reusable object templates and representative resource states are next. |
 | Advanced production | Item fits are flattened. Sprite stacks and an optional 3D template exist. Manifest map slots and arbitrary view metadata exist. | Prove layered equipment, higher-angle generation, and depth/normal generation independently using representative assets. |
 | Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Tiled import and rasterization verified for a single orthogonal tile layer. Validate engine-specific imports in Unity and Godot. LDtk remains open. |
 
@@ -24,6 +24,11 @@ tiles store the local tile ID and duration in milliseconds in Tiled's animation 
 Tiled 1.12.2 imported the TMJ and TSJ, re-exported them to TMX and TSX, and rasterized the map.
 The test checked global tile IDs, a transparent cell, collision, animation timing, and Wang rules.
 [Tiled JSON format](https://doc.mapeditor.org/en/latest/reference/json-map-format/)
+
+For stateful objects, the TMJ has a separate tile object layer. Tile objects use the
+orthogonal bottom-left anchor. The active state controls the tile ID. Tiled preserved the
+object's tile ID, position, state metadata, and solid property in the workshop round trip.
+[Tiled tile objects](https://doc.mapeditor.org/en/stable/manual/objects/#insert-tile)
 
 The map ZIP puts an orthogonal TMJ, its TSJ and PNG, and the native map and tileset JSON
 files together. The Tiled layer stores 0 for empty cells and offsets local tile IDs by the

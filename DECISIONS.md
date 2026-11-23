@@ -1,6 +1,10 @@
-NEXT: Add generalized object-state metadata and apply it to a modular building with a door.
+NEXT: Add reusable map-object templates and verify states on a harvestable resource.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 Baseline `1c11c99` passed 326 Python tests in 96.92 s. A new test showed that saved maps ignored object states. Each cell-aligned object has a stable ID, named atlas states and an active state. Objects render above ground and retain their atlas binding. Export places the active state on a separate Tiled object layer and retains alternate states and the effective collision flag as properties.
+- 2026-11-22 Chromium assembled a five-cell workshop wall, applied a closed door, switched it open, and reopened the saved map at 1440, 800, and 390 px. Tiled 1.12.2 preserved the door GID 5, active state, alternate states, and nonsolid flag in TMX. The 128 × 96 raster showed the open door at the expected pixel over the original ground. Eighteen focused Python tests and eight Node tests passed.
+- 2026-11-22 The full suite passed 327 Python tests in 97.02 s with the existing Starlette warning.
 
 - 2026-11-22 The official Tiled 1.12.2 Windows release matched its published SHA-256. An extracted copy ran in portable mode outside the repository. It imported a SpriteWaffle TMJ, re-exported the map to TMX with GIDs 1, 2, 0, and rasterized both atlas tiles and a transparent cell. Manual placement keeps the original terrain corners and uses sparse row-major cell overrides. Pin explicit atlas tile IDs to the source and grid so a replaced sheet cannot silently change their artwork.
 - 2026-11-22 Baseline `8a5e25c` passed 325 Python tests in 97.71 s. The manual placement test reproduced that the preview ignored explicit atlas tile and empty-cell choices before implementation.

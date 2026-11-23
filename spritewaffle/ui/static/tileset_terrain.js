@@ -21,7 +21,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         <div class="row">
           <label>Terrain <select id="terrainBrush"></select></label>
           <button type="button" id="terrainFill">Fill preview</button>
-          <button type="button" id="terrainClear">Clear draft</button>
+          <button type="button" id="terrainClear">Clear ground</button>
         </div>
         <div class="row">
           <label>Cell <input type="number" id="terrainCell" min="0" max="47" value="0" step="1"></label>
@@ -36,6 +36,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
           <button type="button" id="terrainPaint">Paint cell</button>
         </div>
         <p id="terrainOverrideHint" class="hint" hidden></p>
+        <details id="terrainObjectPanel"></details>
         <h3>Saved maps</h3>
         <fieldset id="terrainMapControls" aria-label="Map files">
           <div class="row">
@@ -65,6 +66,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   let state, tile = 0, rules = {colors: [], tiles: {}}, vertices = lattice(), result, storage, revision = 0;
   let savedMap = null, maps = [], mapsLoaded = false, mapWorking = false;
   let overrides = {}, overrideAtlas;
+  const objects = bindTilemapObjects(find("#terrainObjectPanel"), () => editMap(vertices), () => cellInput.valueAsNumber);
 
   function error(message = "") {
     const notice = find("#terrainError");
@@ -87,12 +89,13 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   }
 
   function dirtyMap() {
-    if (!savedMap) return !!mapName.value.trim() || Object.keys(overrides).length > 0 ||
+    if (!savedMap) return !!mapName.value.trim() || Object.keys(overrides).length > 0 || objects.entries().length > 0 ||
       vertices.some(row => row.some(name => name !== null));
     return mapName.value.trim() !== savedMap.name ||
       JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices) ||
       JSON.stringify(overrides) !== JSON.stringify(savedMap.overrides || {}) ||
-      overrideAtlas !== savedMap.override_atlas;
+      overrideAtlas !== savedMap.override_atlas ||
+      JSON.stringify(objects.entries()) !== JSON.stringify(savedMap.objects || []);
   }
 
   function updateCellTool() {
@@ -107,7 +110,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   function mapControls() {
     const dirty = dirtyMap();
     find("#terrainMapOpen").disabled = !mapList.value;
-    find("#terrainMapExport").disabled = !savedMap || dirty || !result || !!result.missing.length;
+    find("#terrainMapExport").disabled = !savedMap || dirty || !result || !!result.missing.length || !!objects.outdated();
     find("#terrainMapStatus").textContent = savedMap
       ? (dirty ? "Unsaved map changes" : "Saved to the project") : "Draft · Save to add it to the project";
   }
@@ -122,11 +125,13 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     if (mapWorking) return;
     mapWorking = true;
     find("#terrainMapControls").disabled = true;
+    objects.locked(true);
     mapError();
     try { await action(); }
     catch (cause) { mapError(cause.message); }
     finally {
       find("#terrainMapControls").disabled = false;
+      objects.locked(false);
       mapWorking = false;
     }
   }
@@ -141,6 +146,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     cols = vertices[0].length - 1;
     cellInput.max = cols * rows - 1;
     if (cellInput.valueAsNumber > Number(cellInput.max)) cellInput.value = 0;
+    objects.sync(state, cols * rows);
     find("#terrainMapDownload").hidden = true;
     result = null;
     mapControls();
@@ -156,15 +162,23 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     if (canvas.height !== rows * h) canvas.height = rows * h;
     const ctx = canvas.getContext("2d"), style = getComputedStyle(canvas);
     const missing = new Set(result.missing.map(([x, y]) => y * cols + x));
+    const byCell = new Map(objects.entries().map(entry => [entry.cell, entry]));
+    const atlasReady = state.preview && image.complete && image.naturalWidth;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = false;
     result.tiles.forEach((row, y) => row.forEach((id, x) => {
-      if (id !== null && state.preview && image.complete && image.naturalWidth) {
+      if (id !== null && atlasReady) {
         drawTilesetCell(ctx, image, grid, frameFor(id), x * w, y * h, w, h);
       }
       const cell = y * cols + x;
-      const unmatched = missing.has(cell);
-      const color = unmatched ? "--warn" : Object.hasOwn(overrides, cell) ? "--accent" : "--line";
+      const object = byCell.get(cell);
+      const stale = object && object.atlas !== state.atlas_revision;
+      if (object && !stale && atlasReady) {
+        const stateTile = object.states.find(entry => entry.name === object.state)?.tile;
+        if (Number.isInteger(stateTile)) drawTilesetCell(ctx, image, grid, frameFor(stateTile), x * w, y * h, w, h);
+      }
+      const unmatched = stale || missing.has(cell);
+      const color = unmatched ? "--warn" : object || Object.hasOwn(overrides, cell) ? "--accent" : "--line";
       ctx.strokeStyle = style.getPropertyValue(color).trim();
       ctx.setLineDash(unmatched ? [3, 2] : []);
       ctx.strokeRect(x * w + .5, y * h + .5, w - 1, h - 1);
@@ -174,7 +188,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   async function resolveMap() {
     const id = ++revision;
     if (!savedMap) {
-      try { sessionStorage.setItem(storage, JSON.stringify({vertices, overrides, overrideAtlas})); } catch {}
+      try { sessionStorage.setItem(storage, JSON.stringify({vertices, overrides, overrideAtlas, objects: objects.entries()})); } catch {}
     }
     try {
       const resolved = await request("/preview", {vertices, revision: state.revision, allow_unknown: true,
@@ -184,8 +198,10 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       const count = result.tiles.flat().filter(id => id !== null).length;
       const invalid = result.invalid_overrides?.length || 0;
       const missing = result.missing.length - invalid;
+      const outdated = objects.outdated();
       find("#terrainStats").textContent = `${count} placed · ${missing} missing transition${missing === 1 ? "" : "s"}` +
-        (invalid ? ` · ${invalid} outdated placement${invalid === 1 ? "" : "s"}` : "");
+        (invalid ? ` · ${invalid} outdated placement${invalid === 1 ? "" : "s"}` : "") +
+        (outdated ? ` · ${outdated} outdated object${outdated === 1 ? "" : "s"}` : "");
       mapControls();
       draw();
     } catch (cause) {
@@ -233,6 +249,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     state = next;
     panel.hidden = !next.tileset;
     if (!next.tileset || !changed) return;
+    objects.sync(next, cols * rows);
     if (!mapsLoaded) {
       mapsLoaded = true;
       request("/maps").then(entries => {
@@ -250,6 +267,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         vertices = lattice(null, 8, 6);
         overrides = {};
         overrideAtlas = undefined;
+        let storedObjects;
         try {
           const stored = JSON.parse(sessionStorage.getItem(storage));
           const draft = stored?.vertices || stored;
@@ -257,8 +275,10 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
             vertices = draft;
             overrides = stored.overrides || {};
             overrideAtlas = stored.overrideAtlas;
+            storedObjects = stored.objects;
           }
         } catch {}
+        objects.load(storedObjects);
       }
     }
     const before = rules.colors;
@@ -309,6 +329,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     overrideAtlas = undefined;
     mapName.value = "";
     mapList.value = "";
+    objects.load();
     updateCellTool();
     editMap(lattice(null, 8, 6));
   };
@@ -321,6 +342,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       mapName.value = savedMap.name;
       overrides = {...savedMap.overrides};
       overrideAtlas = savedMap.override_atlas;
+      objects.load(savedMap.objects);
       updateCellTool();
       editMap(savedMap.vertices.map(row => row.slice()));
     });
@@ -329,7 +351,8 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     event.preventDefault();
     mapAction(async () => {
       const updated = await request("/maps", {id: savedMap?.id, revision: savedMap?.revision,
-        name: mapName.value, vertices, tileset_revision: state.revision, overrides, override_atlas: overrideAtlas});
+        name: mapName.value, vertices, tileset_revision: state.revision, overrides, override_atlas: overrideAtlas,
+        objects: objects.entries()});
       if (!savedMap) forgetDraft();
       savedMap = updated;
       overrideAtlas = savedMap.override_atlas;

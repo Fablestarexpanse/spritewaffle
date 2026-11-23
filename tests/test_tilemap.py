@@ -95,19 +95,25 @@ def test_saved_map_cli_and_mcp_share_files(tmp_path, monkeypatch, capsys):
     mcp, _ = build(base)
     params = {"character": "meadow", "job_id": "one", "map_id": saved["id"]}
     assert text(call(mcp, "tilemap", **params, operation="load")) == saved
-    args_mcp = params | {"operation": "save", "name": "North meadow",
+    resource = {"id": "ore", "name": "Ore", "kind": "resource", "cell": 0, "state": "normal",
+                "states": [{"name": "normal", "tile": 0}, {"name": "depleted", "tile": 1}]}
+    args_mcp = params | {"operation": "save", "name": "North meadow", "objects": [resource],
                          "vertices": saved["vertices"], "revision": saved["revision"], "overrides": {"0": 1}}
     changed = text(asyncio.run(mcp.call_tool("tilemap", args_mcp)))
     assert changed["name"] == "North meadow" and changed["overrides"] == {"0": 1}
-    vertices.write_text(json.dumps({"vertices": changed["vertices"], "overrides": {"0": None}}), encoding="utf-8")
+    assert changed["objects"][0]["state"] == "normal"
+    resource = changed["objects"][0] | {"state": "depleted"}
+    vertices.write_text(json.dumps({"vertices": changed["vertices"], "overrides": {"0": None},
+                                   "objects": [resource]}), encoding="utf-8")
     assert cli.main(["tilemap", "save", *args, "--name", "North meadow", "--map-id", saved["id"],
                      "--revision", changed["revision"], "--file", str(vertices)]) == 0
-    assert json.loads(capsys.readouterr().out)["overrides"] == {"0": None}
+    updated = json.loads(capsys.readouterr().out)
+    assert updated["overrides"] == {"0": None} and updated["objects"] == [resource]
     assert cli.main(["tilemap", "export", *args, "--map-id", saved["id"]]) == 0
     result = json.loads(capsys.readouterr().out)
     with ZipFile(job.root / result["file"]) as package:
         native = json.loads(package.read("map.json"))
-        assert native["name"] == "North meadow" and native["tiles"] == [[None]]
+        assert native["name"] == "North meadow" and native["tiles"] == [[None]] and native["objects"] == [resource]
 
 
 def test_manual_tile_and_empty_cell_override_terrain_without_changing_corners(tmp_path):
@@ -145,3 +151,54 @@ def test_manual_tile_and_empty_cell_override_terrain_without_changing_corners(tm
         stale = client.post(route + "/preview", json=draft | {
             "override_atlas": saved["override_atlas"], "allow_unknown": True}).raise_for_status().json()
         assert stale["invalid_overrides"] == [[0, 0]]
+
+
+def test_stateful_door_preserves_ground_and_exports_active_object_tile(tmp_path):
+    job = meadow(tmp_path)
+    route = "/api/jobs/meadow/one/tileset"
+    door = {"id": "front-door", "name": "Front door", "kind": "door", "cell": 1, "state": "closed",
+            "states": [{"name": "closed", "tile": 0}, {"name": "open", "tile": 1}]}
+    vertices = [["Grass"] * 4] * 3
+    body = {"name": "Workshop", "vertices": vertices}
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        for bad in (door | {"state": "locked"}, door | {"cell": 6}, door | {"cell": False},
+                    door | {"states": [{"name": "closed", "tile": 1}, {"name": "Closed", "tile": 0}]},
+                    door | {"states": [{"name": "closed", "tile": True}, {"name": "open", "tile": 1}]}):
+            assert client.post(route + "/maps", json=body | {"objects": [bad]}).status_code == 400
+        assert client.post(route + "/maps", json=body | {"objects": [door, door | {"id": "side-door"}]}).status_code == 400
+        saved = client.post(route + "/maps", json=body | {"objects": [door]}).raise_for_status().json()
+        atlas = saved["objects"][0]["atlas"]
+        assert saved["objects"] == [door | {"atlas": atlas}]
+        resource = route + "/maps/" + saved["id"]
+        assert client.get(resource).json() == saved
+
+        def export_object(state, solid, gid):
+            exported = client.post(resource + "/export").raise_for_status().json()
+            with ZipFile(BytesIO(client.get(exported["download"]).content)) as package:
+                native = json.loads(package.read("map.json"))
+                assert native["objects"] == [door | {"state": state, "atlas": atlas}]
+                tiled = json.loads(package.read("map.tmj"))
+                ground, objects = tiled["layers"]
+                assert ground["data"] == [1] * 6
+                tile_object, = objects["objects"]
+                assert tile_object["gid"] == gid and [tile_object["x"], tile_object["y"]] == [8, 9]
+                props = {prop["name"]: prop["value"] for prop in tile_object["properties"]}
+                assert props["spritewaffle_id"] == "front-door"
+                assert props["state"] == state and props["solid"] is solid
+                assert json.loads(props["states"]) == door["states"]
+            return job.root / exported["file"]
+
+        export_object("closed", True, 1)
+        updated = client.post(route + "/maps", json=body | {"id": saved["id"], "revision": saved["revision"],
+                              "objects": [door | {"state": "open", "atlas": atlas}]}).raise_for_status().json()
+        assert updated["revision"] != saved["revision"]
+        package = export_object("open", False, 2)
+        assert client.post(route + "/maps", json=body | {"id": saved["id"], "revision": updated["revision"]}).json() == updated
+        prior = package.read_bytes()
+        image = BytesIO()
+        Image.new("RGBA", (19, 11), "#ffa600").save(image, "PNG")
+        tileset.import_bytes(job, image.getvalue(), "replacement.png",
+                             {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1})
+        refused = client.post(resource + "/export")
+        assert refused.status_code == 400 and "Front door" in refused.json()["detail"]
+        assert package.read_bytes() == prior

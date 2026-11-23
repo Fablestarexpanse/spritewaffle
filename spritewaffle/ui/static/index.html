@@ -265,7 +265,7 @@
   .tileset-workspace [hidden], [data-generation-option][hidden] { display: none; }
   .tile-animation-layout { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: var(--space); }
   .tile-animation-layout canvas { display: block; max-width: 100%; image-rendering: pixelated; background: var(--panel); border: 1px solid var(--line); }
-  .tile-animation-fields, #terrainMapControls { min-width: 0; margin: 0; padding: 0; border: 0; }
+  .tile-animation-fields, #terrainMapControls, #mapObjectFields { min-width: 0; margin: 0; padding: 0; border: 0; }
   #tileAnimationFrames { display: grid; gap: .5rem; margin: 0 0 .5rem; padding: 0; }
   .tile-animation-frame { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
   .tile-animation-frame label { display: grid; gap: .2rem; }
@@ -279,6 +279,11 @@
   #terrainCell { max-width: 5rem; }
   #terrainMapControls label { display: grid; gap: .2rem; min-width: 0; }
   #terrainMapList, #terrainMapName { width: min(16rem, 100%); min-width: 0; }
+  #terrainObjectPanel { margin-block: .75rem; }
+  #mapObjectFields .field, .map-object-state label { min-width: 0; }
+  #mapObjectFields input, #mapObjectFields select { max-width: 100%; }
+  .map-object-state label { display: grid; gap: .2rem; }
+  .map-object-state input[type="number"] { width: 6rem; }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
@@ -523,6 +528,7 @@
 <div id="toasts"></div>
 
 <script src="/static/tileset_animation.js"></script>
+<script src="/static/tilemap_objects.js"></script>
 <script src="/static/tileset_terrain.js"></script>
 <script src="/static/tileset.js"></script>
 <script>

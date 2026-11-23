@@ -109,7 +109,8 @@ def cmd_tilemap(a):
         data = json.loads(Path(a.file).read_text(encoding="utf-8"))
         draft = data if isinstance(data, dict) else {"vertices": data}
         result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
-                              overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"))
+                              overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
+                              objects=draft.get("objects"))
     else:
         result = tilemap.export(job, a.map_id)
     _print(result)
