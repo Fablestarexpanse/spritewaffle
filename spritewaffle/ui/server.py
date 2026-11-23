@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, job_palette, processing, project, project_references, tilemap, tileset, timeline
+from ..core import generate, job_palette, object_templates, processing, project, project_references, tilemap, tileset, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -421,6 +421,27 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             return tilemap.list_maps(job_or_404(char, jid))
         except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.get("/api/jobs/{char}/{jid}/tileset/object-templates")
+    def list_object_templates(char: str, jid: str):
+        try:
+            return object_templates.list_templates(job_or_404(char, jid))
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/object-templates")
+    def save_object_template(char: str, jid: str, body: dict = Body(...)):
+        try:
+            return object_templates.save(job_or_404(char, jid), body)
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/object-templates/{template_id}/instantiate")
+    def instantiate_object_template(char: str, jid: str, template_id: str, body: dict = Body(...)):
+        try:
+            return object_templates.instantiate(job_or_404(char, jid), template_id, body.get("cell"), body.get("state"))
+        except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
     @app.get("/api/jobs/{char}/{jid}/tileset/maps/{map_id}")

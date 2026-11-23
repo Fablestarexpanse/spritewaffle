@@ -1,8 +1,14 @@
-function bindTilemapObjects(panel, changed, selectedCell) {
+function bindTilemapObjects(panel, changed, selectedCell, request) {
   panel.innerHTML = `
     <summary>Map objects <span id="mapObjectCount" class="muted"></span></summary>
     <p class="hint">Place a tile above the ground layer. Give it named states, then apply it and save the map.</p>
     <fieldset id="mapObjectFields">
+      <div class="row">
+        <label>Template <select id="mapObjectTemplate"></select></label>
+        <button id="mapObjectUseTemplate" type="button" disabled>Use template</button>
+        <button id="mapObjectSaveTemplate" type="button" disabled>Save as template</button>
+      </div>
+      <p id="mapTemplateError" class="warn" role="alert" hidden></p>
       <div class="row">
         <label>Object <select id="mapObjectList"></select></label>
         <button id="mapObjectNew" type="button">New object</button>
@@ -28,7 +34,49 @@ function bindTilemapObjects(panel, changed, selectedCell) {
   const find = selector => panel.querySelector(selector);
   const list = find("#mapObjectList"), name = find("#mapObjectName"), kind = find("#mapObjectKind");
   const cell = find("#mapObjectCell"), active = find("#mapObjectState"), states = find("#mapObjectStates");
+  const templateList = find("#mapObjectTemplate"), useTemplate = find("#mapObjectUseTemplate");
+  const saveTemplate = find("#mapObjectSaveTemplate");
   let objects = [], rows = [], context, lastTile = 0;
+  let templates = [], templateLoaded = false, templateWorking = false, mapLocked = false, staged = null;
+  let draftVersion = 0;
+
+  function templateError(message = "") {
+    const notice = find("#mapTemplateError");
+    notice.textContent = message;
+    notice.hidden = !message;
+  }
+
+  function templateControls() {
+    const picked = templates.find(item => item.id === templateList.value);
+    const applied = objects.find(item => item.id === list.value);
+    useTemplate.disabled = !picked || picked.atlas !== context?.atlas_revision;
+    saveTemplate.disabled = !templateLoaded || !applied || applied.atlas !== context?.atlas_revision;
+  }
+
+  function templateOptions(selected = templateList.value) {
+    templateList.replaceChildren(new Option(templates.length ? "Select a template" : "No templates saved", ""),
+      ...templates.map(item => new Option(item.name + (item.atlas === context?.atlas_revision ? "" : " (previous atlas)"),
+        item.id)));
+    templateList.value = selected;
+    templateControls();
+  }
+
+  function lockEditor() {
+    find("#mapObjectFields").disabled = mapLocked || templateWorking;
+  }
+
+  async function templateAction(action) {
+    if (templateWorking || mapLocked) return;
+    templateWorking = true;
+    lockEditor();
+    templateError();
+    try { await action(); }
+    catch (cause) { templateError(cause.message); }
+    finally {
+      templateWorking = false;
+      lockEditor();
+    }
+  }
 
   function error(message = "") {
     find("#mapObjectError").textContent = message;
@@ -79,7 +127,7 @@ function bindTilemapObjects(panel, changed, selectedCell) {
   }
 
   function select() {
-    const entry = objects.find(item => item.id === list.value);
+    const entry = staged || objects.find(item => item.id === list.value);
     const outdated = !!entry && entry.atlas !== context?.atlas_revision;
     name.value = entry?.name || "";
     kind.value = entry?.kind || "";
@@ -87,14 +135,48 @@ function bindTilemapObjects(panel, changed, selectedCell) {
     rows = entry ? entry.states.map(row => ({...row, tile: outdated ? null : row.tile}))
       : [{name: "", tile: null}, {name: "", tile: null}];
     find("#mapObjectAtlas").hidden = !outdated;
-    find("#mapObjectRemove").disabled = !entry;
+    find("#mapObjectRemove").disabled = !list.value;
     find("#mapObjectStatus").textContent = "";
     error();
     showRows(Math.max(0, rows.findIndex(row => row.name === entry?.state)));
+    templateControls();
   }
 
-  list.onchange = select;
+  panel.ontoggle = () => {
+    if (!panel.open || templateLoaded) return;
+    templateAction(async () => {
+      templates = await request("/object-templates");
+      templateLoaded = true;
+      templateOptions();
+    });
+  };
+  templateList.onchange = templateControls;
+  useTemplate.onclick = () => templateAction(async () => {
+    const version = draftVersion;
+    const draft = await request("/object-templates/" + encodeURIComponent(templateList.value) + "/instantiate",
+      {cell: selectedCell()});
+    if (version !== draftVersion) return;
+    staged = draft;
+    list.value = "";
+    select();
+    find("#mapObjectStatus").textContent = "Template loaded · Apply to place it";
+  });
+  saveTemplate.onclick = () => templateAction(async () => {
+    const applied = objects.find(item => item.id === list.value);
+    const template = await request("/object-templates", {
+      name: applied.name, kind: applied.kind, state: applied.state, states: applied.states, atlas: applied.atlas,
+    });
+    templates = [...templates, template].sort((a, b) => a.name.localeCompare(b.name));
+    templateOptions(template.id);
+    find("#mapObjectStatus").textContent = "Template saved to tileset";
+  });
+
+  list.onchange = () => {
+    staged = null;
+    select();
+  };
   find("#mapObjectNew").onclick = () => {
+    staged = null;
     list.value = "";
     select();
     name.focus();
@@ -123,13 +205,16 @@ function bindTilemapObjects(panel, changed, selectedCell) {
       return error("A different object already occupies this cell.");
     }
     if (!list.value && objects.length >= 64) return error("A map can hold up to 64 objects.");
-    const key = list.value || Array.from(crypto.getRandomValues(new Uint8Array(12)),
+    const key = list.value || staged?.id || Array.from(crypto.getRandomValues(new Uint8Array(12)),
       byte => byte.toString(16).padStart(2, "0")).join("");
     const draft = {id: key, name: name.value.trim(), kind: kind.value.trim() || "object", cell: cell.valueAsNumber,
       state: stateNames[Number(active.value)],
       states: rows.map((row, index) => ({name: stateNames[index], tile: row.tile})),
       atlas: context.atlas_revision};
+    const source = staged?.template_id || objects.find(item => item.id === key)?.template_id;
+    if (source) draft.template_id = source;
     objects = list.value ? objects.map(item => item.id === key ? draft : item) : [...objects, draft];
+    staged = null;
     options(key);
     select();
     changed();
@@ -139,9 +224,14 @@ function bindTilemapObjects(panel, changed, selectedCell) {
   return {
     entries: () => objects,
     outdated: () => objects.filter(item => item.atlas !== context?.atlas_revision).length,
-    locked: working => find("#mapObjectFields").disabled = working,
+    locked(working) {
+      mapLocked = working;
+      lockEditor();
+    },
     load(entries) {
+      draftVersion++;
       objects = entries || [];
+      staged = null;
       options();
       select();
     },
@@ -151,7 +241,10 @@ function bindTilemapObjects(panel, changed, selectedCell) {
       const grid = next.tileset.grid;
       lastTile = grid.columns * grid.rows - 1;
       cell.max = count - 1;
-      if (changedAtlas) select();
+      if (changedAtlas) {
+        templateOptions();
+        select();
+      }
     },
   };
 }

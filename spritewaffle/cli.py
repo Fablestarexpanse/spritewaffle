@@ -96,21 +96,28 @@ def cmd_tileset(a):
 
 
 def cmd_tilemap(a):
-    from .core import tilemap
+    from .core import object_templates, tilemap
 
     job = _job(a.job)
     if a.operation == "list":
         result = tilemap.list_maps(job)
     elif a.operation == "load":
         result = tilemap.load(job, a.map_id)
-    elif a.operation == "save":
+    elif a.operation == "templates":
+        result = object_templates.list_templates(job)
+    elif a.operation == "instantiate-template":
+        result = object_templates.instantiate(job, a.template_id, a.cell, a.state)
+    elif a.operation in ("save", "save-template"):
         if not a.file:
-            raise ValueError("Pass --file with terrain corners or a map draft.")
+            raise ValueError("Pass --file with the map draft or object template.")
         data = json.loads(Path(a.file).read_text(encoding="utf-8"))
-        draft = data if isinstance(data, dict) else {"vertices": data}
-        result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
-                              overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
-                              objects=draft.get("objects"))
+        if a.operation == "save-template":
+            result = object_templates.save(job, data)
+        else:
+            draft = data if isinstance(data, dict) else {"vertices": data}
+            result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
+                                  overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
+                                  objects=draft.get("objects"))
     else:
         result = tilemap.export(job, a.map_id)
     _print(result)
@@ -692,12 +699,16 @@ def build() -> argparse.ArgumentParser:
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),
         (("--clear",), {"action": "store_true", "help": "remove collision or animation from the tile"}))
 
-    cmd("tilemap", cmd_tilemap, "list, save, load, or export a named terrain map",
-        (("operation",), {"choices": ("list", "load", "save", "export")}), JOB,
+    cmd("tilemap", cmd_tilemap, "manage named terrain maps and object templates",
+        (("operation",), {"choices": ("list", "load", "save", "export", "templates", "save-template",
+                                      "instantiate-template")}), JOB,
         (("--name",), {"help": "display name when saving a map"}),
-        (("--file",), {"help": "JSON terrain corners or map draft when saving a map"}),
+        (("--file",), {"help": "JSON terrain corners, map draft, or object template to save"}),
         (("--map-id",), {"help": "saved map ID for load, update, or export"}),
-        (("--revision",), {"help": "required revision when updating a saved map"}))
+        (("--revision",), {"help": "required revision when updating a saved map"}),
+        (("--template-id",), {"help": "ID of the object template to instantiate"}),
+        (("--cell",), {"type": int, "help": "zero-based cell for the new object"}),
+        (("--state",), {"help": "optional active state for the new object"}))
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",

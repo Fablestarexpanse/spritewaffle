@@ -419,8 +419,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 name: str | None = None, vertices: list[list[str | None]] | None = None,
                 revision: str | None = None, tileset_revision: str | None = None,
                 overrides: dict | None = None, override_atlas: str | None = None,
-                objects: list[dict] | None = None) -> dict | list[dict]:
-        """List, load, save, or export named terrain maps in a tileset job.
+                objects: list[dict] | None = None, template_id: str | None = None,
+                template: dict | None = None, placement: dict | None = None) -> dict | list[dict]:
+        """Manage named terrain maps and reusable object templates in a tileset job.
 
         Save takes a name and a rectangular lattice of terrain names or null. Updates need
         the map ID and loaded revision. Export writes a portable ZIP to the job.
@@ -428,7 +429,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         overrides. Pass the loaded override_atlas to retain its source binding.
         Objects have an id, name, kind, cell, state, and list of named atlas states.
         Pass [] to clear them and retain each loaded atlas binding when updating.
+        Templates lists reusable definitions. Save-template takes a template with name,
+        kind, state, and states. Instantiate-template takes a template_id and placement
+        with cell and optional state. It returns an object draft for the map's objects list.
         """
+        from .core import object_templates
         from .core import tilemap as maps
 
         job = job_for(character, job_id)
@@ -441,7 +446,14 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                              overrides=overrides, override_atlas=override_atlas, objects=objects)
         if operation == "export":
             return maps.export(job, map_id, revision, tileset_revision)
-        raise ValueError("Choose list, load, save, or export.")
+        if operation == "templates":
+            return object_templates.list_templates(job)
+        if operation == "save-template":
+            return object_templates.save(job, template)
+        if operation == "instantiate-template":
+            options = placement or {}
+            return object_templates.instantiate(job, template_id, options.get("cell"), options.get("state"))
+        raise ValueError("Choose list, load, save, export, templates, save-template, or instantiate-template.")
 
     @mcp.tool()
     def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,

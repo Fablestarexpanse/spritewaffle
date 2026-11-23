@@ -14,13 +14,42 @@ def _label(value: str, limit: int, label: str) -> str:
     return value.strip()
 
 
+def definition(entry: dict, tile_count: int, atlas: str, max_tiles: int) -> dict:
+    name = _label(entry.get("name"), 80, "an object name")
+    kind = _label(entry.get("kind", "object"), 40, "an object type")
+    bound = entry.get("atlas", atlas)
+    if not isinstance(bound, str) or not re.fullmatch(r"[0-9a-f]{64}", bound):
+        raise ValueError(f"{name} has an invalid atlas revision.")
+    count = tile_count if bound == atlas else max_tiles
+    states = entry.get("states")
+    if not isinstance(states, list) or not 2 <= len(states) <= MAX_STATES:
+        raise ValueError(f"{name} needs 2 to {MAX_STATES} states.")
+    names = set()
+    options = []
+    for state in states:
+        if not isinstance(state, dict) or set(state) != {"name", "tile"}:
+            raise ValueError("Each object state needs a name and an atlas tile ID.")
+        label = _label(state["name"], 40, "a state name")
+        if label.casefold() in names:
+            raise ValueError(f"{name} has duplicate state names.")
+        names.add(label.casefold())
+        tile = state["tile"]
+        if type(tile) is not int or not 0 <= tile < count:
+            raise ValueError(f"{name}: state {label} needs a tile ID within the atlas.")
+        options.append({"name": label, "tile": tile})
+    active = _label(entry.get("state"), 40, "an active state name")
+    if all(option["name"] != active for option in options):
+        raise ValueError(f"{name}: select one of its defined states as active.")
+    return {"name": name, "kind": kind, "state": active, "states": options, "atlas": bound}
+
+
 def normalize(objects: list, cell_count: int, tile_count: int, atlas: str, max_tiles: int) -> list[dict]:
     if not isinstance(objects, list) or len(objects) > MAX_OBJECTS:
         raise ValueError(f"Use a list of up to {MAX_OBJECTS} map objects.")
     ids, cells = set(), set()
     result = []
     for entry in objects:
-        if not isinstance(entry, dict) or entry.keys() - {"id", "name", "kind", "cell", "state", "states", "atlas"}:
+        if not isinstance(entry, dict) or entry.keys() - {"id", "name", "kind", "cell", "state", "states", "atlas", "template_id"}:
             raise ValueError("Each object needs an ID, name, cell, and named states.")
         key, cell = entry.get("id"), entry.get("cell")
         if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", key) or key in ids:
@@ -29,33 +58,15 @@ def normalize(objects: list, cell_count: int, tile_count: int, atlas: str, max_t
             raise ValueError("Place each object in a different cell within the map.")
         ids.add(key)
         cells.add(cell)
-        name = _label(entry.get("name"), 80, "an object name")
-        kind = _label(entry.get("kind", "object"), 40, "an object type")
-        bound = entry.get("atlas", atlas)
-        if not isinstance(bound, str) or not re.fullmatch(r"[0-9a-f]{64}", bound):
-            raise ValueError(f"{name} has an invalid atlas revision.")
-        count = tile_count if bound == atlas else max_tiles
-        states = entry.get("states")
-        if not isinstance(states, list) or not 2 <= len(states) <= MAX_STATES:
-            raise ValueError(f"{name} needs 2 to {MAX_STATES} states.")
-        names = set()
-        options = []
-        for state in states:
-            if not isinstance(state, dict) or set(state) != {"name", "tile"}:
-                raise ValueError("Each object state needs a name and an atlas tile ID.")
-            label = _label(state["name"], 40, "a state name")
-            if label.casefold() in names:
-                raise ValueError(f"{name} has duplicate state names.")
-            names.add(label.casefold())
-            tile = state["tile"]
-            if type(tile) is not int or not 0 <= tile < count:
-                raise ValueError(f"{name}: state {label} needs a tile ID within the atlas.")
-            options.append({"name": label, "tile": tile})
-        active = _label(entry.get("state"), 40, "an active state name")
-        if all(option["name"] != active for option in options):
-            raise ValueError(f"{name}: select one of its defined states as active.")
-        result.append({"id": key, "name": name, "kind": kind, "cell": cell, "state": active,
-                       "states": options, "atlas": bound})
+        fields = definition(entry, tile_count, atlas, max_tiles)
+        instance = {"id": key, "name": fields["name"], "kind": fields["kind"], "cell": cell,
+                    "state": fields["state"], "states": fields["states"], "atlas": fields["atlas"]}
+        if "template_id" in entry:
+            template_id = entry["template_id"]
+            if not isinstance(template_id, str) or not re.fullmatch(r"[0-9a-f]{32}", template_id):
+                raise ValueError("Object template IDs must be 32 lowercase hexadecimal digits.")
+            instance["template_id"] = template_id
+        result.append(instance)
     return result
 
 
@@ -72,6 +83,8 @@ def tiled_layer(objects: list[dict], width: int, grid: dict, solid_tiles: list[i
             {"name": "states", "type": "string", "value": json.dumps(entry["states"], ensure_ascii=False)},
             {"name": "solid", "type": "bool", "value": tile in solids},
         ]
+        if "template_id" in entry:
+            properties.append({"name": "spritewaffle_template", "type": "string", "value": entry["template_id"]})
         instances.append({"id": number, "name": entry["name"], "type": entry["kind"], "gid": tile + 1,
                           "x": column * w, "y": (row + 1) * h, "width": w, "height": h,
                           "rotation": 0, "visible": True, "properties": properties})

@@ -1,6 +1,10 @@
-NEXT: Add reusable map-object templates and verify states on a harvestable resource.
+NEXT: Add interaction points to map objects and use them in a local game preview.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 Save object templates next to their tileset, with the same atlas binding and state validation as map objects. A placement gets a fresh object ID and a copy of the definition with template provenance. The copy keeps its own active state. Keep template creation additive with unique names. Export placed objects and provenance in the existing portable ZIP.
+- 2026-11-22 Baseline `9fc1d1b` passed 327 Python tests in 96.94 s. The first template test failed on the missing library route. Chromium then saved one Berry bush template, placed it on two maps with different active states, and reopened the ripe placement and library after a reload. Tiled 1.12.2 preserved both unique instance IDs and the shared template ID and rasterized the intended ripe and harvested tiles (GIDs 4 and 5). Chromium passed at 1440, 800, and 390 px.
+- 2026-11-22 The focused suite passed 20 Python tests, the full suite passed 329 Python tests in 96.92 s with the existing Starlette warning, and eight Node tests passed.
 
 - 2026-11-22 Baseline `1c11c99` passed 326 Python tests in 96.92 s. A new test showed that saved maps ignored object states. Each cell-aligned object has a stable ID, named atlas states and an active state. Objects render above ground and retain their atlas binding. Export places the active state on a separate Tiled object layer and retains alternate states and the effective collision flag as properties.
 - 2026-11-22 Chromium assembled a five-cell workshop wall, applied a closed door, switched it open, and reopened the saved map at 1440, 800, and 390 px. Tiled 1.12.2 preserved the door GID 5, active state, alternate states, and nonsolid flag in TMX. The 128 × 96 raster showed the open door at the expected pixel over the original ground. Eighteen focused Python tests and eight Node tests passed.

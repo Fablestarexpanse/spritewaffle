@@ -563,6 +563,27 @@ with `id`, `name`, `kind`, `cell`, `state`, and `states` entries such as
 keep the `atlas` binding from the loaded record, or omit it to bind the supplied tiles
 to the current atlas. Omit `objects` to keep them unchanged, or pass `[]` to clear them.
 
+#### Reusable object templates
+
+Select an applied object and choose **Save as template** to store its name, type, states,
+and default state in the tileset library. On any map using that tileset, select a target
+cell, choose the template, and select **Use template**. Set the new object's active
+state, then **Apply object** and **Save map**. Each placement has an independent state and
+keeps the template ID for reference. Templates use unique names and the atlas they were
+created from. When the atlas changes, save a new template from an object with updated
+state tiles.
+
+```powershell
+spritewaffle tilemap save-template --job meadow/v1 --file bush.json
+spritewaffle tilemap templates --job meadow/v1
+spritewaffle tilemap instantiate-template --job meadow/v1 --template-id TEMPLATE_ID --cell 10 --state harvested
+```
+
+`bush.json` contains `name`, `kind`, `state`, and `states`. Instantiation prints an object
+draft for the map's `objects` list. MCP exposes the same operations through `tilemap`.
+The map ZIP contains each placed object and its template ID, so it travels independently
+of the local library.
+
 ### Prop (sprite stacking)
 
 New → **New sprite stack** (type `prop`) → anchor (a straight front view) → approve → **Sprite

@@ -202,3 +202,76 @@ def test_stateful_door_preserves_ground_and_exports_active_object_tile(tmp_path)
         refused = client.post(resource + "/export")
         assert refused.status_code == 400 and "Front door" in refused.json()["detail"]
         assert package.read_bytes() == prior
+
+
+def test_object_template_creates_independent_harvestable_map_instances(tmp_path):
+    job = meadow(tmp_path)
+    route = "/api/jobs/meadow/one/tileset"
+    path = route + "/object-templates"
+    definition = {"name": "Berry bush", "kind": "resource", "state": "ripe",
+                  "states": [{"name": "ripe", "tile": 0}, {"name": "harvested", "tile": 1}]}
+    vertices = [["Grass"] * 3] * 2
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        assert client.get(path).json() == []
+        template = client.post(path, json=definition).raise_for_status().json()
+        assert template["states"] == definition["states"] and len(template["atlas"]) == 64
+        assert client.post(path, json=definition | {"name": "berry BUSH"}).status_code == 400
+        assert client.post(path, json=definition | {"name": "Bad", "state": "missing"}).status_code == 400
+        create = path + "/" + template["id"] + "/instantiate"
+        for invalid in ({"cell": -1}, {"cell": True}, {"cell": 1, "state": "missing"}):
+            assert client.post(create, json=invalid).status_code == 400
+        west = client.post(create, json={"cell": 0}).raise_for_status().json()
+        east = client.post(create, json={"cell": 1}).raise_for_status().json()
+        assert west["id"] != east["id"] and west["template_id"] == east["template_id"] == template["id"]
+        for name, entry, state, gid in (("West grove", west, "ripe", 1),
+                                        ("East grove", east, "harvested", 2)):
+            saved = client.post(route + "/maps", json={"name": name, "vertices": vertices,
+                                "objects": [entry | {"state": state}]}).raise_for_status().json()
+            result = client.post(route + "/maps/" + saved["id"] + "/export").raise_for_status().json()
+            with ZipFile(job.root / result["file"]) as exported:
+                native = json.loads(exported.read("map.json"))
+                assert native["objects"] == [entry | {"state": state}]
+                tiled = json.loads(exported.read("map.tmj"))["layers"][1]["objects"][0]
+                assert tiled["gid"] == gid
+                properties = {prop["name"]: prop["value"] for prop in tiled["properties"]}
+                assert properties["spritewaffle_template"] == template["id"]
+
+    atlas = BytesIO()
+    Image.new("RGBA", (19, 11), "#123456").save(atlas, "PNG")
+    tileset.import_bytes(job, atlas.getvalue(), "replaced.png",
+                         {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1})
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        assert client.get(path).json() == [template]
+        refusal = client.post(create, json={"cell": 0})
+        assert refusal.status_code == 400 and "previous atlas" in refusal.json()["detail"]
+
+
+def test_object_template_cli_and_mcp_use_the_same_library(tmp_path, monkeypatch, capsys):
+    from spritewaffle import cli
+    from spritewaffle.mcp_server import build
+    from test_mcp import call, text
+
+    base = tmp_path / "jobs"
+    meadow(base)
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(base))
+    file = tmp_path / "bush.json"
+    draft = {"name": "Harvestable herb", "kind": "resource", "state": "normal",
+             "states": [{"name": "normal", "tile": 0}, {"name": "harvested", "tile": 1}]}
+    file.write_text(json.dumps(draft), encoding="utf-8")
+    args = ["--job", "meadow/one"]
+    assert cli.main(["tilemap", "save-template", *args, "--file", str(file)]) == 0
+    saved = json.loads(capsys.readouterr().out)
+    assert cli.main(["tilemap", "templates", *args]) == 0
+    assert json.loads(capsys.readouterr().out) == [saved]
+
+    mcp, _ = build(base)
+    params = {"character": "meadow", "job_id": "one"}
+    read = text(call(mcp, "tilemap", **params, operation="instantiate-template",
+                     template_id=saved["id"], placement={"cell": 3, "state": "harvested"}))
+    assert read["template_id"] == saved["id"] and read["cell"] == 3 and read["state"] == "harvested"
+
+    second = text(call(mcp, "tilemap", **params, operation="save-template", template=draft | {"name": "Herb v2"}))
+    assert cli.main(["tilemap", "instantiate-template", *args, "--template-id", second["id"],
+                     "--cell", "4", "--state", "harvested"]) == 0
+    placed = json.loads(capsys.readouterr().out)
+    assert placed["template_id"] == second["id"] and placed["cell"] == 4 and placed["state"] == "harvested"

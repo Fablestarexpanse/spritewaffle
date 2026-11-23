@@ -66,7 +66,8 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   let state, tile = 0, rules = {colors: [], tiles: {}}, vertices = lattice(), result, storage, revision = 0;
   let savedMap = null, maps = [], mapsLoaded = false, mapWorking = false;
   let overrides = {}, overrideAtlas;
-  const objects = bindTilemapObjects(find("#terrainObjectPanel"), () => editMap(vertices), () => cellInput.valueAsNumber);
+  const objects = bindTilemapObjects(find("#terrainObjectPanel"), () => editMap(vertices), () => cellInput.valueAsNumber,
+    request);
 
   function error(message = "") {
     const notice = find("#terrainError");

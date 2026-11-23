@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added reusable object templates scoped to a tileset. Placements retain template provenance and can start in different states on different maps.
 - Added cell-aligned map objects with named atlas states, a live preview, and an active-state tile on a separate Tiled layer. Verified a workshop door with open and closed states.
 - Added per-cell manual tile placement, explicit empty cells, and restore-to-terrain controls. Tiled 1.12.2 imported and rendered the resulting map and retained its animation, collision, and Wang terrain metadata on re-export.
 - Added named terrain maps that reopen across browser sessions. Resolved maps export as a portable ZIP with an orthogonal Tiled map, SpriteWaffle JSON, and the source tileset.
