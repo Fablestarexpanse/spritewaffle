@@ -454,6 +454,17 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
+    @app.post("/api/jobs/{char}/{jid}/tileset/modules/export")
+    def export_tileset_module(char: str, jid: str, body: dict = Body(...)):
+        from ..core import tile_module_export
+
+        j = job_or_404(char, jid)
+        try:
+            result = tile_module_export.export(j, body.get("name"), body.get("pivot"), body.get("revision"))
+            return {**result, "download": url(j.root / result["file"]) + "&download=1"}
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
     @app.post("/api/jobs/{char}/{jid}/tileset/object-templates/{template_id}/instantiate")
     def instantiate_object_template(char: str, jid: str, template_id: str, body: dict = Body(...)):
         try:

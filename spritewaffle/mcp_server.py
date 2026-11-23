@@ -418,6 +418,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         Module takes a module object with name, start, and end atlas corner IDs.
         Stamp takes a module object with name, cell, vertices, and optional overrides,
         override_atlas, and revision. It returns overrides for the map draft.
+        Export-module takes a saved module name and optional pivot [x, y] in the module argument.
         Export writes the PNG and two metadata files to the job's 06_export/tileset folder.
         """
         from .core import tileset as workspace
@@ -448,7 +449,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             options = module or {}
             return workspace.stamp(job, options.get("name"), options.get("cell"), options.get("vertices"),
                                    options.get("overrides"), options.get("override_atlas"), options.get("revision", revision))
-        raise ValueError("Choose import, inspect, collision, terrain, animation, preview, module, stamp, or export.")
+        if operation == "export-module":
+            from .core import tile_module_export
+            options = module or {}
+            return tile_module_export.export(job, options.get("name"), options.get("pivot"), options.get("revision", revision))
+        raise ValueError("Choose import, inspect, collision, terrain, animation, preview, module, stamp, export-module, or export.")
 
     @mcp.tool()
     def tilemap(character: str, job_id: str, operation: str = "list", map_id: str | None = None,

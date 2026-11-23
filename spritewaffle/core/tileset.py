@@ -305,17 +305,22 @@ def save_module(job: Job, name: str, start: int, end: int, revision: str | None 
     return inspect(job)
 
 
+def _get_module(record: dict, name: str) -> dict:
+    label = _module_name(name).casefold()
+    module = next((item for item in record.get("modules", []) if item["name"].casefold() == label), None)
+    if module is None:
+        raise ValueError("Choose a module saved on this tileset.")
+    return module
+
+
 def stamp(job: Job, name: str, cell: int, vertices: list, overrides: dict | None = None,
           override_atlas: str | None = None, revision: str | None = None) -> dict:
-    name = _module_name(name)
     record = _read(_workspace(job))
     if record is None:
         raise ValueError("Import a tile sheet first.")
     if revision is not None and revision != _revision(record):
         raise ValueError("The tileset changed. Reload it before placing the module.")
-    module = next((item for item in record.get("modules", []) if item["name"].casefold() == name.casefold()), None)
-    if module is None:
-        raise ValueError("Choose a module saved on this tileset.")
+    module = _get_module(record, name)
     layout = _preview(record, vertices, allow_unknown=True, overrides=overrides, override_atlas=override_atlas)
     if layout.get("invalid_overrides"):
         raise ValueError("Restore outdated placements before stamping a module.")

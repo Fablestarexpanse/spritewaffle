@@ -278,6 +278,31 @@ updated placement overrides to include when saving a map. Use the same payload a
 the `module` argument in the MCP `tileset` tool. The HTTP routes are
 `POST /tileset/modules` and `POST /tileset/stamp` under the job.
 
+#### Export a standalone module
+
+Under **Tile modules**, choose a saved module in **Export a standalone module**. The
+preview shows its collision cells and pivot. The pivot defaults to bottom-center and
+accepts whole pixel coordinates anywhere from the top-left to the bottom-right edge.
+Choose **Prepare asset ZIP** and then **Download module ZIP**.
+
+The archive contains `module.png` and `module.json`. The PNG is a still composed of the
+base atlas artwork. It keeps the full module dimensions and the original alpha while
+removing sheet margins and spacing. The JSON gives the image size, pivot, and one
+rectangle per solid tile that the module uses. All coordinates are pixels measured
+from the image's top-left, with X to the right and Y down.
+
+For headless export, call `spritewaffle tileset export-module --job meadow/v1 --file export.json`
+with a request such as `{"name":"Workshop doorway","pivot":[12,20]}`. Use
+`operation="export-module"` and the same `module` payload in MCP. Omit `pivot` for
+bottom-center. The HTTP route is `POST /tileset/modules/export` under the job. ZIPs
+are stored in `06_export/modules/`. Changing the pivot or asset data produces a
+separate ZIP.
+
+A Godot 4.6 test project imported the PNG and read the JSON to position a `Sprite2D`
+and a `RectangleShape2D`. With the sprite's centering disabled, its offset is
+`-pivot`. The collision center is the rectangle's top-left point plus half its size,
+minus the pivot. [Godot Sprite2D](https://docs.godotengine.org/en/stable/classes/class_sprite2d.html)
+
 #### Stateful map objects
 
 Open **Map objects** inside the map editor. Enter the object name, type, and zero-based

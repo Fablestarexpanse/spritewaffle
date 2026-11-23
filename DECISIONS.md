@@ -1,6 +1,10 @@
-NEXT: Export individual modular sections with collision and pivot metadata.
+NEXT: Verify exported character artwork, pivots, and animation timing in a Godot asset import fixture.
 
 # SpriteWaffle decisions log
+
+- Standalone tile modules pack the base atlas pixels into a transparent PNG without sheet gutters. Keep the full tile footprint and emit a bottom-center pivot by default. Custom pivots belong to each export. Use image-space collision rectangles derived from solid source tiles. Distinct export settings produce distinct ZIP paths so earlier packages remain available.
+- Baseline `602f2c2` passed 337 Python tests in 123.43 s. The new export tests first reproduced missing HTTP and CLI operations. Chromium validated the export form at 1440, 800, and 390 px and produced separate ZIPs with default and custom pivots. The fixture was 48 × 32 px with a pivot at (12,20) and one 16 × 16 collision cell. Godot 4.6 imported the PNG, preserved the doorway alpha, and read the JSON to place the collider at (-4,-12) relative to the pivot. The portable Godot executable matched the official Windows release checksum and stayed outside the repository.
+- The full suite passed 339 Python tests in 128.34 s with the existing Starlette warning. Eight Node tests passed.
 
 - Modular sections use rectangles from a retained atlas. Save the tile IDs in SpriteWaffle tileset metadata and stamp them into existing map drafts as manual placements. Transparent atlas cells preserve the ground below. Refuse placements that cross map boundaries, and keep source art intact. Tiled receives the placed tiles through its established map format.
 - Baseline `f8842c6` was 335 passing Python tests in 133.95 s. The module tests failed on the missing HTTP and CLI operations before implementation. Chromium then authored and placed a 3 × 2 doorway twice in a 48-cell workshop, refused a placement across the map edge, and reopened the saved draft. Layout passed at 1440, 800, and 390 px. Tiled 1.12.2 imported, re-exported, and rendered the map with both doorways and their original ground. Fifteen focused Python and eight Node tests passed.

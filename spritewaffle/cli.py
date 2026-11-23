@@ -85,7 +85,7 @@ def cmd_tileset(a):
                 raise ValueError("Pass either --file with JSON animation frames or --clear.")
             frames = [] if a.clear else json.loads(Path(a.file).read_text(encoding="utf-8"))
             result = tileset.update_animation(job, a.tile, frames)
-        elif a.operation in ("terrain", "preview", "module", "stamp"):
+        elif a.operation in ("terrain", "preview", "module", "stamp", "export-module"):
             if not a.file:
                 raise ValueError("Pass --file with JSON terrain rules, vertices, or a module request.")
             data = json.loads(Path(a.file).read_text(encoding="utf-8"))
@@ -100,6 +100,9 @@ def cmd_tileset(a):
             elif a.operation == "module":
                 result = tileset.save_module(job, data.get("name"), data.get("start"), data.get("end"),
                                              data.get("revision"))
+            elif a.operation == "export-module":
+                from .core import tile_module_export
+                result = tile_module_export.export(job, data.get("name"), data.get("pivot"), data.get("revision"))
             else:
                 result = tileset.stamp(job, data.get("name"), data.get("cell"), data.get("vertices"),
                                        data.get("overrides"), data.get("override_atlas"), data.get("revision"))
@@ -732,7 +735,7 @@ def build() -> argparse.ArgumentParser:
 
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
         (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "module",
-                                      "stamp", "export")}), JOB,
+                                      "stamp", "export-module", "export")}), JOB,
         (("--file",), {"help": "source PNG for import, JSON for terrain, animation, preview or module placement"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
