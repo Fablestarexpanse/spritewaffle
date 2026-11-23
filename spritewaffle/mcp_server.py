@@ -56,6 +56,26 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return [t for t in ts if t["status"] in ("queued", "running")]
 
     @mcp.tool()
+    async def studio(operation: str, character: str | None = None, job_id: str | None = None,
+                     parameters: dict | None = None, body: dict | None = None, query: dict | None = None) -> dict:
+        """Run a named local studio operation using the browser's validation.
+
+        Pass operation='operations' to list supported operations, methods, and paths.
+        Supply character and job_id together for a job operation. Other path parameters
+        are named in the operation path. Writes take a JSON body. Calls never start a worker.
+        """
+        from .studio import OPERATIONS, invoke
+
+        if operation == "operations":
+            return {"result": {name: {"method": method, "path": path} for name, (method, path) in OPERATIONS.items()}}
+        params = dict(parameters or {})
+        if character is not None or job_id is not None:
+            if not character or not job_id or params.keys() & {"char", "jid"}:
+                raise ValueError("Supply character and job_id together or as explicit path parameters.")
+            params.update(char=character, jid=job_id)
+        return {"result": await invoke(base, operation, parameters=params, body=body, query=query)}
+
+    @mcp.tool()
     def generate(character: str, stage: str = "anchor", description: str | None = None,
                  job_id: str | None = None, asset_type: str | None = None, style_ref: str | None = None,
                  image: str | None = None, seed: int | None = None, only: list[str] | None = None,
@@ -149,16 +169,18 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return {"character": character, "job_id": job_id, "tasks": [t["id"] for t in ts]}
 
     @mcp.tool()
-    def export_character(character: str, job_id: str, frame_set: str = "12f") -> dict:
+    def export_character(character: str, job_id: str, frame_set: str = "12f", include_failed: bool = False,
+                         max_size: int = 4096, mirror: str = "pack") -> dict:
         """Bundle every QA-passed animation of a job into ONE .aseprite (a tag per facing x action, so
-        Unity's Aseprite Importer makes one clip each) plus atlas pages (trimmed, max 4096 px, TexturePacker JSON). Returns file paths,
-        included animations and anything skipped (QA failures)."""
+        Unity's Aseprite Importer makes one clip each) plus atlas pages. Defaults to a
+        4096 px page limit and packed facings. Mirror 'flip' allows supported engine flips.
+        Include_failed explicitly opts into frames with failed QA. Returns files and skipped actions."""
         from .core.profile import resolve
         from .export import character as char_export
         job = job_for(character, job_id)
         prof = resolve(job.read_meta()["inputs"].get("profile"))
         out = char_export.export(job.root, job.stage_dir("06_export") / "character", character, prof.fps, frame_set,
-                                 profile=prof)
+                                 require_pass=not include_failed, max_size=max_size, mirror=mirror, profile=prof)
         job.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
 
@@ -382,7 +404,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     def tileset(character: str, job_id: str, operation: str = "inspect", path: str | None = None,
                 grid: dict | None = None, tile: int | None = None, solid: bool = True,
                 revision: str | None = None, terrain: dict | None = None,
-                vertices: list[list[str | None]] | None = None, frames: list[dict] | None = None) -> dict:
+                vertices: list[list[str | None]] | None = None, frames: list[dict] | None = None,
+                overrides: dict | None = None, override_atlas: str | None = None, allow_unknown: bool = False) -> dict:
         """Import, inspect, edit, preview, or export a local PNG tileset.
 
         Import takes a local path and grid with tile_width, tile_height, margin and spacing.
@@ -390,6 +413,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         Terrain takes colors (named terrains) and tiles (ID keys with NW, NE, SE, SW names or null).
         Animation takes a tile ID and ordered frames with tile and duration_ms. Pass [] to clear.
         Preview resolves cells from a rectangular vertex lattice of terrain names or null.
+        It accepts manual cell overrides and their atlas binding from a saved map.
         Export writes the PNG and two metadata files to the job's 06_export/tileset folder.
         """
         from .core import tileset as workspace
@@ -411,7 +435,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if operation == "animation":
             return workspace.update_animation(job, tile, frames, revision)
         if operation == "preview":
-            return workspace.preview(job, vertices, revision)
+            return workspace.preview(job, vertices, revision, allow_unknown=allow_unknown,
+                                     overrides=overrides, override_atlas=override_atlas)
         raise ValueError("Choose import, inspect, collision, terrain, animation, preview, or export.")
 
     @mcp.tool()

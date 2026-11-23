@@ -89,7 +89,12 @@ def cmd_tileset(a):
             if not a.file:
                 raise ValueError("Pass --file with JSON terrain rules or preview vertices.")
             data = json.loads(Path(a.file).read_text(encoding="utf-8"))
-            result = tileset.update_terrain(job, data) if a.operation == "terrain" else tileset.preview(job, data)
+            if a.operation == "terrain":
+                result = tileset.update_terrain(job, data)
+            else:
+                draft = data if isinstance(data, dict) else {"vertices": data}
+                result = tileset.preview(job, draft.get("vertices"), allow_unknown=draft.get("allow_unknown") is True,
+                                         overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"))
         else:
             result = tileset.inspect(job)
     _print(result)
@@ -132,6 +137,24 @@ def _kv(items) -> dict:
         except json.JSONDecodeError:
             out[k] = v
     return out
+
+
+def cmd_studio(a):
+    import asyncio
+    from .studio import invoke
+
+    if any(not key or not separator for key, separator, _ in (value.partition("=") for value in (*a.param, *a.query))):
+        raise ValueError("Write --param and --query as NAME=VALUE.")
+    parameters = dict(value.split("=", 1) for value in a.param)
+    if a.job:
+        character, separator, job_id = a.job.partition("/")
+        if not separator or not character or not job_id or parameters.keys() & {"char", "jid"}:
+            raise ValueError("Pass --job CHARACTER/JOB or explicit char and jid parameters.")
+        parameters.update(char=character, jid=job_id)
+    body = json.loads(Path(a.file).read_text(encoding="utf-8")) if a.file else None
+    query = dict(value.split("=", 1) for value in a.query)
+    result = asyncio.run(invoke(paths.jobs(), a.operation, parameters=parameters, body=body, query=query))
+    _print(result)
 
 
 def _csv(s: str | None) -> list[str] | None:
@@ -669,6 +692,7 @@ def cmd_mcp(a):
 # --- parser -----------------------------------------------------------------------------------
 
 def build() -> argparse.ArgumentParser:
+    from .studio import OPERATIONS as STUDIO_OPERATIONS
     from .core.timeline import POSE_MARKER_TYPES
 
     ap = argparse.ArgumentParser(prog="spritewaffle", description="AI image/video -> game-ready pixel-art sprites.",
@@ -691,6 +715,13 @@ def build() -> argparse.ArgumentParser:
     ACTION = (("--action",), {"required": True, "help": "idle, walk, run, attack, jump"})
     OPT_FACING = (("--facing",), {"choices": FACINGS, "help": "default: the job's last facing"})
     OPT_ACTION = (("--action",), {"help": "default: the job's last action"})
+    cmd("studio", cmd_studio, "run named local studio operations shared with the browser",
+        (("operation",), {"choices": tuple(STUDIO_OPERATIONS)}),
+        (("--job",), {"help": "job path as CHARACTER/JOB"}),
+        (("--file",), {"help": "JSON request body for write operations"}),
+        (("--param",), {"action": "append", "default": [], "help": "route parameter as NAME=VALUE"}),
+        (("--query",), {"action": "append", "default": [], "help": "query parameter as NAME=VALUE"}))
+
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
         (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "export")}), JOB,
         (("--file",), {"help": "source PNG for import, JSON for terrain, animation or preview"}),

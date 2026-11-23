@@ -275,3 +275,22 @@ def test_object_template_cli_and_mcp_use_the_same_library(tmp_path, monkeypatch,
                      "--cell", "4", "--state", "harvested"]) == 0
     placed = json.loads(capsys.readouterr().out)
     assert placed["template_id"] == second["id"] and placed["cell"] == 4 and placed["state"] == "harvested"
+
+
+def test_manual_preview_agrees_across_cli_mcp_and_http(tmp_path, monkeypatch, capsys):
+    from spritewaffle import cli
+    from spritewaffle.mcp_server import build
+    from test_mcp import call, text
+
+    meadow(tmp_path)
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(tmp_path))
+    draft = {"vertices": [["Grass"] * 3] * 2, "overrides": {"0": 1, "1": None}}
+    file = tmp_path / "preview.json"
+    file.write_text(json.dumps(draft), encoding="utf-8")
+    assert cli.main(["tileset", "preview", "--job", "meadow/one", "--file", str(file)]) == 0
+    command = json.loads(capsys.readouterr().out)
+    mcp, _ = build(tmp_path)
+    agent = text(call(mcp, "tileset", character="meadow", job_id="one", operation="preview", **draft))
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        response = client.post("/api/jobs/meadow/one/tileset/preview", json=draft).raise_for_status().json()
+    assert command == agent == response == {"width": 2, "height": 1, "tiles": [[1, None]], "missing": []}
