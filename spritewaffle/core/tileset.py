@@ -234,17 +234,53 @@ def update_animation(job: Job, tile: int, frames: list, revision: str | None = N
     return inspect(job)
 
 
-def preview(job: Job, vertices: list, revision: str | None = None, *, allow_unknown: bool = False) -> dict:
+def preview(job: Job, vertices: list, revision: str | None = None, *, allow_unknown: bool = False,
+            overrides: dict | None = None, override_atlas: str | None = None) -> dict:
     record = _read(_workspace(job))
     if record is None:
         raise ValueError("Import a tile sheet first.")
     if revision is not None and revision != _revision(record):
         raise ValueError("The tileset changed. Reload it before previewing.")
-    return _preview(record, vertices, allow_unknown=allow_unknown)
+    return _preview(record, vertices, allow_unknown=allow_unknown, overrides=overrides, override_atlas=override_atlas)
 
 
-def _preview(record: dict, vertices: list, *, allow_unknown: bool = False) -> dict:
-    return terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown)
+def _atlas_revision(record: dict) -> str:
+    return _revision({key: record[key] for key in ("digest", "grid")})
+
+
+def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
+             overrides: dict | None = None, override_atlas: str | None = None) -> dict:
+    result = terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown)
+    if overrides is None:
+        return result
+    width, height = result["width"], result["height"]
+    cells = {str(i): i for i in range(width * height)}
+    if not isinstance(overrides, dict) or any(key not in cells for key in overrides):
+        raise ValueError("Use zero-based map cell IDs for placement overrides.")
+    if override_atlas is not None and (
+        not isinstance(override_atlas, str) or not re.fullmatch(r"[0-9a-f]{64}", override_atlas)
+    ):
+        raise ValueError("The placement atlas revision is invalid.")
+    stale = override_atlas is not None and override_atlas != _atlas_revision(record)
+    grid = record["grid"]
+    count = MAX_TILES if stale else grid["columns"] * grid["rows"]
+    missing = {(x, y) for x, y in result["missing"]}
+    invalid = []
+    for key, tile in overrides.items():
+        if tile is not None and (type(tile) is not int or not 0 <= tile < count):
+            raise ValueError("Use an atlas tile ID within the grid, or null to leave the cell empty.")
+        y, x = divmod(cells[key], width)
+        if stale and tile is not None:
+            invalid.append([x, y])
+            missing.add((x, y))
+            result["tiles"][y][x] = None
+        else:
+            missing.discard((x, y))
+            result["tiles"][y][x] = tile
+    result["missing"] = [[x, y] for x, y in sorted(missing, key=lambda cell: (cell[1], cell[0]))]
+    if invalid:
+        result["invalid_overrides"] = sorted(invalid, key=lambda cell: (cell[1], cell[0]))
+    return result
 
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
@@ -267,7 +303,7 @@ def inspect(job: Job) -> dict:
         state = {"status": "incomplete"} if saved.get("incomplete") else receipt.compare(
             saved, out, _snapshot(job, directory, record))
     source = _source(directory, record)
-    return {"tileset": record, "revision": _revision(record),
+    return {"tileset": record, "revision": _revision(record), "atlas_revision": _atlas_revision(record),
             "preview": source.relative_to(job.root).as_posix() if source.is_file() else None,
             "export": state, "files": files}
 

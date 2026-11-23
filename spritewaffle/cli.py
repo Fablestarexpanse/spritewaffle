@@ -105,9 +105,11 @@ def cmd_tilemap(a):
         result = tilemap.load(job, a.map_id)
     elif a.operation == "save":
         if not a.file:
-            raise ValueError("Pass --file with the JSON array of terrain corners.")
-        vertices = json.loads(Path(a.file).read_text(encoding="utf-8"))
-        result = tilemap.save(job, a.name, vertices, a.map_id, a.revision)
+            raise ValueError("Pass --file with terrain corners or a map draft.")
+        data = json.loads(Path(a.file).read_text(encoding="utf-8"))
+        draft = data if isinstance(data, dict) else {"vertices": data}
+        result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
+                              overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"))
     else:
         result = tilemap.export(job, a.map_id)
     _print(result)
@@ -692,7 +694,7 @@ def build() -> argparse.ArgumentParser:
     cmd("tilemap", cmd_tilemap, "list, save, load, or export a named terrain map",
         (("operation",), {"choices": ("list", "load", "save", "export")}), JOB,
         (("--name",), {"help": "display name when saving a map"}),
-        (("--file",), {"help": "JSON array of terrain corners when saving a map"}),
+        (("--file",), {"help": "JSON terrain corners or map draft when saving a map"}),
         (("--map-id",), {"help": "saved map ID for load, update, or export"}),
         (("--revision",), {"help": "required revision when updating a saved map"}))
 

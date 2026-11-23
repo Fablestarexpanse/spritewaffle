@@ -1,6 +1,11 @@
-NEXT: Verify a portable map ZIP in an installed editor, then add manual tile placements and object-state metadata.
+NEXT: Add generalized object-state metadata and apply it to a modular building with a door.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 The official Tiled 1.12.2 Windows release matched its published SHA-256. An extracted copy ran in portable mode outside the repository. It imported a SpriteWaffle TMJ, re-exported the map to TMX with GIDs 1, 2, 0, and rasterized both atlas tiles and a transparent cell. Manual placement keeps the original terrain corners and uses sparse row-major cell overrides. Pin explicit atlas tile IDs to the source and grid so a replaced sheet cannot silently change their artwork.
+- 2026-11-22 Baseline `8a5e25c` passed 325 Python tests in 97.71 s. The manual placement test reproduced that the preview ignored explicit atlas tile and empty-cell choices before implementation.
+- 2026-11-22 Chromium placed tile 4, left a neighboring cell empty, restored the first cell to terrain, and reopened the saved 48-cell map at 1440, 800, and 390 px. Tiled 1.12.2 round-tripped the exported map and tileset to TMX and TSX. It preserved all 48 global IDs, the relative TSJ reference, 260/520 ms animation frames, a collision object, and the Wang set. Rasterization produced 128 × 96 pixels with the expected placement, transparent cell, and unchanged terrain. Seventeen focused Python tests and eight Node tests passed.
+- 2026-11-22 The full suite passed 326 Python tests in 96.80 s with the existing Starlette warning.
 
 - 2026-11-22 Baseline `1173f0b` passed 323 Python tests in 97.02 s. The new round-trip tests reproduced the absence of saved map API and CLI operations. Store each named map with a stable ID and its authored corners alongside the tileset job. Resolve placements using the current tileset. Export a self-contained ZIP with native and orthogonal Tiled formats. Keep drafts with missing transitions and refuse their export so a missing transition cannot become an unexplained hole.
 - 2026-11-22 Chromium saved an unresolved South meadow draft, confirmed export was disabled, painted the last affected cell, and saved the resolved 48-cell map. Clearing session storage and reloading restored the project entry. The downloaded ZIP contained five files, the expected row-major tile IDs, terrain and animation metadata, and a byte-identical PNG. Layout passed at 1440, 800, and 390 px. Sixteen focused Python and eight Node tests passed. The Tiled executable was unavailable for editor import.

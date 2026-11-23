@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added per-cell manual tile placement, explicit empty cells, and restore-to-terrain controls. Tiled 1.12.2 imported and rendered the resulting map and retained its animation, collision, and Wang terrain metadata on re-export.
 - Added named terrain maps that reopen across browser sessions. Resolved maps export as a portable ZIP with an orthogonal Tiled map, SpriteWaffle JSON, and the source tileset.
 - Added per-tile animations with ordered atlas frames, individual durations, and synchronized playback in the selected-tile and terrain map previews. SpriteWaffle JSON and Tiled TSJ retain the timing, and edits mark prior exports stale.
 - Added named corner terrain rules and an 8 × 6 map preview that flags missing transitions. Tileset exports include the saved rules in SpriteWaffle JSON and Tiled Wang-set metadata.

@@ -10,9 +10,9 @@ Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tr
 | Production reliability | Queue recovery and QA exist. Action and character exports have separate writers. | Character, action, item, and effect bundles have local freshness receipts. Action processing tracks imported and generated clips, mirrors, optical-flow inputs, and palettes. Palette-only rebuilds retain the source selection. Tracked alignment guards character exports and keeps auxiliary maps, pivots, and effect points registered to the colour frames. |
 | Animation and editing | Frame extraction, selection, pixel processing, takes, and animated preview exist. | The timeline supports timing, onion skins, ranges, tags, and pose markers. The comparison supports local reprocessing, whole-pixel offsets, and alignment to a reference foot. Saved edits are reversible and flow into QA or export metadata as appropriate. |
 | Project style | Job palettes, game profiles, camera defaults and overrides, and directional manifests exist. | Delivered style defaults, palettes, read-only consistency checks, and portable reference collections. One selected library image can guide an anchor and is recorded in its provenance. Multi-image generation and family palette rules remain open. |
-| World assets | Props, effects, and asset-specific workflows exist. | Tilesets retain the imported grid, collision, terrain rules, and animation timing. Named maps remain with their tileset job and export to a self-contained ZIP. Verify a map import in an installed editor. Add manual placements and object-state metadata in later increments. |
+| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain and manual tile placement and export to a self-contained ZIP. Tiled 1.12.2 imported and rendered a representative map. Object-state metadata and modular buildings are next. |
 | Advanced production | Item fits are flattened. Sprite stacks and an optional 3D template exist. Manifest map slots and arbitrary view metadata exist. | Prove layered equipment, higher-angle generation, and depth/normal generation independently using representative assets. |
-| Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Validate import and playback in real Unity and Godot fixtures. Add Tiled and LDtk format checks when terrain metadata lands. |
+| Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Tiled import and rasterization verified for a single orthogonal tile layer. Validate engine-specific imports in Unity and Godot. LDtk remains open. |
 
 Known baseline gaps include the missing H3 turntable template, incomplete higher-angle and auxiliary-map generation, and the UI issues tracked in the [UI audit](AUDIT_UI_2026-11-21.md) and [wiki roadmap](wiki/Roadmap.md).
 
@@ -20,8 +20,9 @@ The native tileset writer uses the documented Tiled JSON fields for image grids,
 and tile collision object layers. It uses the existing Pillow runtime and adds no Tiled dependency.
 The writer includes a corner terrain set and puts corner assignments in Tiled's eight-entry Wang
 order. Preview resolution uses the same saved rules and requires an exact corner match. Animated
-tiles store the local tile ID and duration in milliseconds in Tiled's animation array. Editor
-import testing with an installed Tiled executable remains open.
+tiles store the local tile ID and duration in milliseconds in Tiled's animation array.
+Tiled 1.12.2 imported the TMJ and TSJ, re-exported them to TMX and TSX, and rasterized the map.
+The test checked global tile IDs, a transparent cell, collision, animation timing, and Wang rules.
 [Tiled JSON format](https://doc.mapeditor.org/en/latest/reference/json-map-format/)
 
 The map ZIP puts an orthogonal TMJ, its TSJ and PNG, and the native map and tileset JSON

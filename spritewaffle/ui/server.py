@@ -411,7 +411,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         j = job_or_404(char, jid)
         try:
             return tileset.preview(j, body.get("vertices"), body.get("revision"),
-                                   allow_unknown=body.get("allow_unknown") is True)
+                                   allow_unknown=body.get("allow_unknown") is True,
+                                   overrides=body.get("overrides"), override_atlas=body.get("override_atlas"))
         except (ValueError, OSError) as error:
             bad(error)
 
@@ -433,7 +434,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     def save_tilemap(char: str, jid: str, body: dict = Body(...)):
         try:
             return tilemap.save(job_or_404(char, jid), body.get("name"), body.get("vertices"),
-                                body.get("id"), body.get("revision"), body.get("tileset_revision"))
+                                body.get("id"), body.get("revision"), body.get("tileset_revision"),
+                                overrides=body.get("overrides"), override_atlas=body.get("override_atlas"))
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 

@@ -515,11 +515,16 @@ live with that tileset job and can be reopened in a fresh browser session. Selec
 to start a separate 8 × 6 map. Saved maps use the current terrain rules, so changing rules may
 leave cells that need repainting. You can save work with unresolved cells and return to it later.
 
+**Cell action** also lets you place the tile selected in the sheet, leave a cell empty, or
+restore the terrain result. These choices leave the terrain corners intact. Manual tile
+placements stay tied to their sheet. If you replace the sheet, restore outdated cells
+before placing tiles from the replacement.
+
 When the map is saved and all painted cells match a tile, select **Prepare map ZIP** and then
 **Download map ZIP**. Extract the files together and open `map.tmj` in Tiled. The archive also
 includes SpriteWaffle JSON, the PNG, and both tileset descriptions with collision, animation,
-and terrain metadata. Untouched cells export as empty space. The Tiled format is verified by
-tests. Import in the Tiled editor remains unverified.
+and terrain metadata. Untouched and explicitly empty cells export as empty space. Tiled 1.12.2
+imported and rendered the map and preserved the cells and tileset metadata when re-exporting it.
 
 ```powershell
 spritewaffle tilemap save --job meadow/v1 --name "South meadow" --file vertices.json
@@ -528,8 +533,12 @@ spritewaffle tilemap load --job meadow/v1 --map-id MAP_ID
 spritewaffle tilemap export --job meadow/v1 --map-id MAP_ID
 ```
 
-The CLI and MCP accept rectangular maps up to 32 × 32 tiles. Use the loaded revision when updating
-an existing map. The `tilemap` MCP tool and the HTTP routes under
+The CLI and MCP accept rectangular maps up to 32 × 32 tiles. To include manual placements, pass a
+JSON object with `vertices` and `overrides`, for example
+`{"vertices":[[null,null,null],[null,null,null]],"overrides":{"0":4,"1":null}}`.
+Override keys are zero-based cell numbers in row order. Each value is an atlas tile ID or
+`null` for an empty cell. Updates keep existing overrides if the field is omitted. Pass
+`{}` to clear them. Use the loaded revision when updating an existing map. The `tilemap` MCP tool and the HTTP routes under
 `/api/jobs/{character}/{job}/tileset/maps` expose the same operations. ZIPs are written under
 the job's `06_export/maps/` folder.
 

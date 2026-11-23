@@ -417,11 +417,14 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def tilemap(character: str, job_id: str, operation: str = "list", map_id: str | None = None,
                 name: str | None = None, vertices: list[list[str | None]] | None = None,
-                revision: str | None = None, tileset_revision: str | None = None) -> dict | list[dict]:
+                revision: str | None = None, tileset_revision: str | None = None,
+                overrides: dict | None = None, override_atlas: str | None = None) -> dict | list[dict]:
         """List, load, save, or export named terrain maps in a tileset job.
 
         Save takes a name and a rectangular lattice of terrain names or null. Updates need
         the map ID and loaded revision. Export writes a portable ZIP to the job.
+        Overrides map row-major cell IDs to atlas tile IDs or null. An empty object clears
+        overrides. Pass the loaded override_atlas to retain its source binding.
         """
         from .core import tilemap as maps
 
@@ -431,7 +434,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if operation == "load":
             return maps.load(job, map_id)
         if operation == "save":
-            return maps.save(job, name, vertices, map_id, revision, tileset_revision)
+            return maps.save(job, name, vertices, map_id, revision, tileset_revision,
+                             overrides=overrides, override_atlas=override_atlas)
         if operation == "export":
             return maps.export(job, map_id, revision, tileset_revision)
         raise ValueError("Choose list, load, save, or export.")

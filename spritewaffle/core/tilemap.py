@@ -62,7 +62,8 @@ def load(job: Job, map_id: str) -> dict:
 
 
 def save(job: Job, name: str, vertices: list, map_id: str | None = None, revision: str | None = None,
-         tileset_revision: str | None = None) -> dict:
+         tileset_revision: str | None = None, *, overrides: dict | None = None,
+         override_atlas: str | None = None) -> dict:
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or len(name.strip().splitlines()) != 1:
         raise ValueError("Enter a map name of 1 to 80 characters on one line.")
     with tileset._locked_record(job) as (directory, record):
@@ -70,14 +71,21 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
             raise ValueError("The tileset changed. Reload it before saving the map.")
         maps = _read(directory)
         if map_id is not None:
-            if revision != tileset._revision(_get(maps, map_id)):
+            current = _get(maps, map_id)
+            if revision != tileset._revision(current):
                 raise ValueError("The saved map changed. Open it again before saving.")
+            if overrides is None:
+                overrides, override_atlas = current.get("overrides"), current.get("override_atlas")
         else:
             if len(maps) >= MAX_MAPS:
                 raise ValueError(f"A tileset can hold up to {MAX_MAPS} saved maps.")
             map_id = uuid4().hex
-        tileset._preview(record, vertices)
+        tileset._preview(record, vertices, overrides=overrides, override_atlas=override_atlas)
         draft = {"name": name.strip(), "vertices": vertices}
+        if overrides:
+            draft["overrides"] = overrides
+            if any(tile is not None for tile in overrides.values()):
+                draft["override_atlas"] = override_atlas or tileset._atlas_revision(record)
         maps[map_id] = draft
         fsutil.write_text(_registry(directory), json.dumps({"version": 1, "maps": maps}, ensure_ascii=False))
     return _view(map_id, draft)
@@ -102,14 +110,17 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         if tileset_revision is not None and tileset_revision != tileset._revision(record):
             raise ValueError("The tileset changed. Reload it before exporting the map.")
         corners = saved["vertices"]
-        resolved = tileset._preview(record, corners, allow_unknown=True)
+        resolved = tileset._preview(record, corners, allow_unknown=True, overrides=saved.get("overrides"),
+                                    override_atlas=saved.get("override_atlas"))
         if missing := resolved["missing"]:
             x, y = missing[0]
             raise ValueError(f"The map has {len(missing)} unresolved cells, starting at ({x + 1}, {y + 1}). "
-                             "Paint a known terrain or assign a matching transition before exporting.")
+                             "Update its tile placement or terrain before exporting.")
         _, image = tileset._export_image(directory, record)
         native_tiles, tiled_tiles = tileset._export_metadata(record, job.root.parent.name)
         native = {"schema_version": 1, "name": saved["name"], "tileset": "tileset.json", "vertices": corners, **resolved}
+        if "overrides" in saved:
+            native["overrides"] = saved["overrides"]
         tiled = _tiled_map(saved["name"], resolved, record["grid"])
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as package:

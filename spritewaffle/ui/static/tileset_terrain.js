@@ -17,7 +17,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         <h3>Map preview</h3>
         <canvas id="terrainCanvas" aria-label="Terrain map preview"></canvas>
         <p id="terrainStats" class="muted" role="status"></p>
-        <p class="hint">Paint sets all four corners of a cell. Dashed cells need a matching tile.</p>
+        <p class="hint">Terrain paint sets all four corners of a cell. Dashed outlines mark unresolved cells.</p>
         <div class="row">
           <label>Terrain <select id="terrainBrush"></select></label>
           <button type="button" id="terrainFill">Fill preview</button>
@@ -25,8 +25,17 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         </div>
         <div class="row">
           <label>Cell <input type="number" id="terrainCell" min="0" max="47" value="0" step="1"></label>
+          <label>Cell action
+            <select id="terrainCellMode">
+              <option value="terrain">Paint terrain</option>
+              <option value="tile">Place selected tile</option>
+              <option value="empty">Leave empty</option>
+              <option value="restore">Restore terrain</option>
+            </select>
+          </label>
           <button type="button" id="terrainPaint">Paint cell</button>
         </div>
+        <p id="terrainOverrideHint" class="hint" hidden></p>
         <h3>Saved maps</h3>
         <fieldset id="terrainMapControls" aria-label="Map files">
           <div class="row">
@@ -49,11 +58,13 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   const names = find("#terrainNames"), brush = find("#terrainBrush"), canvas = find("#terrainCanvas");
   const corners = [...panel.querySelectorAll("[data-corner]")], cellInput = find("#terrainCell");
   const mapList = find("#terrainMapList"), mapName = find("#terrainMapName");
+  const cellMode = find("#terrainCellMode"), cellButton = find("#terrainPaint"), overrideHint = find("#terrainOverrideHint");
   let cols = 8, rows = 6;
   const lattice = (name = null, width = cols, height = rows) =>
     Array.from({length: height + 1}, () => Array(width + 1).fill(name));
   let state, tile = 0, rules = {colors: [], tiles: {}}, vertices = lattice(), result, storage, revision = 0;
   let savedMap = null, maps = [], mapsLoaded = false, mapWorking = false;
+  let overrides = {}, overrideAtlas;
 
   function error(message = "") {
     const notice = find("#terrainError");
@@ -76,9 +87,21 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   }
 
   function dirtyMap() {
-    if (!savedMap) return !!mapName.value.trim() || vertices.some(row => row.some(name => name !== null));
+    if (!savedMap) return !!mapName.value.trim() || Object.keys(overrides).length > 0 ||
+      vertices.some(row => row.some(name => name !== null));
     return mapName.value.trim() !== savedMap.name ||
-      JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices);
+      JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices) ||
+      JSON.stringify(overrides) !== JSON.stringify(savedMap.overrides || {}) ||
+      overrideAtlas !== savedMap.override_atlas;
+  }
+
+  function updateCellTool() {
+    const labels = {terrain: "Paint cell", tile: "Place tile " + tile, empty: "Leave cell empty", restore: "Restore cell"};
+    const stale = overrideAtlas && overrideAtlas !== state.atlas_revision;
+    cellButton.textContent = labels[cellMode.value];
+    cellButton.disabled = (cellMode.value === "terrain" && !brush.value) || (cellMode.value === "tile" && !!stale);
+    overrideHint.hidden = !stale;
+    overrideHint.textContent = stale ? "The tile sheet changed. Restore the marked cells before placing tiles from this sheet." : "";
   }
 
   function mapControls() {
@@ -139,8 +162,11 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       if (id !== null && state.preview && image.complete && image.naturalWidth) {
         drawTilesetCell(ctx, image, grid, frameFor(id), x * w, y * h, w, h);
       }
-      ctx.strokeStyle = style.getPropertyValue(missing.has(y * cols + x) ? "--warn" : "--line").trim();
-      ctx.setLineDash(missing.has(y * cols + x) ? [3, 2] : []);
+      const cell = y * cols + x;
+      const unmatched = missing.has(cell);
+      const color = unmatched ? "--warn" : Object.hasOwn(overrides, cell) ? "--accent" : "--line";
+      ctx.strokeStyle = style.getPropertyValue(color).trim();
+      ctx.setLineDash(unmatched ? [3, 2] : []);
       ctx.strokeRect(x * w + .5, y * h + .5, w - 1, h - 1);
     }));
   }
@@ -148,14 +174,18 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   async function resolveMap() {
     const id = ++revision;
     if (!savedMap) {
-      try { sessionStorage.setItem(storage, JSON.stringify(vertices)); } catch {}
+      try { sessionStorage.setItem(storage, JSON.stringify({vertices, overrides, overrideAtlas})); } catch {}
     }
     try {
-      const resolved = await request("/preview", {vertices, revision: state.revision, allow_unknown: true});
+      const resolved = await request("/preview", {vertices, revision: state.revision, allow_unknown: true,
+        overrides, override_atlas: overrideAtlas});
       if (id !== revision) return;
       result = resolved;
       const count = result.tiles.flat().filter(id => id !== null).length;
-      find("#terrainStats").textContent = `${count} placed · ${result.missing.length} missing transition${result.missing.length === 1 ? "" : "s"}`;
+      const invalid = result.invalid_overrides?.length || 0;
+      const missing = result.missing.length - invalid;
+      find("#terrainStats").textContent = `${count} placed · ${missing} missing transition${missing === 1 ? "" : "s"}` +
+        (invalid ? ` · ${invalid} outdated placement${invalid === 1 ? "" : "s"}` : "");
       mapControls();
       draw();
     } catch (cause) {
@@ -164,17 +194,35 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   }
 
   function paint(id) {
-    if (mapWorking || !Number.isInteger(id) || id < 0 || id >= cols * rows || !brush.value) return;
-    const x = id % cols, y = Math.floor(id / cols);
+    if (mapWorking || cellButton.disabled || !Number.isInteger(id) || id < 0 || id >= cols * rows) return;
     cellInput.value = id;
-    vertices[y][x] = vertices[y][x + 1] = vertices[y + 1][x] = vertices[y + 1][x + 1] = brush.value;
+    switch (cellMode.value) {
+      case "terrain": {
+        const x = id % cols, y = Math.floor(id / cols);
+        vertices[y][x] = vertices[y][x + 1] = vertices[y + 1][x] = vertices[y + 1][x + 1] = brush.value;
+        break;
+      }
+      case "tile":
+        overrides[id] = tile;
+        overrideAtlas = state.atlas_revision;
+        break;
+      case "empty":
+        overrides[id] = null;
+        break;
+      case "restore":
+        delete overrides[id];
+        break;
+    }
+    if (!Object.values(overrides).some(value => value !== null)) overrideAtlas = undefined;
     error();
+    updateCellTool();
     editMap(vertices);
   }
 
   function selectTile(id, reset = false) {
     if (id === tile && !reset) return;
     tile = id;
+    updateCellTool();
     find("#terrainTileHeading").textContent = `Tile ${id} corners`;
     const saved = rules.tiles[id] || [null, null, null, null];
     corners.forEach((select, i) => select.value = saved[i] ?? "");
@@ -200,9 +248,16 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       storage = nextStorage;
       if (!savedMap) {
         vertices = lattice(null, 8, 6);
+        overrides = {};
+        overrideAtlas = undefined;
         try {
           const stored = JSON.parse(sessionStorage.getItem(storage));
-          if (stored?.length === 7 && stored.every(row => Array.isArray(row) && row.length === 9)) vertices = stored;
+          const draft = stored?.vertices || stored;
+          if (draft?.length === 7 && draft.every(row => Array.isArray(row) && row.length === 9)) {
+            vertices = draft;
+            overrides = stored.overrides || {};
+            overrideAtlas = stored.overrideAtlas;
+          }
         } catch {}
       }
     }
@@ -216,7 +271,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     const previousBrush = brush.value;
     brush.innerHTML = options;
     brush.value = rules.colors.includes(previousBrush) ? previousBrush : rules.colors[0] || "";
-    brush.disabled = find("#terrainFill").disabled = find("#terrainPaint").disabled = !rules.colors.length;
+    brush.disabled = find("#terrainFill").disabled = !rules.colors.length;
     selectTile(tile, true);
     editMap(vertices);
   }
@@ -230,8 +285,16 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     save(event.currentTarget, {colors: rules.colors, tiles});
   };
   find("#terrainFill").onclick = () => { if (!mapWorking) { error(); editMap(lattice(brush.value)); } };
-  find("#terrainClear").onclick = () => { if (!mapWorking) { error(); editMap(lattice()); } };
-  find("#terrainPaint").onclick = () => paint(cellInput.valueAsNumber);
+  find("#terrainClear").onclick = () => {
+    if (mapWorking) return;
+    error();
+    overrides = {};
+    overrideAtlas = undefined;
+    updateCellTool();
+    editMap(lattice());
+  };
+  cellMode.onchange = updateCellTool;
+  cellButton.onclick = () => paint(cellInput.valueAsNumber);
   mapList.onchange = mapControls;
   mapName.oninput = () => {
     find("#terrainMapDownload").hidden = true;
@@ -242,8 +305,11 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     if (!maySwitch()) return;
     mapError();
     savedMap = null;
+    overrides = {};
+    overrideAtlas = undefined;
     mapName.value = "";
     mapList.value = "";
+    updateCellTool();
     editMap(lattice(null, 8, 6));
   };
   find("#terrainMapOpen").onclick = () => {
@@ -253,6 +319,9 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       if (!savedMap) forgetDraft();
       savedMap = opened;
       mapName.value = savedMap.name;
+      overrides = {...savedMap.overrides};
+      overrideAtlas = savedMap.override_atlas;
+      updateCellTool();
       editMap(savedMap.vertices.map(row => row.slice()));
     });
   };
@@ -260,9 +329,10 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     event.preventDefault();
     mapAction(async () => {
       const updated = await request("/maps", {id: savedMap?.id, revision: savedMap?.revision,
-        name: mapName.value, vertices, tileset_revision: state.revision});
+        name: mapName.value, vertices, tileset_revision: state.revision, overrides, override_atlas: overrideAtlas});
       if (!savedMap) forgetDraft();
       savedMap = updated;
+      overrideAtlas = savedMap.override_atlas;
       mapName.value = savedMap.name;
       const entry = {id: savedMap.id, name: savedMap.name};
       maps = [...maps.filter(map => map.id !== entry.id), entry].sort((a, b) => a.name.localeCompare(b.name));
