@@ -16,18 +16,18 @@ particular machine. Paths come from `SPRITEWAFFLE_HOME` / `SPRITEWAFFLE_JOBS`, o
 ## First character
 
 1. Choose **New asset → Character** and give it a name such as `knight`.
-2. **Anchor**: describe it ("small knight, silver helmet with a red plume, blue tunic"), Generate,
-   re-roll until it's right, **Approve**. Everything else is built from this picture.
+2. In **Anchor**, use **Choose and import image…** for your own art, or describe what you want
+   under **Generate with ComfyUI**. Review the preview and choose **Approve anchor**.
 3. **Facings**: Generate facings (S is the anchor; E, N, W, then the diagonals from the nearest
    cardinal). Re-roll any that drift or didn't turn (warnings say which), then Approve.
-4. **Animations**: pick facings × actions (idle, walk…), Queue. Each clip is rendered with
+4. In **Animations**, open **Generate animations**, pick facings and actions, and queue them. Each clip is rendered with
    H3 video, the frames are picked (12 and 24 frame sets), pixelized with one palette, QA'd and
-   exported. W/NW/SW can be mirrored from E/NE/SE (no render).
+   exported. W/NW/SW can be mirrored from E/NE/SE without rendering. Use **Edit timeline** on a clip to adjust its frames.
 5. **Export**: one `.aseprite` (a tag per animation) plus atlas pages + TexturePacker JSON, in
    `jobs/<character>/<job_id>/06_export/`.
 
-The queue (header pill) shows what's running; it opens by itself when a task fails. Every
-re-roll keeps the previous take ("earlier takes" → Use this).
+**Queue** in the header shows what's running. If a task fails, open **Queue → Failed** to see the
+error and retry. Every re-roll keeps the previous take in **Earlier takes**.
 
 ## Without the UI
 

@@ -124,7 +124,7 @@
   .job:hover, .job.on { background: var(--panel2); } .job.on { box-shadow: inset 3px 0 var(--link); }
   .job img, .job .noimg { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; background: var(--bg); image-rendering: pixelated; }
   .jfilters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; font-size: .86rem; }
-  .jfilters select { font-size: .86rem; padding: 2px 4px; max-width: 110px; }
+  .jfilters select { font-size: .86rem; padding: 2px 4px; max-width: 110px; min-height: 24px; }
   .jgroup > summary { cursor: pointer; font-weight: 600; padding: 6px 4px 2px; color: var(--muted); font-size: .86rem; }
   .job .needs { color: var(--warn, #c80); font-size: .79rem; }
   .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: .79rem; }
@@ -147,6 +147,16 @@
   .frontback { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px; }
   .anchor-layout { display: grid; grid-template-columns: minmax(0, 19rem) minmax(0, 1fr); gap: var(--space); }
   .anchor-preview img, .anchor-preview .ph { width: 100%; height: min(58vw, 18rem); object-fit: contain; }
+  .anchor-sources { display: grid; gap: var(--space); min-width: 0; }
+  .anchor-source { border-top: 1px solid var(--line); padding-top: .65rem; }
+  .anchor-source h3 { margin: 0 0 .35rem; }
+  .anchor-source details { margin-top: .6rem; }
+  .anchor-source summary { cursor: pointer; min-height: 24px; }
+  .anchor-source > .field { align-items: stretch; }
+  .anchor-path input { flex: 1 1 14rem; min-width: 0; }
+  .anim-actions { display: grid; gap: .25rem; }
+  .anim-actions button { min-height: 32px; }
+  .anim-generation > summary { padding-block: .3rem; cursor: pointer; font-weight: 650; }
   .tt { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .tt canvas { border-radius: 8px; max-width: 100%; }
   .tt .ctl { display: grid; gap: 8px; min-width: min(240px, 100%); }
@@ -359,7 +369,7 @@
   .stackview canvas { border-radius: 8px; max-width: 100%; cursor: grab; touch-action: none; }
   figure { margin: 0; } figcaption { font-size: .86rem; color: var(--muted); margin-top: 4px; }
   #viewer .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
+  #toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; pointer-events: none; }
   .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow); max-width: min(30rem, calc(100vw - 32px)); }
   .toast.bad { border-left-color: var(--bad); }
   .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
@@ -428,7 +438,7 @@
       <option value="todo">Least done</option><option value="done">Most done</option></select>
     <select id="jfType" aria-label="Filter by asset type"><option value="">All types</option></select>
     <select id="jfStyle" aria-label="Filter by art style"><option value="">All styles</option></select>
-    <label title="Only jobs waiting for you: something to review, or a clip that failed QA"><input type="checkbox" id="jfNeeds"> Needs me</label>
+    <label title="Show jobs with artwork to review or clips that failed QA"><input type="checkbox" id="jfNeeds"> Needs attention</label>
     <label><input type="checkbox" id="jfGroup"> Group by type</label>
   </div>
   <div id="jobs"></div>
@@ -576,7 +586,7 @@
   <p id="referenceStatus" class="muted" role="status" hidden></p>
   <div id="projectReferenceList"></div>
 </dialog>
-<div id="toasts"></div>
+<div id="toasts" aria-live="polite" aria-relevant="additions"></div>
 
 <script src="/static/tileset_animation.js"></script>
 <script src="/static/tilemap_objects.js"></script>
@@ -595,16 +605,17 @@ const STEPS = {character: ["anchor", "facings", "animations", "export"], creatur
                base_body: ["anchor", "facings", "animations", "export"], tileset: ["tileset"]};
 // What each kind of job is, in the words the UI shows (never the raw id: audit #11).
 const TYPES = {
-  character: {label: "character", group: "Characters", help: "anchor → 8 facings → animations → .aseprite"},
-  base_body: {label: "base body", group: "Base bodies", help: "plain body to fit items on; animates like a character"},
-  item: {label: "item", group: "Items", help: "armor, cape, weapon: front + back, then fit it on a character"},
-  animal: {label: "animal", group: "Animals", help: "four legs: all views from one turnaround sheet"},
-  creature: {label: "creature", group: "Characters", help: "monster or creature, built like a character"},
-  effect: {label: "effect", group: "Effects", help: "spell, fire, explosion: one looping flipbook"},
-  prop: {label: "prop", group: "Props", help: "sprite stack: slices you can spin"},
-  tileset: {label: "tileset", group: "Terrain", help: "import a tile sheet, mark collision, and export"},
+  character: {label: "character", group: "Characters", help: "A person with directional views and animations"},
+  base_body: {label: "base body", group: "Base bodies", help: "A reusable body for clothing, equipment, and animations"},
+  item: {label: "item", group: "Items", help: "Standalone equipment or objects with front and back views"},
+  animal: {label: "animal", group: "Animals", help: "A four-legged animal with directional views and animations"},
+  creature: {label: "creature", group: "Characters", help: "A creature or monster with directional views and animations"},
+  effect: {label: "effect", group: "Effects", help: "An animated spell, flame, explosion, or other visual effect"},
+  prop: {label: "prop", group: "Props", help: "A rigid object that can be rendered from different angles"},
+  tileset: {label: "tileset", group: "Terrain", help: "Tiles, terrain, reusable modules, and map layouts"},
 };
 const typeLabel = t => (TYPES[t] || {}).label || String(t || "").replace(/_/g, " ");
+const assetTypes = () => Object.keys(TYPES).filter(type => !status.asset_types.length || status.asset_types.includes(type));
 const SHEET_TYPES = ["animal", "base_body"];        // facings come from one turnaround sheet
 const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack", tileset: "Tileset"};
 
@@ -858,7 +869,7 @@ async function api(path, body, {announceErrors = true} = {}) {
     let msg = await r.text();
     try { msg = JSON.parse(msg).detail || msg; } catch {}
     if (announceErrors) toast(msg, true);
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), {status: r.status});
   }
   return r.json();
 }
@@ -891,7 +902,9 @@ async function loadStatus() {
   $("#pWorker").title = (status.running || []).map(x => `${x.job} · ${x.stage} ${x.action || ""} ${x.facing || ""}${x.attempt > 1 ? ` (attempt ${x.attempt})` : ""}`).join("\n");
   const q = status.queue;
   $("#pQueue").innerHTML = `Queue: ${q.running ? `${q.running} running · ` : ""}${q.queued} waiting${q.failed ? ` · <span style="color:var(--bad)">${q.failed} failed</span>` : ""}`;
-  if (q.failed > (loadStatus.failed ?? q.failed)) showQueue(true);
+  if (q.failed > (loadStatus.failed ?? q.failed)) {
+    toast("A task failed. Open Queue and select Failed to see details or retry.", true);
+  }
   loadStatus.failed = q.failed;
 }
 
@@ -970,9 +983,10 @@ async function showNew(type = "character") {
   if (d.open) return;
   const projectArt = art.find(s => s.name === (guide.default_style || "pixel"))?.label || "Pixel art";
   const projectProfile = guide.default_profile || "Built-in sizes";
-  const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop", "tileset"].filter(t => status.asset_types.includes(t));
+  const order = assetTypes();
+  if (!order.includes(type)) type = order[0];
   d.innerHTML = `<h2>New asset <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
-    <div class="types">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
+    <div class="types" role="radiogroup" aria-label="Asset type">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
       <b>${esc(typeLabel(t))}</b><small>${esc(TYPES[t]?.help || "")}</small></label>`).join("")}</div>
     <div class="row" style="margin-top:14px">
       <label class="field" style="flex:1;min-width:200px"><span>Name</span><input id="nName" placeholder="e.g. knight, red_cape, human"></label>
@@ -991,7 +1005,7 @@ async function showNew(type = "character") {
   const create = async () => {
     const name = $("#nName").value.trim(), t = $('input[name="nType"]:checked').value;
     const error = $("#nError");
-    if (!name) { error.textContent = "Give the job a name"; error.hidden = false; $("#nName").focus(); return; }
+    if (!name) { error.textContent = "Enter a name for this asset."; error.hidden = false; $("#nName").focus(); return; }
     const style = $("#nStyle").value, profile = $("#nProfile").value;
     const payload = {character: name, asset_type: t};
     if (style && t !== "tileset") payload.style = style;
@@ -1001,11 +1015,11 @@ async function showNew(type = "character") {
     button.disabled = true;
     error.hidden = true;
     try {
-      const r = await api("/api/jobs", payload);
+      const r = await api("/api/jobs", payload, {announceErrors: false});
       d.close();
       location.hash = `${r.character}/${r.job_id}/${(STEPS[t] || STEPS.character)[0]}`;
     } catch (err) {
-      error.textContent = err.message;
+      error.textContent = err instanceof TypeError ? "Cannot reach SpriteWaffle. Start the local app and try again." : err.message;
       error.hidden = false;
     } finally { button.disabled = false; }
   };
@@ -1033,10 +1047,11 @@ async function loadJobs() {
   const types = [...new Set(jobsCache.map(j => j.asset_type))].sort(), stylesUsed = [...new Set(jobsCache.map(j => j.style))].sort();
   fill($("#jfType"), types, "All types", typeLabel);
   fill($("#jfStyle"), stylesUsed, "All styles");
-  $("#jfType").value = types.includes(jf.type) ? jf.type : ""; $("#jfStyle").value = stylesUsed.includes(jf.style) ? jf.style : "";
+  const type = types.includes(jf.type) ? jf.type : "", style = stylesUsed.includes(jf.style) ? jf.style : "";
+  $("#jfType").value = type; $("#jfStyle").value = style;
   let list = jobsCache.map(j => ({...j, info: jobInfo(j)})).filter(j =>
     (!q || (j.character + " " + j.job_id).toLowerCase().includes(q))
-    && (!jf.type || j.asset_type === jf.type) && (!jf.style || j.style === jf.style)
+    && (!type || j.asset_type === type) && (!style || j.style === style)
     && (!jf.needs || j.info.review.length || j.info.failed));
   const by = {recent: (a, b) => b.updated - a.updated, name: (a, b) => (a.character + a.job_id).localeCompare(b.character + b.job_id),
               todo: (a, b) => a.info.frac - b.info.frac || b.updated - a.updated,
@@ -1072,8 +1087,17 @@ async function loadJobs() {
     const order = ["Characters", "Base bodies", "Items", "Animals", "Effects", "Props", "Terrain", "Other"];
     html = order.filter(g => groups[g]).map(g => `<details class="jgroup" data-group="${g}" ${collapsedJobGroups.has(g) ? "" : "open"}><summary>${g} <span class="muted">(${groups[g].length})</span></summary>${tree(groups[g])}</details>`).join("");
   } else html = tree(tops);
-  const filtered = q || jf.type || jf.style || jf.needs;
-  container.innerHTML = html || `<p class="muted" style="padding:8px">${filtered ? "No matching jobs." : "No jobs yet. Choose New asset to start."}</p>`;
+  const filtered = q || type || style || jf.needs;
+  container.innerHTML = html || (filtered
+    ? '<p class="muted">No matching jobs.</p><button id="jfClear" type="button">Clear search and filters</button>'
+    : '<p class="muted">No jobs yet. Choose New asset to start.</p>');
+  if ($("#jfClear")) $("#jfClear").onclick = () => {
+    $("#search").value = "";
+    $("#jfNeeds").checked = false;
+    Object.assign(jf, {type: "", style: "", needs: false});
+    $("#search").focus();
+    saveJf();
+  };
   $$("details[data-group]", container).forEach(group => {
     group.ontoggle = () => group.open ? collapsedJobGroups.delete(group.dataset.group) : collapsedJobGroups.add(group.dataset.group);
   });
@@ -1267,12 +1291,30 @@ async function showStyleCheck() {
 function renderJob() {
   const j = job, st = k => j.stages[k]?.status, steps = STEPS[j.asset_type] || STEPS.character;
   if (!steps.includes(tab)) tab = steps.find(s => !stepDone(s, j.stages)) || steps[0];
+  const main = $("#main"), path = jobPath();
+  const sameStage = main.dataset.job === path && main.dataset.stage === tab;
+  const disclosures = sameStage ? $$("details[id]", main).map(el => [el.id, el.open]) : [];
+  const drafts = sameStage ? ["desc", "seed", "importPath", "sheetPath", "sheetViews", "sheetSubject", "customAct", "palFile"]
+    .map(id => [id, document.getElementById(id)?.value]) : [];
+  const active = document.activeElement;
+  let focusSelector;
+  if (sameStage && main.contains(active)) {
+    if (active.id) focusSelector = `#${CSS.escape(active.id)}`;
+    else if (active.matches("details[id] > summary")) focusSelector = `#${CSS.escape(active.parentElement.id)} > summary`;
+    else for (const key of ["data-f", "data-a", "data-detail", "data-timeline", "data-tab"]) {
+      if (active.hasAttribute(key)) { focusSelector = `[${key}=${CSS.escape(active.getAttribute(key))}]`; break; }
+    }
+  }
+  const selection = active.matches("textarea,input[type=text],input:not([type])") && focusSelector
+    ? [active.selectionStart, active.selectionEnd] : null;
   const thumb = j.thumb;
-  $("#main").classList.toggle("smooth", j.style !== "pixel");
+  main.classList.toggle("smooth", j.style !== "pixel");
   const canVary = st("facings") === "approved" && !["item", "effect", "prop"].includes(j.asset_type);
   const itemReady = j.asset_type === "item" && st("facings") === "approved";
   const settingsOpen = $("#jobSettings")?.open && $("#jobSettings").dataset.job === jobPath();
-  $("#main").innerHTML = `
+  main.dataset.job = path;
+  main.dataset.stage = tab;
+  main.innerHTML = `
     <div class="jobhead">
       ${thumb ? `<img src="${esc(thumb)}" alt="">` : ""}
       <div><h2>${esc(j.character)} <span class="chip">${esc(j.variant ? (j.variant.item_job ? "wearing " + j.variant.item_job.split("/")[0] : "variant") : typeLabel(j.asset_type))}</span></h2>
@@ -1303,6 +1345,25 @@ function renderJob() {
     </details>
     <div id="pane"></div>`;
   ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack, tileset: paneTileset})[tab](j, st);
+  for (const [id, value] of drafts) {
+    const field = document.getElementById(id);
+    if (field && value !== undefined) field.value = value;
+  }
+  for (const [id, open] of disclosures) {
+    const details = document.getElementById(id);
+    if (details) details.open = open;
+  }
+  const nextAction = {apAnchor: "#nextStep", apFacings: "#facingsNext"}[active.id];
+  const focusTarget = focusSelector && ($(focusSelector, main) || (nextAction ? $(nextAction, main) : null));
+  if (focusTarget && !$("dialog[open]")) {
+    if (focusTarget.disabled) {
+      const fallback = focusTarget.closest("details")?.querySelector("summary") || $(".tab.on", main);
+      fallback?.focus({preventScroll: true});
+    } else {
+      focusTarget.focus({preventScroll: true});
+      if (selection && selection[0] !== null) focusTarget.setSelectionRange(...selection);
+    }
+  }
   $$(".tab").forEach(b => b.onclick = () => goToStage(b.dataset.tab));
   if (j.asset_type !== "tileset") {
     $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
@@ -1332,10 +1393,11 @@ function renderJob() {
 }
 
 function goToStage(stage) {
+  if (stage === tab) return;
   tab = stage;
   setHash();
-  lastSig = JSON.stringify(job) + tab;
   renderJob();
+  lastSig = jobSignature(job);
   $("#main").scrollTop = 0;
   $(".tab.on").focus();
 }
@@ -1407,44 +1469,58 @@ function paneAnchor(j, st) {
   const heroes = jobsCache.filter(x => x.stages.anchor === "approved" && !(x.character === j.character && x.job_id === j.job_id));
   const projectRefsAllowed = !["animal", "base_body"].includes(j.asset_type);
   $("#pane").innerHTML = `<section>
-    <h2>Anchor ${badge(st("anchor"))}</h2>
-    ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Create the item on its own. Review its anchor and back view before exporting. To equip it, open a character and use <b>Make a variant…</b>.
+    <h2>Anchor <span class="muted">Starting image</span> ${badge(st("anchor"))}</h2>
+    ${j.asset_type === "item" ? `<p class="muted" style="margin-top:0">Create the item by itself. Review its front and back before exporting. To equip it later, use <b>Fit on…</b> after approving both views.
       ${j.fits.length ? `Worn by: ${j.fits.map(f => `<a href="#${esc(f.character)}/${esc(f.job_id)}">${esc(f.character)} / ${esc(f.job_id)}</a>`).join(", ")}.` : ""}</p>` : ""}
     ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
       <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
     <div class="anchor-layout">
-      <div>${j.anchor ? `<a class="anchor-preview" href="${esc(j.anchor_full)}" data-view="Anchor" aria-label="Enlarge anchor">${img(j.anchor, "anchor")}</a>` : `<div class="anchor-preview">${img(null)}</div>`}
+      <div>${j.anchor ? `<a class="anchor-preview" href="${esc(j.anchor_full)}" data-view="Anchor" aria-label="Enlarge anchor">${img(j.anchor, "anchor")}</a>` : `<div class="anchor-preview"><div class="ph">No starting image yet</div></div>`}
+        ${st("anchor") === "approved"
+          ? `<div class="row"><button class="primary" id="nextStep">Next: ${esc(TITLES[(STEPS[j.asset_type] || STEPS.character)[1]] || "")} →</button></div>`
+          : j.anchor ? '<div class="row"><button class="primary" id="apAnchor">Approve anchor</button></div><p class="hint">Review this image before using it to create the remaining views.</p>' : ""}
         ${takesHtml(j.anchor_takes, "01_anchor/anchor.png", "Anchor")}</div>
-      <div>
-        <div class="field"><span>Description</span>
-          <textarea id="desc" placeholder="${j.asset_type === "item" ? "describe the item, its colours, and the view you want" : "what it looks like: outfit, colours, props"}">${esc(j.inputs.description || "")}</textarea></div>
+      <div class="anchor-sources">
+        <div class="anchor-source">
+          <h3>Import existing artwork</h3>
+          <p class="hint">Choose a still PNG, JPEG, or WebP up to 16 MiB. SpriteWaffle keeps a copy of the original.</p>
+          <button id="importAnchor" type="button" class="${!j.anchor && status.comfy?.ok === false ? "primary" : ""}">Choose and import image…</button>
+          <input id="anchorFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <p id="anchorImportStatus" class="muted" role="status" hidden></p>
+          <p id="anchorImportError" class="err" role="alert" hidden></p>
+          <details id="anchorPathOptions"><summary>Use a local file path</summary>
+            <div class="row anchor-path"><input id="importPath" aria-label="Full path to the starting image" placeholder="Full path to the image"><button id="importAnchorPath">Import from path</button></div>
+          </details>
+          <details id="anchorSheetOptions"><summary>Import a sheet of directional views</summary>
+            <div class="row anchor-path"><input id="sheetPath" aria-label="Full path to the sheet image" placeholder="Full path to the sheet image"></div>
+            <div class="row">
+              <label class="field">Views from left to right <input id="sheetViews" value="S,SE,E,N" style="width:140px"></label>
+              <label class="field">Subject to cut out <input id="sheetSubject" value="character" style="width:180px"></label>
+              <button id="sheetGo" ${status.comfy?.ok === false ? "disabled" : ""}>Import sheet</button></div>
+            <p class="hint">ComfyUI and SAM 3 remove each figure's background. The S (front) view becomes the anchor.</p>
+          </details>
+        </div>
+        <div class="anchor-source">
+        <h3>Generate with ComfyUI</h3>
+        ${status.comfy?.ok === false ? '<p class="warn">Start your local ComfyUI to generate artwork. You can import a starting image now.</p>' : ""}
+        <label class="field"><span>Describe the artwork</span>
+          <textarea id="desc" placeholder="${j.asset_type === "item" ? "e.g. a copper ray gun with a blue grip" : "e.g. a knight with a blue cloak and silver boots"}">${esc(j.inputs.description || "")}</textarea></label>
         <div class="row">
           <label class="field" style="max-width:100%">Style reference <select id="styleRef"><option value="">None</option>
             ${heroes.length ? `<optgroup label="Approved hero jobs">${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}">${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</optgroup>` : ""}
             ${projectRefsAllowed ? '<optgroup id="projectReferenceOptions" label="Project references" hidden></optgroup>' : ""}</select></label>
           <a id="anchorReferencePreview" data-view="" aria-label="Preview selected project reference" hidden><img alt=""></a>
-          <label>Seed <input id="seed" type="number" placeholder="random" style="width:110px"></label>
+          <label title="Use the same seed and settings to reproduce a generation">Seed <input id="seed" type="number" placeholder="Random" style="width:110px"></label>
         </div>
         ${j.asset_type === "item" ? `<p class="hint">The reference provides colour cues. Your description defines the item.</p>` : ""}
         <div class="row">
-          <button ${st("anchor") === "approved" ? "" : 'class="primary"'} id="genAnchor"
+          <button ${j.anchor ? "" : 'class="primary"'} id="genAnchor"
             title="${st("anchor") === "approved" ? "Draws a new anchor; this resets the approval" : ""}">${j.anchor ? "Re-roll anchor" : "Generate anchor"}</button>
-          ${st("anchor") === "approved"
-            ? `<button class="primary" id="nextStep">Next: ${esc(TITLES[(STEPS[j.asset_type] || STEPS.character)[1]] || "")} →</button>`
-            : `<button class="primary" id="apAnchor" ${j.anchor ? "" : "disabled"}>Approve anchor</button>`}
         </div>
-        <div class="row"><input id="importPath" placeholder="…or import an existing image (full path)" style="flex:1"><button id="importAnchor">Import</button></div>
-        <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Import a character sheet (your own views side by side, any background)</summary>
-          <div class="row"><input id="sheetPath" placeholder="full path to the sheet image" style="flex:1"></div>
-          <div class="row"><input id="sheetViews" value="S,SE,E,N" title="facing of each figure, left to right" style="width:140px">
-            <input id="sheetSubject" value="character" title="what to cut out, e.g. hare character" style="width:180px">
-            <button id="sheetGo">Import sheet</button></div>
-          <p class="hint">SAM 3 cuts every figure off its background; S becomes the anchor, missing W/SW/NW are mirrored; generate the rest on the Facings tab.</p>
-        </details>
         ${j.inputs.visual_description ? `<p class="muted"><b>AI description:</b> ${esc(j.inputs.visual_description)}</p>` : ""}
-        <p class="hint">Everything else is built from the approved anchor, so get this one right. Re-rolling resets approval.
-          ${j.asset_type === "prop" ? "For sprite stacking, ask for a straight front view." : j.asset_type === "item" ? "" : "Make one hero asset first, then pick it as the style reference for the rest of the cast."}</p>
+        ${j.asset_type === "prop" ? '<p class="hint">Use a straight front view for sprite stacking.</p>' : ""}
+        </div>
       </div>
     </div></section>`;
   if ($("#vReroll")) $("#vReroll").onclick = () => run("anchor", {}, "Variant anchor queued");
@@ -1457,7 +1533,7 @@ function paneAnchor(j, st) {
   let entries = [];
   const showSelection = () => {
     const reference = entries.find(item => prefix + item.id === select.value);
-    generate.disabled = select.value.startsWith(prefix) && !reference;
+    generate.disabled = status.comfy?.ok === false || (select.value.startsWith(prefix) && !reference);
     preview.hidden = !reference;
     if (reference) {
       preview.href = `/api/project/references/${encodeURIComponent(reference.id)}/image`;
@@ -1513,25 +1589,64 @@ function paneAnchor(j, st) {
     if (st("anchor") === "approved" && !confirm("Draw a new anchor? The current one is kept as a take, and the approval is reset.")) return;
     go();
   })($("#genAnchor").onclick);
-  $("#sheetGo").onclick = () => {
+  if ($("#sheetGo")) $("#sheetGo").onclick = () => {
     const image = $("#sheetPath").value.trim(), views = $("#sheetViews").value.split(",").map(v => v.trim().toUpperCase()).filter(Boolean);
     if (!image) return toast("Give the path to the sheet image", true);
     run("sheet", {image, views, subject: $("#sheetSubject").value.trim() || "character"}, "Sheet import queued");
   };
-  $("#importAnchor").onclick = () => $("#importPath").value.trim() && run("anchor", {image: $("#importPath").value.trim(), asset_type: j.asset_type}, "Import queued");
+  const importButton = $("#importAnchor"), pathButton = $("#importAnchorPath"), fileInput = $("#anchorFile");
+  const feedback = $("#anchorImportStatus"), importError = $("#anchorImportError"), route = jobPath() + "/run";
+  const showImportError = message => { importError.textContent = message; importError.hidden = false; };
+  const importAnchor = async (input, file = false) => {
+    importError.hidden = true; feedback.hidden = true;
+    if (!input) { showImportError("Enter the full path to an image on this computer."); $("#importPath").focus(); return; }
+    if (file && (input.size === 0 || input.size > 16 * 1024**2)) {
+      showImportError("Choose a non-empty image no larger than 16 MiB."); return;
+    }
+    if (j.anchor && !confirm("Replace the current anchor? SpriteWaffle keeps it as an earlier take and asks you to review the replacement.")) return;
+    importButton.disabled = pathButton.disabled = true;
+    feedback.dataset.pending = "";
+    feedback.textContent = "Preparing image import…"; feedback.hidden = false;
+    try {
+      const args = {asset_type: j.asset_type};
+      if (file) {
+        args.image_data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(",", 2)[1]);
+          reader.onerror = () => reject(new Error("Could not read this file. Choose it again or try a different image."));
+          reader.readAsDataURL(input);
+        });
+      } else args.image = input;
+      await api(route, {stage: "anchor", args}, {announceErrors: false});
+      feedback.textContent = "Import queued. Review the image here when it appears.";
+      toast("Image import queued");
+      poll([refreshAll]);
+    } catch (error) {
+      feedback.hidden = true;
+      showImportError(error instanceof TypeError ? "Cannot reach SpriteWaffle. Start the local app and try again." : error.message);
+    } finally { delete feedback.dataset.pending; importButton.disabled = pathButton.disabled = false; }
+  };
+  importButton.onclick = () => fileInput.click();
+  fileInput.onchange = () => { const file = fileInput.files[0]; fileInput.value = ""; if (file) importAnchor(file, true); };
+  pathButton.onclick = () => importAnchor($("#importPath").value.trim());
+  $("#importPath").onkeydown = event => { if (event.key === "Enter" && !pathButton.disabled) pathButton.click(); };
 }
 
 function paneFacings(j, st) {
   const want = j.asset_type === "item" ? ["S", "N"] : j.directions === 4 ? ["S", "E", "N", "W"] : COMPASS.filter(Boolean);
   const sheet = SHEET_TYPES.includes(j.asset_type), isItem = j.asset_type === "item";
   const done = j.facings.filter(f => f.image && want.includes(f.facing)).length, fr = j.facings_report || {};
+  const approved = st("facings") === "approved", canGenerate = status.comfy?.ok !== false;
   $("#pane").innerHTML = `<section>
     <h2>Facings ${badge(st("facings"))} <span class="muted">${done}/${want.length}${isItem ? " · front and back" : sheet ? " · from one turnaround sheet" : want.length === 8 ? " · diagonals from the nearest cardinal" : " · 4-direction profile"}</span>
       <span class="spacer"></span>
-      ${sheet ? `<button id="genFacings" title="Draws a new turnaround sheet: anchor and every facing at once">Re-draw sheet</button>`
-              : `<button id="genFacings" ${st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? (isItem ? "Re-draw back" : "Re-generate all") : (isItem ? "Draw the back" : "Generate facings")}</button>`}
-      <button class="primary" id="apFacings" ${done === want.length && st("facings") !== "approved" ? "" : "disabled"}>Approve facings</button></h2>
-    ${st("anchor") !== "approved" && !sheet ? `<p class="warn">Approve the anchor first.</p>` : ""}
+      ${sheet ? `<button id="genFacings" ${canGenerate && j.inputs.description ? "" : "disabled"} title="Draws a new turnaround sheet: anchor and every facing at once">Re-draw sheet</button>`
+              : `<button id="genFacings" ${canGenerate && st("anchor") === "approved" ? "" : "disabled"}>${done > 1 ? (isItem ? "Re-draw back" : "Re-generate all") : (isItem ? "Draw the back" : "Generate facings")}</button>`}
+      ${approved ? `<button class="primary" id="facingsNext">${isItem ? "Continue to Export" : "Continue to Animations"}</button>`
+        : `<button class="primary" id="apFacings" ${done === want.length ? "" : "disabled"}>${isItem ? "Approve front and back" : "Approve facings"}</button>`}</h2>
+    ${st("anchor") !== "approved" ? `<div class="row"><p class="warn">Review and approve the starting image first.</p><button class="ghost" data-step="anchor">Go to Anchor</button></div>` : ""}
+    ${!canGenerate ? '<p class="hint">Start ComfyUI to draw new views. You can review existing views now.</p>' : ""}
+    ${canGenerate && sheet && !j.inputs.description ? '<p class="hint">Add a description on Anchor to generate a new turnaround sheet.</p>' : ""}
     ${isItem ? "" : `<div class="row" style="margin:0 0 12px">${mirrorPolicyHtml(j)}<button class="ghost" id="ttFacings">Turntable…</button></div>`}
     ${isItem ? `<div class="frontback">${[["S", "Front"], ["N", "Back"]].map(([f, label]) => {
       const x = j.facings.find(y => y.facing === f) || {};
@@ -1558,7 +1673,9 @@ function paneFacings(j, st) {
     if (!confirm("Draw a new turnaround sheet? The anchor and every facing are replaced (the current ones are kept as takes) and both approvals reset.")) return;
     run("anchor", {describe: j.inputs.description, asset_type: j.asset_type}, "New sheet queued");
   };
-  $("#apFacings").onclick = () => approve("facings");
+  if ($("#apFacings")) $("#apFacings").onclick = () => approve("facings");
+  if ($("#facingsNext")) $("#facingsNext").onclick = () => goToStage(isItem ? "export" : "animations");
+  if ($('[data-step="anchor"]')) $('[data-step="anchor"]').onclick = () => goToStage("anchor");
   bindMirrorPolicy(j);
   if ($("#ttFacings")) $("#ttFacings").onclick = () => showTurntable(j);
   $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
@@ -1568,74 +1685,98 @@ function paneAnimations(j, st) {
   const ready = st("facings") === "approved";
   const byAction = {};
   j.actions.forEach(a => (byAction[a.action] ??= {})[a.facing] = a);
-  const n = form.facings.size * form.actions.size;
-  const mirrored = (j.inputs.mirror_policy || "legacy") === "legacy" && form.mirror && !form.source.startsWith("tara") ? [...form.facings].filter(f => ["W", "NW", "SW"].includes(f) && form.facings.has({W: "E", NW: "NE", SW: "SE"}[f])).length * form.actions.size : 0;
-  $("#pane").innerHTML = `<section>
-    <h2>Animate ${ready ? "" : `<span class="warn">approve the facings first</span>`}</h2>
+  const directions = COMPASS.filter(f => f && (j.directions !== 4 || ["S", "E", "N", "W"].includes(f)));
+  const available = new Set(j.facings.filter(f => f.image && directions.includes(f.facing)).map(f => f.facing));
+  const selected = [...form.facings].filter(f => available.has(f));
+  const actionOptions = [...new Set([...(j.action_presets || status.actions), ...Object.keys(j.inputs.action_overrides || {}),
+    ...(j.inputs.prompt_writer === "ai" ? form.actions : [])])];
+  const selectedActions = [...form.actions].filter(action => actionOptions.includes(action));
+  const source = j.motions.includes(form.source.split("|")[1]) ? form.source : "";
+  const canGenerate = source.startsWith("flow|") || status.comfy?.ok !== false;
+  const n = selected.length * selectedActions.length;
+  const mirrored = (j.inputs.mirror_policy || "legacy") === "legacy" && form.mirror && !source.startsWith("tara")
+    ? selected.filter(f => selected.includes({W: "E", NW: "NE", SW: "SE"}[f])).length * selectedActions.length : 0;
+  const generation = `<section><details id="animationGeneration" class="anim-generation" ${j.actions.length ? "" : "open"}>
+    <summary>Generate animations</summary>
+    ${!ready ? '<div class="row"><p class="warn">Approve the directional views before generating animations.</p><button class="ghost" id="goToFacings">Go to Facings</button></div>' : ""}
+    ${!canGenerate ? '<p class="hint">Start ComfyUI to render animations. You can still edit existing clips.</p>' : ""}
     <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
-      <div class="field"><span>Facings</span><div class="pick">${COMPASS.map(f => f ? `<label><input type="checkbox" data-f="${f}" ${form.facings.has(f) ? "checked" : ""}>${f}</label>` : `<span></span>`).join("")}</div>
-        <div class="row" style="margin-top:6px"><button class="ghost" id="fAll">all</button><button class="ghost" id="fNone">none</button></div></div>
-      <div class="field"><span>Actions</span>${[...new Set([...(j.action_presets || status.actions), ...form.actions])].map(a => `<label><input type="checkbox" data-a="${esc(a)}" ${form.actions.has(a) ? "checked" : ""}> ${esc(a)}</label>`).join("")}
-        ${j.inputs.prompt_writer === "ai" ? `<div class="row" style="margin-top:4px"><input id="customAct" placeholder="new action, e.g. cast spell" style="width:170px"><button class="ghost" id="addAct">add</button></div>` : ""}</div>
+      <div class="field"><span>Facings</span><div class="pick">${COMPASS.map(f => directions.includes(f) ? `<label title="${available.has(f) ? "" : "No artwork for this facing"}"><input type="checkbox" data-f="${f}" ${selected.includes(f) ? "checked" : ""} ${available.has(f) ? "" : "disabled"}>${f}</label>` : `<span></span>`).join("")}</div>
+        <div class="row" style="margin-top:6px"><button class="ghost" id="fAll" ${available.size ? "" : "disabled"}>Select all</button><button class="ghost" id="fNone" ${selected.length ? "" : "disabled"}>Clear</button></div></div>
+      <div class="field"><span>Actions</span>${actionOptions.map(a => `<label><input type="checkbox" data-a="${esc(a)}" ${form.actions.has(a) ? "checked" : ""}> ${esc(a)}</label>`).join("")}
+        ${j.inputs.prompt_writer === "ai" ? `<div class="row" style="margin-top:4px"><input id="customAct" aria-label="Custom action name" placeholder="e.g. cast spell" style="width:170px"><button class="ghost" id="addAct">Add action</button></div>` : ""}</div>
       <div class="field" style="gap:10px">
-        <label>Source <select id="src"><option value="">H3 render</option>
-          ${j.motions.map(m => `<option value="flow|${esc(m)}" ${form.source === "flow|" + m ? "selected" : ""}>flow · ${esc(m)} (experimental)</option>
-            <option value="tara|${esc(m)}" ${form.source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
+        <label>Motion source <select id="src"><option value="">Generate with H3</option>
+          ${j.motions.map(m => `<option value="flow|${esc(m)}" ${source === "flow|" + m ? "selected" : ""}>Optical flow · ${esc(m)} (experimental)</option>
+            <option value="tara|${esc(m)}" ${source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
         <div><button id="animLibrary" type="button" aria-haspopup="dialog">Motion library…</button></div>
         <label>Clip length <input id="secs" type="number" value="${form.seconds}" min="1" max="8" step="0.5" style="width:70px"> s</label>
         ${mirrorPolicyHtml(j)}
         ${(j.inputs.mirror_policy || "legacy") === "legacy"
           ? `<label><input type="checkbox" id="mirror" ${form.mirror ? "checked" : ""}> Mirror W / NW / SW from E / NE / SE</label>`
           : `<span class="muted">Mirroring follows the policy above.</span>`}
-        <button class="primary" id="queueAnim" ${ready && n ? "" : "disabled"}>Queue ${n} animation${n === 1 ? "" : "s"}</button>
+        <button class="primary" id="queueAnim" ${ready && canGenerate && n ? "" : "disabled"}>${n ? `Queue ${n} animation${n === 1 ? "" : "s"}` : "Queue animations"}</button>
+        ${ready && canGenerate && !n ? '<span class="hint">Select at least one available facing and one action.</span>' : ""}
         <span class="muted">${mirrored ? `${mirrored} by mirroring (no render)` : ""}</span>
-        <div class="row" style="margin:0"><button class="ghost" id="ttAnims" ${j.actions.length ? "" : "disabled"}>Turntable…</button>
-          <button class="ghost" id="alignFeet" ${j.actions.length ? "" : "disabled"}
-            title="Keep each frame's foot point on the same pixel, with the camera profile's border. Writes aligned copies; the originals stay">${j.inputs.align_feet ? "Re-align feet" : "Align feet"}</button>
-          ${j.inputs.align_feet ? `<span class="chip" title="Character exports check alignment freshness">Alignment enabled</span>` : ""}</div>
       </div>
-    </div></section>
-    ${Object.keys(byAction).sort().map(action => `<section>
-      <h2>${esc(action)} <span class="muted">${COMPASS.filter(f => f && !byAction[action][f]).length ? "not rendered: " + COMPASS.filter(f => f && !byAction[action][f]).join(", ") : "all 8 facings"}</span></h2>
+    </div></details></section>`;
+  const clips = Object.keys(byAction).sort().map(action => `<section>
+      <h2>${esc(action)} <span class="muted">${directions.filter(f => byAction[action][f]).length} of ${directions.length} configured facings</span></h2>
       <div class="animrow">${COMPASS.filter(f => f && byAction[action][f]).map(f => {
         const a = byAction[action][f];
-        const qa = a.sets["12f"].qa, mode = a.report?.mode_used || "";
-        const set = a.sets["12f"];
-        return `<button class="card anim" type="button" data-detail="${esc(f)}|${esc(action)}" aria-label="${esc(f + " " + action + " details")}">
-          ${set.preview ? img(set.preview, f + " " + action) : `<span class="ph">${set.has_frames ? "Frames ready" : a.has_clip ? "Processing" : "Rendering"}</span>`}
+        const set = Object.values(a.sets).find(entry => entry.has_frames) || a.sets["12f"];
+        const qa = set.qa, mode = a.report?.mode_used || "", key = esc(f + "|" + action), label = esc(action + " · " + f);
+        const preview = set.preview || set.frames?.[0];
+        return `<div class="card anim">
+          ${preview ? img(preview, f + " " + action) : `<span class="ph">${set.has_frames ? "Frames ready" : a.has_clip ? "Processing" : "Rendering"}</span>`}
           <span class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
-            <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${qaBadge(qa, set.has_frames)}</span></span></button>`;
-      }).join("")}</div></section>`).join("") || `<p class="muted">No animations yet.</p>`}
+            <span>${mode && mode !== "fl2va" && mode !== "i2v" ? `<span class="chip">${esc(mode)}</span>` : ""} ${qaBadge(qa, set.has_frames)}</span></span>
+          <div class="anim-actions">
+            ${set.has_frames ? `<button type="button" data-timeline="${key}" aria-label="Edit timeline for ${label}" aria-haspopup="dialog">Edit timeline</button>` : ""}
+            <button class="ghost" type="button" data-detail="${key}" aria-label="Details for ${label}" aria-haspopup="dialog">Details</button>
+          </div></div>`;
+      }).join("")}</div></section>`).join("");
+  $("#pane").innerHTML = `
+    ${clips ? `<div class="row"><h2 style="margin:0">Animation clips</h2><span class="spacer"></span>
+      <button class="ghost" id="ttAnims">Turntable…</button>
+      <button class="ghost" id="alignFeet" title="Writes aligned copies with a consistent foot position">${j.inputs.align_feet ? "Re-align feet" : "Align feet"}</button>
+      ${j.inputs.align_feet ? `<span class="chip">Alignment enabled</span>` : ""}</div>${clips}` : ""}
+    ${generation}
     ${j.style === "pixel" ? `<section><h2>Palette <span class="muted">one for every facing and action</span></h2>
       ${j.palette ? `<div class="swatches">${j.palette.colours.map(c => `<span title="${c}" style="background:${c}"></span>`).join("")}</div>
         <p class="muted" style="margin:6px 0">${j.palette.colours.length} colours · from ${esc(j.palette.source)}</p>
         ${j.palette.stale.length ? `<p class="warn">${j.palette.stale.length} clip${j.palette.stale.length === 1 ? " uses" : "s use"} other colours: ${esc(j.palette.stale.slice(0, 6).join(", "))}${j.palette.stale.length > 6 ? "…" : ""}</p>` : ""}`
       : `<p class="muted">Not set yet: the first pixelize builds it from the anchor + every facing, so colours only seen from the back are in it.</p>`}
       ${j.palette?.origin === "profile" ? '<p class="hint">The selected game profile locks these colours.</p>' : `<div class="row"><button id="palRebuild">Rebuild from facings</button>
-        <input id="palFile" placeholder="…or load a palette: full path to .gpl / .hex / .png" style="flex:1;min-width:200px"><button id="palLoad">Load</button>
+        <input id="palFile" aria-label="Full path to a palette file" placeholder="Full path to .gpl, .hex, or .png" style="flex:1;min-width:0"><button id="palLoad">Load palette</button>
         ${j.inputs.project_palette && j.palette?.origin === "job" ? '<button id="palUnlock">Use saved project palette</button>' : ""}</div>`}
       ${j.palette?.stale.length ? `<div class="row"><button class="primary" id="palApply">Apply to ${j.palette.stale.length} clip${j.palette.stale.length === 1 ? "" : "s"}</button></div>` : ""}
       <p class="hint">Applying re-pixelizes clips from their frames: no rendering. A loaded palette is matched by nearest colour, so pick one that suits the character.</p>
     </section>` : ""}`;
   $$("[data-f]").forEach(c => c.onchange = () => { c.checked ? form.facings.add(c.dataset.f) : form.facings.delete(c.dataset.f); renderJob(); });
   $$("[data-a]").forEach(c => c.onchange = () => { c.checked ? form.actions.add(c.dataset.a) : form.actions.delete(c.dataset.a); renderJob(); });
-  if ($("#addAct")) $("#addAct").onclick = () => { const v = $("#customAct").value.trim().toLowerCase(); if (v) { form.actions.add(v); renderJob(); } };
-  $("#fAll").onclick = () => { COMPASS.filter(Boolean).forEach(f => form.facings.add(f)); renderJob(); };
-  $("#fNone").onclick = () => { form.facings.clear(); renderJob(); };
+  if ($("#addAct")) $("#addAct").onclick = () => {
+    const field = $("#customAct"), name = field.value.trim().toLowerCase();
+    if (name) { form.actions.add(name); field.value = ""; renderJob(); }
+  };
+  $("#fAll").onclick = () => { available.forEach(f => form.facings.add(f)); renderJob(); };
+  $("#fNone").onclick = () => { available.forEach(f => form.facings.delete(f)); renderJob(); };
   $("#src").onchange = e => { form.source = e.target.value; renderJob(); };
   $("#animLibrary").onclick = showLibrary;
   $("#secs").onchange = e => form.seconds = +e.target.value || 2;
   if ($("#mirror")) $("#mirror").onchange = e => { form.mirror = e.target.checked; renderJob(); };
   bindMirrorPolicy(j);
-  $("#ttAnims").onclick = () => showTurntable(j, Object.keys(byAction).sort()[0]);
-  $("#alignFeet").onclick = () => run("align", {}, "Foot alignment queued");
+  if ($("#goToFacings")) $("#goToFacings").onclick = () => goToStage("facings");
+  if ($("#ttAnims")) $("#ttAnims").onclick = () => showTurntable(j, Object.keys(byAction).sort()[0]);
+  if ($("#alignFeet")) $("#alignFeet").onclick = () => run("align", {}, "Foot alignment queued");
   $("#queueAnim").onclick = () => {
-    const [method, motion] = form.source.split("|");
-    const args = {facings: [...form.facings], actions: [...form.actions], mirror: (j.inputs.mirror_policy || "legacy") === "legacy" ? form.mirror : true};
+    const [method, motion] = source.split("|");
+    const args = {facings: selected, actions: selectedActions, mirror: (j.inputs.mirror_policy || "legacy") === "legacy" ? form.mirror : true};
     if (motion) Object.assign(args, {motion, method}); else args.seconds = form.seconds;
     run("animate", args, "Animations queued");
   };
   $$("[data-detail]").forEach(c => c.onclick = () => { const [f, a] = c.dataset.detail.split("|"); showAnim(byAction[a][f]); });
+  $$("[data-timeline]").forEach(c => c.onclick = () => { const [f, a] = c.dataset.timeline.split("|"); showTimeline(byAction[a][f]); });
   const pal = async body => { try { await api(jobPath() + "/palette", body); toast("Palette updated"); } finally { lastSig = ""; refreshAll(); } };
   if ($("#palRebuild")) $("#palRebuild").onclick = () => pal({op: "rebuild"});
   if ($("#palLoad")) $("#palLoad").onclick = () => { const f = $("#palFile").value.trim(); if (!f) return toast("Give the path to a .gpl, .hex or .png", true); pal({op: "file", file: f}); };
@@ -1709,7 +1850,7 @@ function showAnim(a) {
       <button id="dRegen" ${job.stages.facings?.status === "approved" ? "" : "disabled"}>Re-render clip</button>
       <button id="dReproc" ${a.has_clip || ["mirror", "flow"].includes(r.mode_used) ? "" : "disabled"}>Re-process frames</button>
       <span class="spacer"></span>
-      <input id="dLibName" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
+      <input id="dLibName" aria-label="Motion library name" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
       <button id="dLib" ${a.has_clip ? "" : "disabled"} title="Reuse this clip's motion for other characters">Add to motion library</button>
     </div>`;
   openWorkspaceDialog(d);
@@ -2054,17 +2195,17 @@ function startStackViewer(s) {
 }
 
 function renderHome() {
-  const kinds = ["character", "base_body", "item", "animal", "effect", "prop", "tileset"].filter(t => status.asset_types.includes(t));
+  const kinds = assetTypes();
   const signature = JSON.stringify([kinds, status.comfy]);
   if ($("#workspaceHome") && renderHome.signature === signature) return;
   renderHome.signature = signature;
+  delete $("#main").dataset.job;
+  delete $("#main").dataset.stage;
   $("#main").innerHTML = `<div class="empty" id="workspaceHome"><h2><img class="welcome-logo" src="/static/brand/horizontal-logo.png" width="650" height="220" alt="SpriteWaffle"></h2>
     <p>Open a job from the job browser, or start a new asset.</p>
     <div class="row" style="justify-content:center;margin:14px 0">${kinds.map((t, i) =>
       `<button ${i === 0 ? 'class="primary"' : ""} data-new="${t}" title="${esc(TYPES[t]?.help || "")}">New ${esc(typeLabel(t))}</button>`).join("")}</div>
-    <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
-      Equipment: make an <b>item</b> (front + back) and a <b>base body</b>, then <b>Fit on…</b> from the item, or <b>Make a variant…</b> from the body.<br>
-      Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
+    <p>Import artwork you already have, or generate a starting image with local ComfyUI.</p>
     ${!status.comfy || status.comfy.ok ? "" : '<p class="warn">ComfyUI is offline. You can still edit and export existing assets.</p>'}</div>`;
   $$("[data-new]").forEach(b => b.onclick = () => showNew(b.dataset.new));
 }
@@ -2084,7 +2225,7 @@ async function loadQueue() {
       ${t.error && t.status === "failed" ? `<div class="err">${esc(t.error)}</div>` : ""}
       ${t.status === "queued" ? `<button class="ghost" data-cancel="${esc(t.id)}">Cancel</button>` : ""}
       ${["failed", "cancelled"].includes(t.status) ? `<button class="ghost" data-retry="${esc(t.id)}">Retry</button>` : ""}</div>`;
-  }).join("") || `<p class="muted">Nothing here.</p>`;
+  }).join("") || `<p class="muted">${{active: "No tasks are waiting or running.", failed: "No tasks have failed."}[filter] || "No tasks yet. Queued imports, exports, and generation will appear here."}</p>`;
   const tasks = $("#tasks");
   if (markup === loadQueue.markup) return;
   loadQueue.markup = markup;
@@ -2116,28 +2257,47 @@ async function showLibrary() {
 }
 
 // --- refresh loop --------------------------------------------------------------------------
+function jobSignature(job) {
+  const usesComfy = ["anchor", "facings", "animations"].includes(tab);
+  return JSON.stringify(job) + tab + (usesComfy ? status.comfy?.ok : "");
+}
+
 async function loadJob() {
   if (!current) { job = null; renderHome(); return; }
+  const requestedJob = current, requestedStage = tab, request = ++latestJobRequest;
   let j;
-  try { j = await api(jobPath()); } catch { current = null; location.hash = ""; return; }
-  const sig = JSON.stringify(j) + tab;
-  if (sig === lastSig) return;                 // nothing changed: keep typed text and scroll position
-  const same = job && job.character === j.character && job.job_id === j.job_id;   // typed text belongs to ONE job
-  const keep = same ? {desc: $("#desc")?.value, path: $("#importPath")?.value, sheet: $("#sheetPath")?.value,
-                       scroll: $("main").scrollTop} : {scroll: 0};
-  job = j; lastSig = sig; renderJob();
-  if (keep.desc !== undefined && $("#desc") && keep.desc !== (j.inputs.description || "")) $("#desc").value = keep.desc;
-  if (keep.path && $("#importPath")) $("#importPath").value = keep.path;
-  if (keep.sheet && $("#sheetPath")) $("#sheetPath").value = keep.sheet;
-  $("main").scrollTop = keep.scroll;
+  try { j = await api(jobPath(), undefined, {announceErrors: false}); } catch (error) {
+    if (requestedJob !== current || requestedStage !== tab || request < displayedJobRequest) return;
+    if (error.status === 404) { toast("This asset is unavailable. Choose another asset from Jobs.", true); location.hash = ""; return; }
+    if (!$("#main").dataset.job) {
+      $("#main").innerHTML = '<p class="warn" role="status">Could not open this asset. SpriteWaffle will retry while this page is open.</p>';
+    }
+    throw error;
+  }
+  if (requestedJob !== current || requestedStage !== tab || request < displayedJobRequest) return;
+  displayedJobRequest = request;
+  const sig = jobSignature(j);
+  const main = $("#main"), sameStage = main.dataset.job === jobPath() && main.dataset.stage === tab;
+  if (sig === lastSig || (sameStage && $("#anchorImportStatus[data-pending]"))) return;
+  const scroll = sameStage ? main.scrollTop : 0;
+  job = j; renderJob();
+  lastSig = jobSignature(j);
+  main.scrollTop = scroll;
 }
 async function refreshAll() { await loadStatus(); await Promise.all([loadJobs(), loadJob(), loadQueue()]); }
 
-function setHash() { if (current) history.replaceState(null, "", `#${current.character}/${current.job_id}/${tab}`); }
+let latestJobRequest = 0, displayedJobRequest = 0;
+function setHash() { if (current) history.pushState(null, "", `#${current.character}/${current.job_id}/${tab}`); }
 function fromHash() {
   const [c, j, t] = decodeURIComponent(location.hash.slice(1)).split("/");
   current = c && j ? {character: c, job_id: j} : null;
   tab = t || null; lastSig = "";
+  const main = $("#main");
+  if (current && main.dataset.job !== jobPath()) {
+    delete main.dataset.job;
+    delete main.dataset.stage;
+    main.innerHTML = '<p class="muted" role="status">Opening asset…</p>';
+  }
 }
 
 // --- wiring ------------------------------------------------------------------------------

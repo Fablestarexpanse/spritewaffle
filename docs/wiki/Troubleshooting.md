@@ -4,7 +4,7 @@
 |---|---|
 | Header says *ComfyUI offline* | Start ComfyUI (default 127.0.0.1:8188). Frame processing still works. |
 | `doctor`: *model missing* | The model isn't in ComfyUI's model folders, or the template map points at another file name ([COMFYUI_SETUP](../COMFYUI_SETUP.md)). |
-| A task failed | The queue panel opens by itself; the error is on the task → **Retry**. GPU tasks already retried once with a new seed. |
+| A task failed | Open **Queue → Failed** to read the error and use **Retry**. GPU tasks already retry once with a new seed. |
 | `another worker holds …` | One worker per jobs folder: close the other UI/worker. A dead worker's lock is taken over automatically. |
 | New job types or buttons missing after an update | Restart `spritewaffle ui`; the server doesn't reload itself. |
 | A facing "looks like a copy of S" / didn't turn | Re-roll it. For plain bodies and animals use the turnaround sheet types (base body, animal). |

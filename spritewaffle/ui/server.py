@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 import time
 from base64 import b64decode
+from binascii import Error as Base64Error
 from contextlib import asynccontextmanager
+from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
@@ -17,7 +20,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, job_palette, object_templates, processing, project, project_references, tilemap, tileset, timeline
+from ..core import fsutil, generate, job_palette, object_templates, processing, project, project_references, tilemap, tileset, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -28,6 +31,37 @@ STATIC = Path(__file__).parent / "static"
 ORDER = ("S", "E", "N", "W", "SE", "NE", "NW", "SW")
 EXPORT_SUFFIXES = (".aseprite", ".png", ".gif", ".json")
 from ..comfy.client import DEFAULT_URL as COMFY_URL
+
+MAX_ANCHOR_BYTES = 16 * 1024**2
+MAX_ANCHOR_PIXELS = 16 * 1024**2
+ANCHOR_FORMATS = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}
+
+
+def _anchor_upload(job: Job, encoded: str) -> Path:
+    """Keep the verified original available to the existing queue and its retries."""
+    from PIL import Image
+
+    if not isinstance(encoded, str) or len(encoded) > 4 * ((MAX_ANCHOR_BYTES + 2) // 3):
+        raise ValueError("Choose a PNG, JPEG, or WebP image no larger than 16 MiB.")
+    try:
+        data = b64decode(encoded, validate=True)
+    except Base64Error as error:
+        raise ValueError("The uploaded image could not be read. Choose the file again.") from error
+    if len(data) > MAX_ANCHOR_BYTES:
+        raise ValueError("Choose an image no larger than 16 MiB.")
+    try:
+        with Image.open(BytesIO(data), formats=list(ANCHOR_FORMATS)) as image:
+            if image.width * image.height > MAX_ANCHOR_PIXELS or getattr(image, "is_animated", False):
+                raise ValueError("Choose a still image with at most 16,777,216 pixels.")
+            suffix = ANCHOR_FORMATS[image.format]
+            image.load()
+    except (OSError, SyntaxError, Image.DecompressionBombError) as error:
+        raise ValueError("Choose a valid PNG, JPEG, or WebP image.") from error
+    folder = job.root / "01_anchor" / "imports"
+    folder.mkdir(parents=True, exist_ok=True)
+    source = folder / (sha256(data).hexdigest() + suffix)
+    fsutil.write_bytes(source, data)
+    return source
 
 
 def create_app(base: str | Path | None = None, worker: bool = True, limits: dict | None = None,
@@ -745,6 +779,12 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         stage, args = body.get("stage"), dict(body.get("args") or {})
         profile = job_profile(j, body)
         try:
+            if "image_data" in args:
+                if stage != "anchor" or any(key in args for key in ("image", "style_ref", "project_reference_id")):
+                    raise ValueError("An uploaded image can only be used on its own for the anchor stage.")
+                if j.read_meta()["inputs"].get("asset_type") in ("tileset", "effect"):
+                    raise ValueError("Open the asset's own workspace to import its artwork.")
+                args["image"] = str(_anchor_upload(j, args.pop("image_data")))
             if stage == "stack_pipeline":
                 tasks = queue.submit_stack_pipeline(j.root, profile, views=args.get("views", True),
                                                     height=int(args.get("height", 24)), seed=args.get("seed"),

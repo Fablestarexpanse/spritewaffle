@@ -24,6 +24,6 @@ Reference documents elsewhere in the repo:
 - [docs/COMFYUI_SETUP.md](../COMFYUI_SETUP.md): ComfyUI models and custom nodes.
 - [docs/MANIFEST.md](../MANIFEST.md): manifest schema and every directional call.
 - [DECISIONS.md](../../DECISIONS.md): the dated log of every decision and measurement (why things are the way they are).
-- [Changelog](../../CHANGELOG.md), [backlog](../BACKLOG.md), and [workspace audit](../AUDIT_UI_2026-11-22.md).
+- [Changelog](../../CHANGELOG.md), [backlog](../BACKLOG.md), [workspace audit](../AUDIT_UI_2026-11-22.md), and [workflow usability audit](../AUDIT_UX_WORKFLOWS.md).
 
 The project is licensed under [LICENSE.md](../../LICENSE.md); see [docs/LICENSING.md](../LICENSING.md).

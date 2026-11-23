@@ -34,6 +34,10 @@ spritewaffle worker --once
 spritewaffle export-character --job knight/k1
 ```
 
+Import existing art with `spritewaffle anchor --job knight/k1 --image path/to/image.png`.
+For byte uploads, the shared `run-stage` operation takes `stage: "anchor"` and
+`args.image_data` with the base64-encoded still image. The local app keeps the source for retries.
+
 ## Shared studio operations
 
 The `studio` command and MCP tool use the same local handlers as the browser and

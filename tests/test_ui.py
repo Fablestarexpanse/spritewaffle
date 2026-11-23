@@ -1,4 +1,6 @@
+from base64 import b64encode
 from io import BytesIO
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -122,6 +124,34 @@ def test_approve_and_queue_runs(client):
     assert [t["stage"] for t in q][::-1] == ["action", "select", "pixelize", "qa", "export"]
     assert c.post(f"/api/queue/{ids[0]}/cancel").json()["status"] == "cancelled"
     assert c.post("/api/jobs/hero/j1/run", json={"stage": "nope"}).status_code == 400
+
+
+def test_anchor_upload_uses_review_flow_and_keeps_original(client):
+    from spritewaffle.core.queue import Queue, Worker
+
+    c, base = client
+    route = "/api/jobs/hero/j1/run"
+    body = {"stage": "anchor", "args": {"image_data": b64encode(b"not an image").decode()}}
+    assert c.post(route, json=body).status_code == 400
+    assert Queue(base).list() == []
+
+    source = BytesIO()
+    Image.new("RGB", (24, 32), "red").save(source, format="PNG")
+    body["args"]["image_data"] = b64encode(source.getvalue()).decode()
+    body["args"]["image"] = "other.png"
+    assert c.post(route, json=body).status_code == 400
+    del body["args"]["image"]
+    result = c.post(route, json=body)
+    assert result.status_code == 200
+    queue = Queue(base)
+    task = queue.get(result.json()[0])
+    assert "image_data" not in task["args"]
+    path = Path(task["args"]["image"])
+    assert path.is_relative_to(base / "hero" / "j1") and path.read_bytes() == source.getvalue()
+    Worker(queue, lock=False).run_until_idle()
+    assert queue.get(task["id"])["status"] == "done"
+    assert path.read_bytes() == source.getvalue()
+    assert c.get("/api/jobs/hero/j1").json()["stages"]["anchor"]["status"] == "review"
 
 
 def test_create_job_validates_names(client):

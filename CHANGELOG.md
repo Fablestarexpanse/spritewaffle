@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a file chooser to import a starting image, with original files retained for retries. Approval and the next stage sit beside the image preview.
+- Moved existing animation clips above generation and added direct timeline access. The generation form uses the job's supported directions and available artwork.
+- Kept queue failures from opening a panel or blocking clicks, preserved drafts and focus on workspace refresh, and added a clear action to empty job searches.
 - Added standalone tile module ZIPs with transparent PNG artwork, editable pixel pivots, and collision rectangles. Verified the artwork and geometry in a Godot 4.6 import fixture.
 - Added reusable tile modules for modular asset authoring. Save a rectangle from the atlas and stamp it into a map draft, with transparent slots preserving the original ground.
 - Reorganized the workspace around the Home link, global New asset, Project menu, job stages, and contextual settings. Added direct Tileset navigation and fixed queue focus, grouped Terrain discovery, and empty export controls.

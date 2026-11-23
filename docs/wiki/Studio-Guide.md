@@ -119,7 +119,7 @@ The CLI commands are `export-item-status --job CHARACTER/JOB` and
 and `GET /api/jobs/{character}/{job}/export_effect`. MCP exposes `item_export_status` and
 `effect_export_status`.
 
-In **Animations**, open a facing to review its saved QA report. Expand **frames with findings**
+In **Animations**, choose **Details** on a clip to review its saved QA report. Expand **frames with findings**
 to inspect individual processed frames. QA numbers frames from zero and keeps the source
 filenames so a missing frame cannot shift a finding to another image.
 Use **Check action exports** to see freshness for PNG and Aseprite separately.
@@ -136,7 +136,7 @@ and export from processed frames in `export_action`.
 
 ### Animation timeline
 
-In **Animations**, open a facing and choose **Timeline**. Choose the frame set, then scrub
+In **Animations**, choose **Edit timeline** on a clip. Choose the frame set, then scrub
 or play it with its saved timing. **Save duration** overrides one frame in milliseconds.
 **Reset duration** restores its profile timing. **Replace frame** takes a single PNG at the
 same cell size. **Restore source** brings back the processed image and keeps the saved timing.
