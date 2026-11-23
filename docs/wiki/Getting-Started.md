@@ -2,8 +2,8 @@
 
 ## Install
 
-1. Python 3.11, Git, and a running **ComfyUI** (default `http://127.0.0.1:8188`) with the models
-   and nodes in [docs/COMFYUI_SETUP.md](../COMFYUI_SETUP.md).
+1. Install Python 3.11 or later and Git. For generation, set up **ComfyUI** with the models
+   and nodes in [the ComfyUI guide](../COMFYUI_SETUP.md). The editor and exporters also work with imported assets.
 2. In the repo: `python -m venv .venv`, then
    `.venv\Scripts\python -m pip install -r requirements-lock.txt` (exact tested versions) and
    `.venv\Scripts\python -m pip install -e ".[dev]" --no-deps` (use `.venv/bin/` off Windows).
@@ -15,7 +15,7 @@ particular machine. Paths come from `SPRITEWAFFLE_HOME` / `SPRITEWAFFLE_JOBS`, o
 
 ## First character
 
-1. **New → character**, name it (e.g. `knight`).
+1. Choose **New asset → Character** and give it a name such as `knight`.
 2. **Anchor**: describe it ("small knight, silver helmet with a red plume, blue tunic"), Generate,
    re-roll until it's right, **Approve**. Everything else is built from this picture.
 3. **Facings**: Generate facings (S is the anchor; E, N, W, then the diagonals from the nearest
@@ -31,7 +31,5 @@ re-roll keeps the previous take ("earlier takes" → Use this).
 
 ## Without the UI
 
-- CLI: `spritewaffle --help` (every stage is a command; `spritewaffle queue …` for background work).
-- MCP: `spritewaffle mcp` (stdio). Tools: generate, animate, animate_all, status, approve,
-  export_character, stack, camera_profile, mirror_policy, manifest, manifest_migrate.
-  Approval stays a human decision.
+Run `spritewaffle --help` for CLI commands or `spritewaffle mcp` to start the stdio agent server.
+See [CLI and MCP](Interfaces.md) for workflow entry points. Approval stays a human decision.

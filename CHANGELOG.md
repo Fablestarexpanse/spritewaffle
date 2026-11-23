@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reorganized the workspace around the Home link, global New asset, Project menu, job stages, and contextual settings. Added direct Tileset navigation and fixed queue focus, grouped Terrain discovery, and empty export controls.
+- Added 28 named local `studio` operations shared by the browser, CLI, and MCP. Brought manual map preview controls and character export options into parity.
+- Shortened the README, added workspace screenshots, and moved detailed setup and workflows into the wiki.
 - Added reusable object templates scoped to a tileset. Placements retain template provenance and can start in different states on different maps.
 - Added cell-aligned map objects with named atlas states, a live preview, and an active-state tile on a separate Tiled layer. Verified a workshop door with open and closed states.
 - Added per-cell manual tile placement, explicit empty cells, and restore-to-terrain controls. Tiled 1.12.2 imported and rendered the resulting map and retained its animation, collision, and Wang terrain metadata on re-export.

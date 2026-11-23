@@ -1,5 +1,12 @@
 # Architecture
 
+The HTML workspace and the CLI and MCP `studio` entry points share the same local FastAPI
+handlers. Named operations use an in-process transport with the worker disabled. Existing
+specialized commands and tools retain their shared core implementations. [CLI and MCP](Interfaces.md)
+
+The in-process transport uses HTTPX 0.27.2, which was already installed through MCP
+and pinned in the dependency lock. Its BSD-3-Clause notice remains in its distribution.
+
 The character exporter keeps an internal receipt next to the character bundle under
 `06_export/`. It records the selected frame set, QA policy, resolved FPS, and SHA-256
 fingerprints for the relevant inputs and resulting files. The UI, CLI, and MCP use the

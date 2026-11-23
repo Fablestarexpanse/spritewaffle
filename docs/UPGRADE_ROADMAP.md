@@ -5,7 +5,7 @@ Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tr
 | Area | Baseline | Work and acceptance |
 | --- | --- | --- |
 | Audit | Local FastAPI, CLI, and MCP share job operations. Core processing and format tests use synthetic fixtures and fake generation. Doctor validated the installed ComfyUI templates. | Use the existing suite and isolated job folders to verify each change. Record real inference and engine tests separately. |
-| Appearance | A single HTML app with automatic device light/dark CSS, job filters, image viewer, and a queue drawer. | Delivered the first increment. Five presets, system matching, browser settings, preview surfaces, and job navigation passed Chromium at 1440, 800, and 390 px. Saved layouts and resizable panels remain open. |
+| Appearance | A single HTML app with automatic device light/dark CSS, job filters, image viewer, and a queue drawer. | Project navigation, stage affordances, mobile layout, and Tileset shortcuts improved. Chromium passed at 1440, 800, and 390 px. Saved layouts and resizable panels remain open. |
 | Brand assets | Official Concept #5 media kit supplied. | App header, welcome, About, favicon, and README use supplied artwork. The wheel includes the Windows icon. A Windows checkout launcher opens the local app. Desktop shortcut and installer integration remain open. |
 | Production reliability | Queue recovery and QA exist. Action and character exports have separate writers. | Character, action, item, and effect bundles have local freshness receipts. Action processing tracks imported and generated clips, mirrors, optical-flow inputs, and palettes. Palette-only rebuilds retain the source selection. Tracked alignment guards character exports and keeps auxiliary maps, pivots, and effect points registered to the colour frames. |
 | Animation and editing | Frame extraction, selection, pixel processing, takes, and animated preview exist. | The timeline supports timing, onion skins, ranges, tags, and pose markers. The comparison supports local reprocessing, whole-pixel offsets, and alignment to a reference foot. Saved edits are reversible and flow into QA or export metadata as appropriate. |
@@ -14,7 +14,7 @@ Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tr
 | Advanced production | Item fits are flattened. Sprite stacks and an optional 3D template exist. Manifest map slots and arbitrary view metadata exist. | Prove layered equipment, higher-angle generation, and depth/normal generation independently using representative assets. |
 | Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Tiled import and rasterization verified for a single orthogonal tile layer. Validate engine-specific imports in Unity and Godot. LDtk remains open. |
 
-Known baseline gaps include the missing H3 turntable template, incomplete higher-angle and auxiliary-map generation, and the UI issues tracked in the [UI audit](AUDIT_UI_2026-11-21.md) and [wiki roadmap](wiki/Roadmap.md).
+Known baseline gaps include the missing H3 turntable template and incomplete higher-angle and auxiliary-map generation. The [workspace audit](AUDIT_UI_2026-11-22.md) tracks remaining layout work.
 
 The native tileset writer uses the documented Tiled JSON fields for image grids, local tile IDs,
 and tile collision object layers. It uses the existing Pillow runtime and adds no Tiled dependency.

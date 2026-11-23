@@ -1,6 +1,12 @@
-NEXT: Add interaction points to map objects and use them in a local game preview.
+NEXT: Resume map interaction points and preview after the UI audit and interface cleanup.
 
 # SpriteWaffle decisions log
+
+- 2026-11-22 UI audit at `ec6f5f9`. The baseline passed 329 Python tests in 98.58 s. Project settings were nested under Appearance, the brand had no Home action, and the grouped sidebar omitted the `Terrain` group. Fix the navigation and high-impact controls in the existing frontend.
+- 2026-11-22 Chromium inventoried 100 surface and viewport combinations and 3,532 rendered control observations after the fixes. Queue focus, grouped Terrain navigation, Project focus return, and empty character export gating passed at 1440, 800, and 390 px. Light with 150% scale passed in the narrow checks, with no horizontal overflow. Separate runs exercised project editing, frame repair, pixel editing, and the Tiled resource workflow.
+- 2026-11-22 The headless inventory found browser operations without matching CLI or MCP entry points. The named `studio` operations reuse FastAPI through an in-process transport with the worker disabled. HTTPX was already locked at 0.27.2 through MCP and is now an explicit runtime dependency. The real stdio session listed 32 MCP tools, argparse listed 49 CLI commands, and both expose 28 shared operations. Doctor still reports ComfyUI offline and the H3 turntable template missing.
+- 2026-11-22 The README is 46 lines with three current screenshots. Moved the production workflows and detailed setup into the wiki. Verified local links in 13 Markdown files and decoded all three PNGs.
+- 2026-11-22 Release verification passed 335 Python tests in 127.05 s with the existing Starlette warning. Eight Node tests and `pip check` passed. The installed CLI returned the current local camera profile, and the running stdio MCP created and read a disposable tileset job.
 
 - 2026-11-22 Save object templates next to their tileset, with the same atlas binding and state validation as map objects. A placement gets a fresh object ID and a copy of the definition with template provenance. The copy keeps its own active state. Keep template creation additive with unique names. Export placed objects and provenance in the existing portable ZIP.
 - 2026-11-22 Baseline `9fc1d1b` passed 327 Python tests in 96.94 s. The first template test failed on the missing library route. Chromium then saved one Berry bush template, placed it on two maps with different active states, and reopened the ripe placement and library after a reload. Tiled 1.12.2 preserved both unique instance IDs and the shared template ID and rasterized the intended ripe and harvested tiles (GIDs 4 and 5). Chromium passed at 1440, 800, and 390 px.

@@ -6,11 +6,11 @@
 .venv\Scripts\python -m pytest -q
 ```
 
-About 220 tests, about 1 minute, no GPU or ComfyUI needed: generation is faked (`FakeComfy` /
-`StubClient` in the tests), frames come from `tests/synth.py`. When gating a commit on the tests,
+The suite runs in about two minutes on the development machine. It uses fake generation
+and disposable jobs. Synthetic frames come from `tests/synth.py`. When gating a commit on the tests,
 use the exit code, not `pytest | tail` (the pipe hides failures).
 
-The pixel editor's geometry and fill tests also run with `node --test tests/pixel_editor.test.cjs`.
+Run `node --test tests/pixel_editor.test.cjs tests/tile_animation.test.cjs` for the browser algorithms.
 
 ## Conventions
 
