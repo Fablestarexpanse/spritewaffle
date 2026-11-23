@@ -2,6 +2,8 @@
 
 Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tracks generation-specific experiments and defects. This document tracks the broader studio work.
 
+SpriteWaffle creates, edits, validates, and exports assets. Preview tools help creators inspect artwork, timing, layout, and metadata. Use game-engine fixtures to verify imported assets and test movement, interactions, and runtime collision.
+
 | Area | Baseline | Work and acceptance |
 | --- | --- | --- |
 | Audit | Local FastAPI, CLI, and MCP share job operations. Core processing and format tests use synthetic fixtures and fake generation. Doctor validated the installed ComfyUI templates. | Use the existing suite and isolated job folders to verify each change. Record real inference and engine tests separately. |
@@ -10,7 +12,7 @@ Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tr
 | Production reliability | Queue recovery and QA exist. Action and character exports have separate writers. | Character, action, item, and effect bundles have local freshness receipts. Action processing tracks imported and generated clips, mirrors, optical-flow inputs, and palettes. Palette-only rebuilds retain the source selection. Tracked alignment guards character exports and keeps auxiliary maps, pivots, and effect points registered to the colour frames. |
 | Animation and editing | Frame extraction, selection, pixel processing, takes, and animated preview exist. | The timeline supports timing, onion skins, ranges, tags, and pose markers. The comparison supports local reprocessing, whole-pixel offsets, and alignment to a reference foot. Saved edits are reversible and flow into QA or export metadata as appropriate. |
 | Project style | Job palettes, game profiles, camera defaults and overrides, and directional manifests exist. | Delivered style defaults, palettes, read-only consistency checks, and portable reference collections. One selected library image can guide an anchor and is recorded in its provenance. Multi-image generation and family palette rules remain open. |
-| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain, manual tile placement, and objects with named states and reusable atlas-bound templates. Tiled 1.12.2 imported a workshop door and two instances of a harvestable resource. Object interaction points and game preview are next. |
+| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain, manual tile placement, and objects with named states and reusable atlas-bound templates. Tiled 1.12.2 imported a workshop door and two instances of a harvestable resource. Improve modular tileset authoring and validate the artwork and metadata in exported packages. |
 | Advanced production | Item fits are flattened. Sprite stacks and an optional 3D template exist. Manifest map slots and arbitrary view metadata exist. | Prove layered equipment, higher-angle generation, and depth/normal generation independently using representative assets. |
 | Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Tiled import and rasterization verified for a single orthogonal tile layer. Validate engine-specific imports in Unity and Godot. LDtk remains open. |
 

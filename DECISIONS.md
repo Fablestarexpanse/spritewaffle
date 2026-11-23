@@ -1,6 +1,8 @@
-NEXT: Resume map interaction points and preview after the UI audit and interface cleanup.
+NEXT: Improve modular tileset authoring and export validation for game engines.
 
 # SpriteWaffle decisions log
+
+- The owner clarified that SpriteWaffle is for asset production. Its previews help creators inspect artwork, animation, layout, and exported metadata. The game engine handles movement, interaction logic, and runtime collision. Replace the playable-preview milestone with modular tileset authoring and export validation.
 
 - 2026-11-22 UI audit at `ec6f5f9`. The baseline passed 329 Python tests in 98.58 s. Project settings were nested under Appearance, the brand had no Home action, and the grouped sidebar omitted the `Terrain` group. Fix the navigation and high-impact controls in the existing frontend.
 - 2026-11-22 Chromium inventoried 100 surface and viewport combinations and 3,532 rendered control observations after the fixes. Queue focus, grouped Terrain navigation, Project focus return, and empty character export gating passed at 1440, 800, and 390 px. Light with 150% scale passed in the narrow checks, with no horizontal overflow. Separate runs exercised project editing, frame repair, pixel editing, and the Tiled resource workflow.
