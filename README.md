@@ -508,6 +508,31 @@ sequence such as `[{"tile":2,"duration_ms":260},{"tile":4,"duration_ms":520}]`. 
 `--clear` to remove it. Each entry selects an atlas cell directly. Both metadata formats
 carry the saved timing. Export again after changing an animation to refresh the bundle.
 
+#### Saved maps
+
+Paint the preview, enter a name under **Saved maps**, and select **Save map**. Saved maps
+live with that tileset job and can be reopened in a fresh browser session. Select **New draft**
+to start a separate 8 × 6 map. Saved maps use the current terrain rules, so changing rules may
+leave cells that need repainting. You can save work with unresolved cells and return to it later.
+
+When the map is saved and all painted cells match a tile, select **Prepare map ZIP** and then
+**Download map ZIP**. Extract the files together and open `map.tmj` in Tiled. The archive also
+includes SpriteWaffle JSON, the PNG, and both tileset descriptions with collision, animation,
+and terrain metadata. Untouched cells export as empty space. The Tiled format is verified by
+tests. Import in the Tiled editor remains unverified.
+
+```powershell
+spritewaffle tilemap save --job meadow/v1 --name "South meadow" --file vertices.json
+spritewaffle tilemap list --job meadow/v1
+spritewaffle tilemap load --job meadow/v1 --map-id MAP_ID
+spritewaffle tilemap export --job meadow/v1 --map-id MAP_ID
+```
+
+The CLI and MCP accept rectangular maps up to 32 × 32 tiles. Use the loaded revision when updating
+an existing map. The `tilemap` MCP tool and the HTTP routes under
+`/api/jobs/{character}/{job}/tileset/maps` expose the same operations. ZIPs are written under
+the job's `06_export/maps/` folder.
+
 ### Prop (sprite stacking)
 
 New → **New sprite stack** (type `prop`) → anchor (a straight front view) → approve → **Sprite

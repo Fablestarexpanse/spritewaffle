@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, paths
-from ..core import generate, job_palette, processing, project, project_references, tileset, timeline
+from ..core import generate, job_palette, processing, project, project_references, tilemap, tileset, timeline
 from ..core import motion as motion_lib
 from ..core.job import Job
 from ..core.profile import list_all as list_profiles, resolve
@@ -410,8 +410,41 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     def preview_tileset_terrain(char: str, jid: str, body: dict = Body(...)):
         j = job_or_404(char, jid)
         try:
-            return tileset.preview(j, body.get("vertices"), body.get("revision"))
+            return tileset.preview(j, body.get("vertices"), body.get("revision"),
+                                   allow_unknown=body.get("allow_unknown") is True)
         except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.get("/api/jobs/{char}/{jid}/tileset/maps")
+    def list_tilemaps(char: str, jid: str):
+        try:
+            return tilemap.list_maps(job_or_404(char, jid))
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.get("/api/jobs/{char}/{jid}/tileset/maps/{map_id}")
+    def load_tilemap(char: str, jid: str, map_id: str):
+        try:
+            return tilemap.load(job_or_404(char, jid), map_id)
+        except (ValueError, OSError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/maps")
+    def save_tilemap(char: str, jid: str, body: dict = Body(...)):
+        try:
+            return tilemap.save(job_or_404(char, jid), body.get("name"), body.get("vertices"),
+                                body.get("id"), body.get("revision"), body.get("tileset_revision"))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/maps/{map_id}/export")
+    def export_tilemap(char: str, jid: str, map_id: str, body: dict | None = Body(None)):
+        j = job_or_404(char, jid)
+        try:
+            options = body or {}
+            result = tilemap.export(j, map_id, options.get("revision"), options.get("tileset_revision"))
+            return {**result, "download": url(j.root / result["file"]) + "&download=1"}
+        except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
     @app.post("/api/jobs/{char}/{jid}/approve")

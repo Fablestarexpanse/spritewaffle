@@ -415,6 +415,28 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         raise ValueError("Choose import, inspect, collision, terrain, animation, preview, or export.")
 
     @mcp.tool()
+    def tilemap(character: str, job_id: str, operation: str = "list", map_id: str | None = None,
+                name: str | None = None, vertices: list[list[str | None]] | None = None,
+                revision: str | None = None, tileset_revision: str | None = None) -> dict | list[dict]:
+        """List, load, save, or export named terrain maps in a tileset job.
+
+        Save takes a name and a rectangular lattice of terrain names or null. Updates need
+        the map ID and loaded revision. Export writes a portable ZIP to the job.
+        """
+        from .core import tilemap as maps
+
+        job = job_for(character, job_id)
+        if operation == "list":
+            return maps.list_maps(job)
+        if operation == "load":
+            return maps.load(job, map_id)
+        if operation == "save":
+            return maps.save(job, name, vertices, map_id, revision, tileset_revision)
+        if operation == "export":
+            return maps.export(job, map_id, revision, tileset_revision)
+        raise ValueError("Choose list, load, save, or export.")
+
+    @mcp.tool()
     def project_references(action: str = "list", reference_id: str | None = None, path: str | None = None,
                            fields: dict | None = None, include_archived: bool = False) -> dict:
         """Manage images in the local project's reference library. List hides archived images by default.

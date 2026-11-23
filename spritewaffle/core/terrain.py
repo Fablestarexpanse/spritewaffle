@@ -44,13 +44,15 @@ def _matches(rules: dict) -> dict[tuple, int]:
     return matches
 
 
-def preview(rules: dict, vertices: list) -> dict:
+def preview(rules: dict, vertices: list, *, allow_unknown: bool = False) -> dict:
     if (not isinstance(vertices, list) or not 2 <= len(vertices) <= MAX_SIDE + 1
             or not isinstance(vertices[0], list) or not 2 <= len(vertices[0]) <= MAX_SIDE + 1
             or any(not isinstance(row, list) or len(row) != len(vertices[0]) for row in vertices)):
         raise ValueError("Give a rectangular corner grid for a map of 1 to 32 tiles per side.")
     valid = set(rules["colors"])
-    if any(name is not None and (not isinstance(name, str) or name not in valid) for row in vertices for name in row):
+    if any(name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 40
+                                 or len(name.splitlines()) != 1 or (not allow_unknown and name not in valid))
+           for row in vertices for name in row):
         raise ValueError("The preview uses terrain names from the tileset or null for an unpainted corner.")
     matches = _matches(rules)
     width, height = len(vertices[0]) - 1, len(vertices) - 1

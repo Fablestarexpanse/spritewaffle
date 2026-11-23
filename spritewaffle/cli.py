@@ -95,6 +95,24 @@ def cmd_tileset(a):
     _print(result)
 
 
+def cmd_tilemap(a):
+    from .core import tilemap
+
+    job = _job(a.job)
+    if a.operation == "list":
+        result = tilemap.list_maps(job)
+    elif a.operation == "load":
+        result = tilemap.load(job, a.map_id)
+    elif a.operation == "save":
+        if not a.file:
+            raise ValueError("Pass --file with the JSON array of terrain corners.")
+        vertices = json.loads(Path(a.file).read_text(encoding="utf-8"))
+        result = tilemap.save(job, a.name, vertices, a.map_id, a.revision)
+    else:
+        result = tilemap.export(job, a.map_id)
+    _print(result)
+
+
 def _kv(items) -> dict:
     out = {}
     for it in items or []:
@@ -670,6 +688,13 @@ def build() -> argparse.ArgumentParser:
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),
         (("--clear",), {"action": "store_true", "help": "remove collision or animation from the tile"}))
+
+    cmd("tilemap", cmd_tilemap, "list, save, load, or export a named terrain map",
+        (("operation",), {"choices": ("list", "load", "save", "export")}), JOB,
+        (("--name",), {"help": "display name when saving a map"}),
+        (("--file",), {"help": "JSON array of terrain corners when saving a map"}),
+        (("--map-id",), {"help": "saved map ID for load, update, or export"}),
+        (("--revision",), {"help": "required revision when updating a saved map"}))
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",

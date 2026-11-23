@@ -161,7 +161,7 @@ def import_file(job: Job, path: Path, values: dict) -> dict:
 
 
 @contextmanager
-def _edit(job: Job, revision: str | None):
+def _locked_record(job: Job):
     directory = _workspace(job)
     if not directory.is_dir():
         raise ValueError("Import a tile sheet first.")
@@ -169,6 +169,12 @@ def _edit(job: Job, revision: str | None):
         record = _read(directory)
         if not record:
             raise ValueError("Import a tile sheet first.")
+        yield directory, record
+
+
+@contextmanager
+def _edit(job: Job, revision: str | None):
+    with _locked_record(job) as (directory, record):
         if revision is not None and revision != _revision(record):
             raise ValueError("The tileset changed. Reload it before editing.")
         yield record
@@ -228,13 +234,17 @@ def update_animation(job: Job, tile: int, frames: list, revision: str | None = N
     return inspect(job)
 
 
-def preview(job: Job, vertices: list, revision: str | None = None) -> dict:
+def preview(job: Job, vertices: list, revision: str | None = None, *, allow_unknown: bool = False) -> dict:
     record = _read(_workspace(job))
     if record is None:
         raise ValueError("Import a tile sheet first.")
     if revision is not None and revision != _revision(record):
         raise ValueError("The tileset changed. Reload it before previewing.")
-    return terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices)
+    return _preview(record, vertices, allow_unknown=allow_unknown)
+
+
+def _preview(record: dict, vertices: list, *, allow_unknown: bool = False) -> dict:
+    return terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown)
 
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
@@ -262,46 +272,51 @@ def inspect(job: Job) -> dict:
             "export": state, "files": files}
 
 
+def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
+    grid = record["grid"]
+    ids, blank = set(record["solid_tiles"]), set(record["empty_tiles"])
+    animations = {int(tile): frames for tile, frames in record.get("animations", {}).items()}
+    rects = list(_rectangles(grid))
+    native = {"schema_version": 1, "image": "tiles.png", "grid": grid,
+              "tiles": [{"id": i, "rect": list(rect), "empty": i in blank, "solid": i in ids}
+                        for i, rect in enumerate(rects)]}
+    w, h = grid["tile_width"], grid["tile_height"]
+    collision_layer = {"type": "objectgroup", "draworder": "index", "name": "Collision", "visible": True,
+                       "opacity": 1, "x": 0, "y": 0, "objects": [{"id": 1, "name": "", "x": 0, "y": 0,
+                           "width": w, "height": h, "rotation": 0, "visible": True}]}
+    tiled_tiles = []
+    for tile in sorted(ids | animations.keys()):
+        entry = {"id": tile}
+        if tile in ids:
+            entry["objectgroup"] = collision_layer
+        if tile in animations:
+            frames = animations[tile]
+            native["tiles"][tile]["animation"] = frames
+            entry["animation"] = [{"tileid": frame["tile"], "duration": frame["duration_ms"]} for frame in frames]
+        tiled_tiles.append(entry)
+    tiled = {"type": "tileset", "version": "1.10", "name": name, "image": "tiles.png",
+             "imagewidth": grid["width"], "imageheight": grid["height"], "columns": grid["columns"],
+             "tilecount": len(rects), "tilewidth": w, "tileheight": h, "margin": grid["margin"],
+             "spacing": grid["spacing"], "tiles": tiled_tiles}
+    if rules := record.get("terrain"):
+        native["terrain"] = rules
+        tiled["wangsets"] = [terrain.tiled_wangset(rules)]
+    return native, tiled
+
+
+def _export_image(directory: Path, record: dict) -> tuple[Path, bytes]:
+    path = _source(directory, record)
+    with path.open("rb") as stream:
+        data = stream.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES or sha256(data).hexdigest() != record["digest"]:
+        raise ValueError("The retained PNG changed. Import a valid tile sheet again.")
+    return path, data
+
+
 def export(job: Job) -> dict:
-    directory = _workspace(job)
-    if not directory.is_dir():
-        raise ValueError("Import a tile sheet first.")
-    with fsutil.locked(directory / ".workspace.lock", "This tileset is being written. Try again."):
-        record = _read(directory)
-        if record is None:
-            raise ValueError("Import a tile sheet first.")
-        path = _source(directory, record)
-        data = path.read_bytes()
-        if sha256(data).hexdigest() != record["digest"]:
-            raise ValueError("The retained PNG changed. Import a valid tile sheet again.")
-        grid = record["grid"]
-        ids, blank = set(record["solid_tiles"]), set(record["empty_tiles"])
-        animations = {int(tile): frames for tile, frames in record.get("animations", {}).items()}
-        rects = list(_rectangles(grid))
-        native = {"schema_version": 1, "image": "tiles.png", "grid": grid,
-                  "tiles": [{"id": i, "rect": list(rect), "empty": i in blank, "solid": i in ids}
-                            for i, rect in enumerate(rects)]}
-        w, h = grid["tile_width"], grid["tile_height"]
-        collision_layer = {"type": "objectgroup", "draworder": "index", "name": "Collision", "visible": True,
-                           "opacity": 1, "x": 0, "y": 0, "objects": [{"id": 1, "name": "", "x": 0, "y": 0,
-                               "width": w, "height": h, "rotation": 0, "visible": True}]}
-        tiled_tiles = []
-        for tile in sorted(ids | animations.keys()):
-            entry = {"id": tile}
-            if tile in ids:
-                entry["objectgroup"] = collision_layer
-            if tile in animations:
-                frames = animations[tile]
-                native["tiles"][tile]["animation"] = frames
-                entry["animation"] = [{"tileid": frame["tile"], "duration": frame["duration_ms"]} for frame in frames]
-            tiled_tiles.append(entry)
-        tiled = {"type": "tileset", "version": "1.10", "name": job.root.parent.name, "image": "tiles.png",
-                 "imagewidth": grid["width"], "imageheight": grid["height"], "columns": grid["columns"],
-                 "tilecount": len(rects), "tilewidth": w, "tileheight": h, "margin": grid["margin"],
-                 "spacing": grid["spacing"], "tiles": tiled_tiles}
-        if rules := record.get("terrain"):
-            native["terrain"] = rules
-            tiled["wangsets"] = [terrain.tiled_wangset(rules)]
+    with _locked_record(job) as (directory, record):
+        path, data = _export_image(directory, record)
+        native, tiled = _export_metadata(record, job.root.parent.name)
         before = _snapshot(job, directory, record)
         if before["files"].get(path.relative_to(job.root).as_posix()) != record["digest"]:
             raise ValueError("The retained PNG changed during export. Import it again.")

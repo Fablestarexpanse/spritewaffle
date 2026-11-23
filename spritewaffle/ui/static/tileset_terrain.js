@@ -15,26 +15,45 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       </div>
       <div id="terrainPreview" hidden>
         <h3>Map preview</h3>
-        <canvas id="terrainCanvas" aria-label="Eight by six terrain map preview"></canvas>
+        <canvas id="terrainCanvas" aria-label="Terrain map preview"></canvas>
         <p id="terrainStats" class="muted" role="status"></p>
         <p class="hint">Paint sets all four corners of a cell. Dashed cells need a matching tile.</p>
         <div class="row">
           <label>Terrain <select id="terrainBrush"></select></label>
           <button type="button" id="terrainFill">Fill preview</button>
-          <button type="button" id="terrainClear">Clear</button>
+          <button type="button" id="terrainClear">Clear draft</button>
         </div>
         <div class="row">
           <label>Cell <input type="number" id="terrainCell" min="0" max="47" value="0" step="1"></label>
           <button type="button" id="terrainPaint">Paint cell</button>
         </div>
+        <h3>Saved maps</h3>
+        <fieldset id="terrainMapControls" aria-label="Map files">
+          <div class="row">
+            <label>Saved map <select id="terrainMapList"><option value="">Select a map</option></select></label>
+            <button type="button" id="terrainMapOpen" disabled>Open</button>
+            <button type="button" id="terrainMapNew">New draft</button>
+          </div>
+          <form id="terrainMapForm" class="row">
+            <label>Map name <input id="terrainMapName" required maxlength="80"></label>
+            <button type="submit">Save map</button>
+            <button type="button" id="terrainMapExport" disabled>Prepare map ZIP</button>
+            <a id="terrainMapDownload" hidden>Download map ZIP</a>
+          </form>
+        </fieldset>
+        <p id="terrainMapStatus" class="muted" role="status"></p>
+        <p id="terrainMapError" class="warn" role="alert" hidden></p>
       </div>
     </div>`;
   const find = selector => panel.querySelector(selector);
   const names = find("#terrainNames"), brush = find("#terrainBrush"), canvas = find("#terrainCanvas");
   const corners = [...panel.querySelectorAll("[data-corner]")], cellInput = find("#terrainCell");
-  const cols = 8, rows = 6;
-  const lattice = (name = null) => Array.from({length: rows + 1}, () => Array(cols + 1).fill(name));
+  const mapList = find("#terrainMapList"), mapName = find("#terrainMapName");
+  let cols = 8, rows = 6;
+  const lattice = (name = null, width = cols, height = rows) =>
+    Array.from({length: height + 1}, () => Array(width + 1).fill(name));
   let state, tile = 0, rules = {colors: [], tiles: {}}, vertices = lattice(), result, storage, revision = 0;
+  let savedMap = null, maps = [], mapsLoaded = false, mapWorking = false;
 
   function error(message = "") {
     const notice = find("#terrainError");
@@ -48,6 +67,61 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     try { apply(await request("/terrain", {terrain: draft, revision: state.revision})); }
     catch (cause) { error(cause.message); }
     finally { button.disabled = false; }
+  }
+
+  function mapError(message = "") {
+    const notice = find("#terrainMapError");
+    notice.textContent = message;
+    notice.hidden = !message;
+  }
+
+  function dirtyMap() {
+    if (!savedMap) return !!mapName.value.trim() || vertices.some(row => row.some(name => name !== null));
+    return mapName.value.trim() !== savedMap.name ||
+      JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices);
+  }
+
+  function mapControls() {
+    const dirty = dirtyMap();
+    find("#terrainMapOpen").disabled = !mapList.value;
+    find("#terrainMapExport").disabled = !savedMap || dirty || !result || !!result.missing.length;
+    find("#terrainMapStatus").textContent = savedMap
+      ? (dirty ? "Unsaved map changes" : "Saved to the project") : "Draft · Save to add it to the project";
+  }
+
+  function mapOptions(selected) {
+    mapList.replaceChildren(new Option("Select a map", ""), ...maps.map(({id, name}) => new Option(name, id)));
+    mapList.value = selected || "";
+    mapControls();
+  }
+
+  async function mapAction(action) {
+    if (mapWorking) return;
+    mapWorking = true;
+    find("#terrainMapControls").disabled = true;
+    mapError();
+    try { await action(); }
+    catch (cause) { mapError(cause.message); }
+    finally {
+      find("#terrainMapControls").disabled = false;
+      mapWorking = false;
+    }
+  }
+
+  function forgetDraft() {
+    try { sessionStorage.removeItem(storage); } catch {}
+  }
+
+  function editMap(draft) {
+    vertices = draft;
+    rows = vertices.length - 1;
+    cols = vertices[0].length - 1;
+    cellInput.max = cols * rows - 1;
+    if (cellInput.valueAsNumber > Number(cellInput.max)) cellInput.value = 0;
+    find("#terrainMapDownload").hidden = true;
+    result = null;
+    mapControls();
+    resolveMap();
   }
 
   function draw() {
@@ -73,14 +147,16 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
 
   async function resolveMap() {
     const id = ++revision;
-    if (!rules.colors.length) return;
-    try { sessionStorage.setItem(storage, JSON.stringify(vertices)); } catch {}
+    if (!savedMap) {
+      try { sessionStorage.setItem(storage, JSON.stringify(vertices)); } catch {}
+    }
     try {
-      const resolved = await request("/preview", {vertices, revision: state.revision});
+      const resolved = await request("/preview", {vertices, revision: state.revision, allow_unknown: true});
       if (id !== revision) return;
       result = resolved;
       const count = result.tiles.flat().filter(id => id !== null).length;
       find("#terrainStats").textContent = `${count} placed · ${result.missing.length} missing transition${result.missing.length === 1 ? "" : "s"}`;
+      mapControls();
       draw();
     } catch (cause) {
       if (id === revision) error(cause.message);
@@ -88,12 +164,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   }
 
   function paint(id) {
-    if (!Number.isInteger(id) || id < 0 || id >= cols * rows || !brush.value) return;
+    if (mapWorking || !Number.isInteger(id) || id < 0 || id >= cols * rows || !brush.value) return;
     const x = id % cols, y = Math.floor(id / cols);
     cellInput.value = id;
     vertices[y][x] = vertices[y][x + 1] = vertices[y + 1][x] = vertices[y + 1][x + 1] = brush.value;
     error();
-    resolveMap();
+    editMap(vertices);
   }
 
   function selectTile(id, reset = false) {
@@ -109,27 +185,40 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     state = next;
     panel.hidden = !next.tileset;
     if (!next.tileset || !changed) return;
+    if (!mapsLoaded) {
+      mapsLoaded = true;
+      request("/maps").then(entries => {
+        maps = entries;
+        mapOptions(savedMap?.id);
+      }).catch(cause => {
+        mapsLoaded = false;
+        mapError(cause.message);
+      });
+    }
     const nextStorage = route + "/preview/" + next.tileset.digest + "/" + JSON.stringify(next.tileset.grid);
     if (nextStorage !== storage) {
       storage = nextStorage;
-      vertices = lattice();
-      try {
-        const stored = JSON.parse(sessionStorage.getItem(storage));
-        if (stored?.length === rows + 1 && stored.every(row => row.length === cols + 1)) vertices = stored;
-      } catch {}
+      if (!savedMap) {
+        vertices = lattice(null, 8, 6);
+        try {
+          const stored = JSON.parse(sessionStorage.getItem(storage));
+          if (stored?.length === 7 && stored.every(row => Array.isArray(row) && row.length === 9)) vertices = stored;
+        } catch {}
+      }
     }
     const before = rules.colors;
     rules = next.tileset.terrain || {colors: [], tiles: {}};
     if (JSON.stringify(before) !== JSON.stringify(rules.colors)) names.value = rules.colors.join("\n");
-    find("#terrainCorners").hidden = find("#terrainPreview").hidden = !rules.colors.length;
+    find("#terrainCorners").hidden = !rules.colors.length;
+    find("#terrainPreview").hidden = false;
     const options = rules.colors.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
     for (const select of corners) select.innerHTML = '<option value="">Unassigned</option>' + options;
     const previousBrush = brush.value;
     brush.innerHTML = options;
     brush.value = rules.colors.includes(previousBrush) ? previousBrush : rules.colors[0] || "";
-    vertices = vertices.map(row => row.map(name => rules.colors.includes(name) ? name : null));
+    brush.disabled = find("#terrainFill").disabled = find("#terrainPaint").disabled = !rules.colors.length;
     selectTile(tile, true);
-    resolveMap();
+    editMap(vertices);
   }
 
   find("#terrainSaveNames").onclick = event => {
@@ -140,9 +229,54 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     const tiles = {...rules.tiles, [tile]: corners.map(select => select.value || null)};
     save(event.currentTarget, {colors: rules.colors, tiles});
   };
-  find("#terrainFill").onclick = () => { error(); vertices = lattice(brush.value); resolveMap(); };
-  find("#terrainClear").onclick = () => { error(); vertices = lattice(); resolveMap(); };
+  find("#terrainFill").onclick = () => { if (!mapWorking) { error(); editMap(lattice(brush.value)); } };
+  find("#terrainClear").onclick = () => { if (!mapWorking) { error(); editMap(lattice()); } };
   find("#terrainPaint").onclick = () => paint(cellInput.valueAsNumber);
+  mapList.onchange = mapControls;
+  mapName.oninput = () => {
+    find("#terrainMapDownload").hidden = true;
+    mapControls();
+  };
+  const maySwitch = () => !dirtyMap() || confirm("Discard unsaved map changes?");
+  find("#terrainMapNew").onclick = () => {
+    if (!maySwitch()) return;
+    mapError();
+    savedMap = null;
+    mapName.value = "";
+    mapList.value = "";
+    editMap(lattice(null, 8, 6));
+  };
+  find("#terrainMapOpen").onclick = () => {
+    if (!mapList.value || !maySwitch()) return;
+    mapAction(async () => {
+      const opened = await request("/maps/" + encodeURIComponent(mapList.value));
+      if (!savedMap) forgetDraft();
+      savedMap = opened;
+      mapName.value = savedMap.name;
+      editMap(savedMap.vertices.map(row => row.slice()));
+    });
+  };
+  find("#terrainMapForm").onsubmit = event => {
+    event.preventDefault();
+    mapAction(async () => {
+      const updated = await request("/maps", {id: savedMap?.id, revision: savedMap?.revision,
+        name: mapName.value, vertices, tileset_revision: state.revision});
+      if (!savedMap) forgetDraft();
+      savedMap = updated;
+      mapName.value = savedMap.name;
+      const entry = {id: savedMap.id, name: savedMap.name};
+      maps = [...maps.filter(map => map.id !== entry.id), entry].sort((a, b) => a.name.localeCompare(b.name));
+      mapOptions(entry.id);
+    });
+  };
+  find("#terrainMapExport").onclick = () => mapAction(async () => {
+    const exported = await request("/maps/" + encodeURIComponent(savedMap.id) + "/export",
+      {revision: savedMap.revision, tileset_revision: state.revision});
+    const download = find("#terrainMapDownload");
+    download.href = exported.download;
+    download.hidden = false;
+    find("#terrainMapStatus").textContent = "Map package ready";
+  });
   canvas.onclick = event => {
     const box = canvas.getBoundingClientRect();
     const x = Math.floor((event.clientX - box.left) * cols / box.width);
