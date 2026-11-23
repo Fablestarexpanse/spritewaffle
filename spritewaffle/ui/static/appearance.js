@@ -4,6 +4,8 @@
   const key = "sw.appearance.v1";
   const root = document.documentElement;
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
+  const narrow = matchMedia("(max-width: 760px)");
+  let narrowSidebar = false;
   const accents = {gold: "#ffcb42", violet: "#b786ef", blue: "#78bcff", mint: "#69dcb1"};
   const defaults = {
     theme: "midnight", accent: "default", customAccent: "#ffcb42",
@@ -39,7 +41,7 @@
     const theme = prefs.theme === "system" ? (systemTheme.matches ? "midnight" : "light") : prefs.theme;
     Object.assign(root.dataset, {
       theme, density: prefs.density, motion: String(prefs.motion), preview: prefs.preview,
-      sidebar: String(prefs.sidebar)
+      sidebar: String(narrow.matches ? narrowSidebar : prefs.sidebar)
     });
     root.style.fontSize = `${Number(prefs.fontSize) * 0.875}%`;
     const accent = prefs.accent === "custom" ? prefs.customAccent : accents[prefs.accent];
@@ -70,7 +72,7 @@
         else field.value = prefs[field.name];
       }
       fields.elements.customAccent.disabled = prefs.accent !== "custom";
-      sidebar.setAttribute("aria-expanded", String(prefs.sidebar));
+      sidebar.setAttribute("aria-expanded", root.dataset.sidebar);
     };
     const change = ({target}) => {
       const {name, type, checked, value} = target;
@@ -90,15 +92,28 @@
       sync();
     };
     sidebar.onclick = () => {
-      prefs.sidebar = !prefs.sidebar;
-      update();
+      if (narrow.matches) {
+        narrowSidebar = !narrowSidebar;
+        apply();
+      } else {
+        prefs.sidebar = !prefs.sidebar;
+        update();
+      }
       sync();
     };
+    narrow.addEventListener("change", () => { apply(); sync(); });
+    document.querySelector("#jobBrowser").addEventListener("click", event => {
+      if (!narrow.matches || !event.target.closest("a.job") || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      narrowSidebar = false;
+      apply();
+      sync();
+      document.querySelector("#main").focus({preventScroll: true});
+    });
     document.addEventListener("keydown", event => {
       if (event.key !== "/" || event.altKey || event.ctrlKey || event.metaKey ||
           event.target.closest("input, textarea, select, [contenteditable]") || document.querySelector("dialog[open]")) return;
       event.preventDefault();
-      if (!prefs.sidebar) sidebar.click();
+      if (root.dataset.sidebar === "false") sidebar.click();
       document.querySelector("#search").focus();
     });
     sync();

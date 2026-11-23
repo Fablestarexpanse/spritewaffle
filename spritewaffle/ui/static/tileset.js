@@ -4,7 +4,15 @@ function paneTileset() {
   const request = (path = "", body) => api(route + path, body, {announceErrors: false});
   const pane = $("#pane");
   pane.innerHTML = `<section id="tileWorkspace">
-    <h2>Tile sheet</h2>
+    <h2 id="tileSheetHeading">Tile sheet</h2>
+    <nav class="row tileset-navigation" id="tileNavigation" aria-label="Tileset tools" hidden>
+      <button type="button" data-tile-jump="sheet">Tile sheet</button>
+      <button type="button" data-tile-jump="animation">Tile animation</button>
+      <button type="button" data-tile-jump="terrain">Terrain rules</button>
+      <button type="button" data-tile-jump="map">Map preview</button>
+      <button type="button" data-tile-jump="objects">Map objects</button>
+      <button type="button" data-tile-jump="maps">Saved maps &amp; export</button>
+    </nav>
     <div class="tileset-workspace">
       <div>
         <p id="tileSummary" class="muted">Loading tileset…</p>
@@ -100,6 +108,7 @@ function paneTileset() {
     animation.sync(result);
     terrain.sync(result);
     find("#tileControls").hidden = !record;
+    find("#tileNavigation").hidden = !record;
     find("#tileExportRow").hidden = !record;
     find("#tileImportHint").hidden = !record;
     canvas.hidden = !result.preview;
@@ -147,6 +156,17 @@ function paneTileset() {
     }
   };
   selection.onchange = () => select(selection.valueAsNumber);
+  const sections = {sheet: "#tileSheetHeading", animation: "#tileAnimationPanel h2", terrain: "#terrainPanel h2",
+    map: "#terrainPreview h3", objects: "#terrainObjectPanel summary", maps: "#terrainMapsHeading"};
+  root.querySelectorAll("[data-tile-jump]").forEach(button => {
+    button.onclick = () => {
+      const target = find(sections[button.dataset.tileJump]);
+      if (button.dataset.tileJump === "objects") target.parentElement.open = true;
+      if (target.tagName !== "SUMMARY") target.tabIndex = -1;
+      target.scrollIntoView({block: "start"});
+      target.focus({preventScroll: true});
+    };
+  });
   solid.onchange = async () => {
     await perform(solid, () => request("/collision", {tile: active, solid: solid.checked, revision: state.revision}), render);
     select(active);

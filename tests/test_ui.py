@@ -43,6 +43,20 @@ def test_appearance_assets_are_served_by_the_app(client):
     assert c.get("/static/..%2Fserver.py").status_code == 404
 
 
+def test_project_tools_and_new_asset_have_header_entry_points(client):
+    c, _ = client
+    page = c.get("/").text
+    header = page.split("<header>", 1)[1].split("</header>", 1)[0]
+    project = header.split('<details class="project-menu" id="projectMenu">', 1)[1].split("</details>", 1)[0]
+    for button in ("btnProjectStyle", "btnProjectPalette", "btnProjectReferences", "btnLib"):
+        assert f'id="{button}"' in project
+        assert page.count(f'id="{button}"') == 1
+    assert 'aria-label="SpriteWaffle home"' in header
+    assert 'id="btnNew"' in header
+    assert 'id="btnSettings"' in header
+    assert 'id="qClose"' in page
+
+
 def test_official_brand_assets_are_served_by_the_app(client):
     c, _ = client
     page = c.get("/").text

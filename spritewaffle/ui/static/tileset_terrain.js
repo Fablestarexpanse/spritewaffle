@@ -37,7 +37,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         </div>
         <p id="terrainOverrideHint" class="hint" hidden></p>
         <details id="terrainObjectPanel"></details>
-        <h3>Saved maps</h3>
+        <h3 id="terrainMapsHeading">Saved maps</h3>
         <fieldset id="terrainMapControls" aria-label="Map files">
           <div class="row">
             <label>Saved map <select id="terrainMapList"><option value="">Select a map</option></select></label>

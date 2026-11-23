@@ -59,6 +59,20 @@
     color: var(--brand-cream); background: var(--brand-deep); }
   .wordmark b { color: var(--brand-gold); }
   .wordmark img { display: block; width: 2rem; height: 2rem; }
+  .app-title { margin: 0; font-size: inherit; }
+  .wordmark { text-decoration: none; }
+  .project-menu { position: relative; }
+  .project-menu summary { list-style: none; }
+  .project-menu summary::-webkit-details-marker { display: none; }
+  .project-menu summary::after { content: " ▾"; }
+  .project-menu nav { position: absolute; z-index: 25; top: calc(100% + .3rem); right: 0;
+    display: grid; gap: .25rem; width: max-content; min-width: 11rem; max-width: calc(100vw - 2rem);
+    padding: .35rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .project-menu nav button { text-align: left; }
+  .system-status summary { display: none; }
+  .system-status summary .dot { display: inline-block; margin-right: .35em; }
+  .system-status .dot.warn { background: var(--warn); }
+  .system-status-pills { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; }
   .welcome-logo { display: block; width: min(26rem, 100%); height: auto; margin: 0 auto; }
   .about-badge { display: block; width: min(10rem, 100%); height: auto; margin: 0 auto var(--space); }
   header .ver { color: var(--muted); font-size: .85rem; margin-right: auto; }
@@ -73,10 +87,11 @@
   h2 { font-size: 1.07rem; margin: 0 0 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   h3 { font-size: .86rem; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
   section, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space); margin-bottom: var(--space); }
-  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: var(--control-pad) .85em; cursor: pointer; font: inherit; }
-  button:hover:not(:disabled) { border-color: var(--muted); }
+  button, .button-link { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: var(--control-pad) .85em; cursor: pointer; font: inherit; }
+  .button-link { display: inline-block; text-decoration: none; }
+  button:hover:not(:disabled), .button-link:hover { border-color: var(--muted); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-  button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  button.ghost, .button-link.ghost { background: transparent; border-color: transparent; color: var(--muted); }
   button.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
   button:disabled { opacity: .4; cursor: not-allowed; }
   input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: var(--control-pad) .6em; font: inherit; max-width: 100%; }
@@ -115,8 +130,12 @@
   .job .name { font-weight: 600; } .job small { color: var(--muted); display: block; font-size: .79rem; }
   /* job header + tabs */
   .jobhead { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 8px; }
-  .jobsettings { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 10px;
+  .jobsettings { margin-bottom: var(--space); padding: .5rem .7rem;
                  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .jobsettings summary { cursor: pointer; }
+  .jobsettings-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: .5rem; }
+  .jobsettings-fields label { min-width: 0; }
+  .jobsettings-fields select { max-width: 100%; }
   .job.sub { margin-left: 18px; grid-template-columns: 32px 1fr; } .job.sub img, .job.sub .noimg { width: 32px; height: 32px; }
   .types { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
   .types label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px; border: 1px solid var(--line);
@@ -256,6 +275,8 @@
   #anchorReferencePreview img { display: block; width: 3.6rem; height: 3.6rem; object-fit: contain; }
   #styleRef { max-width: min(21rem, 100%); }
   .tileset-workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(13rem, 1fr); gap: var(--space); }
+  .tileset-navigation { margin: 0 0 var(--space); }
+  .tileset-navigation button { padding-inline: .65em; }
   .tileset-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .tileset-form .field { min-width: 0; align-items: stretch; }
   .tileset-form .full { grid-column: 1 / -1; }
@@ -273,9 +294,10 @@
   @media (max-width: 720px) { .tile-animation-layout { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 720px) { .tileset-workspace { grid-template-columns: minmax(0, 1fr); } }
   #terrainPanel { margin-top: 1.4rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  #terrainPanel .tileset-workspace { grid-template-columns: minmax(12rem, 1fr) minmax(0, 2fr); }
   #terrainCorners .field { min-width: 0; }
   #terrainCorners select, #terrainNames { width: 100%; }
-  #terrainCanvas { display: block; max-width: 100%; height: auto; cursor: crosshair; image-rendering: pixelated; }
+  #terrainCanvas { display: block; width: min(100%, 28rem); height: auto; cursor: crosshair; image-rendering: pixelated; }
   #terrainCell { max-width: 5rem; }
   #terrainMapControls label { display: grid; gap: .2rem; min-width: 0; }
   #terrainMapList, #terrainMapName { width: min(16rem, 100%); min-width: 0; }
@@ -284,12 +306,12 @@
   #mapObjectFields input, #mapObjectFields select { max-width: 100%; }
   .map-object-state label { display: grid; gap: .2rem; }
   .map-object-state input[type="number"] { width: 6rem; }
+  @media (max-width: 720px) { #terrainPanel .tileset-workspace { grid-template-columns: minmax(0, 1fr); } }
   #appearanceFields, .project-style-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: var(--space); }
   #appearanceFields .field, .project-style-fields .field { align-items: stretch; min-width: 0; }
   #appearanceFields input[type="color"] { width: 100%; min-height: 2.4rem; padding: .2rem; }
   #appearanceFields input:disabled { opacity: .6; }
   #appearanceSettings footer { margin-top: calc(var(--space) * 1.5); }
-  #appearanceSettings .settings-links { margin-top: var(--space); padding-top: var(--space); border-top: 1px solid var(--line); }
   #projectPaletteForm .field { align-items: stretch; }
   #projectPaletteColours { min-height: 10rem; font-family: ui-monospace, Consolas, monospace; }
   #projectPaletteSwatches { margin-top: var(--space); max-height: 6rem; overflow: auto; }
@@ -352,42 +374,70 @@
     aside { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--line); }
     main { padding-inline: var(--space); }
     #queue { position: fixed; top: auto; max-height: 65dvh; border-top: 1px solid var(--line); }
+    .system-status summary { display: inline-block; list-style: none; }
+    .system-status summary::-webkit-details-marker { display: none; }
+    .system-status summary::after { content: " ▾"; }
+    .system-status-pills { position: fixed; z-index: 25; right: var(--space); margin-top: .3rem;
+      max-width: calc(100vw - 2 * var(--space)); padding: .5rem; background: var(--panel);
+      border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .tileset-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tileset-navigation button { overflow-wrap: anywhere; }
+  }
+  @media (max-width: 420px) {
+    .project-menu nav { position: fixed; top: auto; right: var(--space); margin-top: .3rem; }
   }
 </style>
 </head>
 <body>
 <header>
-  <h1 class="wordmark"><img src="/static/brand/app-icon-64.png" srcset="/static/brand/app-icon-64.png 2x, /static/brand/app-icon-128.png 4x" width="32" height="32" alt=""><span><b>Sprite</b>Waffle</span></h1><span class="ver" id="ver"></span>
-  <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
-  <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
+  <h1 class="app-title"><a class="wordmark" href="#" aria-label="SpriteWaffle home"><img src="/static/brand/app-icon-64.png" srcset="/static/brand/app-icon-64.png 2x, /static/brand/app-icon-128.png 4x" width="32" height="32" alt=""><span><b>Sprite</b>Waffle</span></a></h1><span class="ver" id="ver"></span>
+  <details class="system-status" id="systemStatus" open>
+    <summary class="button-link"><span class="dot" aria-hidden="true"></span>Status</summary>
+    <div class="system-status-pills">
+      <span class="pill" id="pComfy" title=""><span class="dot"></span>ComfyUI</span>
+      <span class="pill" id="pWorker"><span class="dot"></span>Worker</span>
+    </div>
+  </details>
   <button class="pill" id="pQueue" aria-controls="queue" aria-expanded="false">Queue</button>
   <button id="btnJobs" aria-controls="jobBrowser" aria-expanded="true">Jobs</button>
-  <button id="btnSettings" aria-haspopup="dialog">Settings</button>
-  <button id="btnLib">Motion library</button>
+  <button class="primary" id="btnNew" aria-haspopup="dialog">New asset…</button>
+  <details class="project-menu" id="projectMenu">
+    <summary class="button-link">Project</summary>
+    <nav aria-label="Project tools">
+      <button id="btnProjectStyle" type="button" aria-haspopup="dialog">Style guide…</button>
+      <button id="btnProjectPalette" type="button" aria-haspopup="dialog">Master palette…</button>
+      <button id="btnProjectReferences" type="button" aria-haspopup="dialog">Reference library…</button>
+      <button id="btnLib" type="button" aria-haspopup="dialog">Motion library…</button>
+    </nav>
+  </details>
+  <button id="btnSettings" aria-haspopup="dialog">Appearance…</button>
 </header>
 
 <aside id="jobBrowser" aria-label="Job browser">
   <div class="row" style="margin:0">
     <input id="search" type="search" placeholder="Search jobs" aria-label="Search jobs" aria-keyshortcuts="/">
-    <button class="primary" id="btnNew">New</button>
   </div>
   <div class="jfilters">
-    <select id="jfSort" title="Sort"><option value="recent">Recent</option><option value="name">Name</option>
+    <select id="jfSort" aria-label="Sort jobs"><option value="recent">Recent</option><option value="name">Name</option>
       <option value="todo">Least done</option><option value="done">Most done</option></select>
-    <select id="jfType" title="Type"><option value="">All types</option></select>
-    <select id="jfStyle" title="Style"><option value="">All styles</option></select>
+    <select id="jfType" aria-label="Filter by asset type"><option value="">All types</option></select>
+    <select id="jfStyle" aria-label="Filter by art style"><option value="">All styles</option></select>
     <label title="Only jobs waiting for you: something to review, or a clip that failed QA"><input type="checkbox" id="jfNeeds"> Needs me</label>
-    <label title="Group jobs by kind: characters, base bodies, items, animals, effects, props"><input type="checkbox" id="jfGroup"> Group</label>
+    <label><input type="checkbox" id="jfGroup"> Group by type</label>
   </div>
   <div id="jobs"></div>
 </aside>
 
-<main id="main"></main>
+<main id="main" tabindex="-1"></main>
 
 <div id="queue" role="region" aria-label="Queue" hidden>
-  <h2>Queue <span class="spacer"></span>
-    <span class="seg" id="qFilter"><button data-f="all" class="on">All</button><button data-f="active">Active</button><button data-f="failed">Failed</button></span></h2>
-  <div class="row" style="margin:0 0 6px"><button class="ghost" id="qClear">Clear finished</button></div>
+  <h2>Queue <span class="spacer"></span><button id="qClose" class="ghost">Close</button></h2>
+  <div class="row" style="margin:0 0 6px">
+    <div class="seg" id="qFilter" role="group" aria-label="Queue filter">
+      <button data-f="all" class="on" aria-pressed="true">All</button><button data-f="active" aria-pressed="false">Active</button><button data-f="failed" aria-pressed="false">Failed</button>
+    </div>
+    <button class="ghost" id="qClear">Clear finished</button>
+  </div>
   <div id="tasks"></div>
 </div>
 
@@ -441,14 +491,9 @@
     </label>
     <label><input name="motion" type="checkbox"> Animate interface transitions</label>
   </form>
-  <nav class="row settings-links" aria-label="More settings">
-    <button id="btnProjectStyle" type="button" aria-haspopup="dialog">Project style…</button>
-    <button id="btnProjectPalette" type="button" aria-haspopup="dialog">Project palette…</button>
-    <button id="btnProjectReferences" type="button" aria-haspopup="dialog">Project references…</button>
-    <button id="btnAbout" type="button" aria-haspopup="dialog">About</button>
-  </nav>
   <footer class="row">
     <button id="appearanceReset" type="button">Reset appearance</button>
+    <button id="btnAbout" type="button" class="ghost" aria-haspopup="dialog">About</button>
     <span class="spacer"></span>
     <form method="dialog"><button class="primary">Done</button></form>
   </footer>
@@ -562,13 +607,22 @@ let current = null, tab = null, job = null, lastSig = "", qFilter = "all";
 const form = {facings: new Set(["S", "E", "N", "W", "SE", "NE", "NW", "SW"]), actions: new Set(["idle", "walk"]),
               seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24, maxSize: 4096, flip: false};
 
+function openWorkspaceDialog(dialog) {
+  const heading = $("h2", dialog);
+  if (heading) {
+    heading.id = "workspaceDialogTitle";
+    dialog.setAttribute("aria-labelledby", heading.id);
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
 // --- plumbing ----------------------------------------------------------------------------
 // Enlarged images open here, not in a new tab (a bare image tab has no way back in an app window).
 // Esc, the Close button or a click outside the picture closes it.
 function viewImage(src, title) {
   const v = $("#viewer");
   v.innerHTML = `<div class="bar"><b>${esc(title || "")}</b><span>
-      <a href="${esc(src)}" target="_blank" rel="noopener"><button class="ghost">Open in new tab</button></a>
+      <a class="button-link ghost" href="${esc(src)}" target="_blank" rel="noopener">Open in new tab</a>
       <button id="vClose">Close</button></span></div>
     ${/\.(mp4|webm)(\?|$)/i.test(src) ? `<video src="${esc(src)}" controls autoplay loop muted style="max-width:calc(96vw - 24px);max-height:calc(94vh - 70px)"></video>`
       : `<img src="${esc(src)}" alt="${esc(title || "image")}">`}`;
@@ -589,7 +643,7 @@ function takesHtml(list, file, label) {
   return `<details class="takes"><summary class="muted">${list.length} earlier take${list.length === 1 ? "" : "s"}</summary>
     <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px">${list.map(t => `<div class="take">
       ${t.thumb ? `<a href="${esc(t.url)}" data-view="${esc(label)} · ${esc(t.kept || "")}">${img(t.thumb, label + " take")}</a>`
-                : `<a href="${esc(t.url)}" data-view="${esc(label)} · ${esc(t.kept || "")}"><button class="ghost">▶ play</button></a>`}
+                : `<a class="button-link ghost" href="${esc(t.url)}" data-view="${esc(label)} · ${esc(t.kept || "")}">Play</a>`}
       <div class="muted" style="font-size:.79rem">${esc((t.kept || "").replace("_", " "))}${t.seed != null ? ` · seed ${esc(String(t.seed))}` : ""}</div>
       <button class="ghost" data-restore="${esc(file)}|${esc(t.take)}">Use this</button></div>`).join("")}</div></details>`;
 }
@@ -672,7 +726,7 @@ async function showPrompts(open = {}) {
     toast(`Write motion and transition text for ${a}, then Save`);
     showNewAction(a, o);
   };
-  if (!d.open) d.showModal();
+  openWorkspaceDialog(d);
 }
 async function showNewAction(a, o) {
   await showPrompts(o);
@@ -741,7 +795,7 @@ async function showProfiles(name, note = "") {
     showProfiles(p.name, `This job now uses ${p.name}.`);
   };
   if ($("#pfReprocess")) $("#pfReprocess").onclick = () => { run("reprocess", {}, "Clips queued with the new sizes"); d.close(); };
-  if (!d.open) d.showModal();
+  openWorkspaceDialog(d);
 }
 
 // Effect attach editor: scrub to a frame, click the spawn point, save -> event + preview GIF.
@@ -820,6 +874,7 @@ async function loadStatus() {
   $("#pComfy").title = status.comfy.detail;
   $("#pComfy").lastChild.textContent = status.comfy.ok ? status.comfy.detail : "ComfyUI offline";
   $("#pWorker .dot").className = "dot " + (status.worker ? (status.queue.running ? "run" : "ok") : "bad");
+  $("#systemStatus summary .dot").className = "dot " + (status.comfy.ok && status.worker ? "ok" : "warn");
   const r = (status.running || [])[0];
   const secs = r && r.started ? Math.max(0, (Date.parse(status.now) - Date.parse(r.started)) / 1000) : 0;
   const what = r ? `${r.job.split("/")[0]} · ${r.stage}${r.action ? " " + r.action : ""}${r.facing ? " " + r.facing : ""}` : "";
@@ -841,7 +896,7 @@ async function showProjectPalette() {
   const route = "/api/project/palette";
   const state = await api(route);
   const dialog = $("#projectPaletteDialog"), input = $("#projectPaletteColours");
-  if (dialog.open || !$("#appearanceSettings").open) return;
+  if (dialog.open) return;
   const error = $("#projectPaletteError"), save = $("#projectPaletteSave");
   const colours = () => input.value.split(/\s+/).filter(Boolean);
   const preview = () => {
@@ -872,7 +927,7 @@ async function showProjectPalette() {
 async function showProjectStyle() {
   const state = await api(projectStylePath);
   const dialog = $("#projectStyleDialog"), form = $("#projectStyleForm"), fields = form.elements;
-  if (dialog.open || !$("#appearanceSettings").open) return;
+  if (dialog.open) return;
   const names = [...state.profiles];
   const savedProfile = state.style.default_profile;
   if (savedProfile === "default" && !names.includes("default")) names.push("default");
@@ -898,7 +953,6 @@ async function showProjectStyle() {
     } finally { save.disabled = false; }
   };
   $("#projectStyleCancel").onclick = () => dialog.close();
-  // Keep Appearance beneath Project style so closing it returns focus to the launcher.
   dialog.showModal();
 }
 
@@ -910,7 +964,7 @@ async function showNew(type = "character") {
   const projectArt = art.find(s => s.name === (guide.default_style || "pixel"))?.label || "Pixel art";
   const projectProfile = guide.default_profile || "Built-in sizes";
   const order = ["character", "base_body", "item", "animal", "creature", "effect", "prop", "tileset"].filter(t => status.asset_types.includes(t));
-  d.innerHTML = `<h2>New job <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
+  d.innerHTML = `<h2>New asset <span class="spacer"></span><button class="ghost" id="nClose">Close</button></h2>
     <div class="types">${order.map(t => `<label><input type="radio" name="nType" value="${t}" ${t === type ? "checked" : ""}>
       <b>${esc(typeLabel(t))}</b><small>${esc(TYPES[t]?.help || "")}</small></label>`).join("")}</div>
     <div class="row" style="margin-top:14px">
@@ -919,7 +973,7 @@ async function showNew(type = "character") {
       <label class="field" data-generation-option style="min-width:0"><span>Profile (sizes)</span><select id="nProfile"><option value="">Project default (${esc(projectProfile)})</option><option value="__builtin">Built-in sizes</option>${profileOptions(profiles)}</select></label>
     </div>
     <p id="nError" class="muted" role="alert" hidden></p>
-    <div class="row" style="margin-top:14px"><button class="primary" id="nCreate">Create job</button></div>`;
+    <div class="row" style="margin-top:14px"><button class="primary" id="nCreate">Create asset</button></div>`;
   $("#nClose").onclick = () => d.close();
   const showOptions = () => {
     const tiles = $('input[name="nType"]:checked').value === "tileset";
@@ -950,7 +1004,7 @@ async function showNew(type = "character") {
   };
   $("#nCreate").onclick = create;
   $("#nName").onkeydown = e => { if (e.key === "Enter") create(); };
-  d.showModal(); $("#nName").focus();
+  openWorkspaceDialog(d); $("#nName").focus();
 }
 // Job list: search, sort, filter, group. Choices are remembered in this browser. The list is
 // only redrawn when what it shows changes, so a poll never moves a job out from under a click.
@@ -967,10 +1021,11 @@ async function loadJobs() {
   jobsCache = await api("/api/jobs");
   const q = $("#search").value.trim().toLowerCase();
   const fill = (sel, vals, all, lab = v => v) => { const cur = sel.value || "";
+    if (JSON.stringify([...sel.options].slice(1).map(option => option.value)) === JSON.stringify(vals)) return;
     sel.innerHTML = `<option value="">${all}</option>` + vals.map(v => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(lab(v))}</option>`).join(""); };
   const types = [...new Set(jobsCache.map(j => j.asset_type))].sort(), stylesUsed = [...new Set(jobsCache.map(j => j.style))].sort();
-  if ($("#jfType").options.length - 1 !== types.length) fill($("#jfType"), types, "All types", typeLabel);
-  if ($("#jfStyle").options.length - 1 !== stylesUsed.length) fill($("#jfStyle"), stylesUsed, "All styles");
+  fill($("#jfType"), types, "All types", typeLabel);
+  fill($("#jfStyle"), stylesUsed, "All styles");
   $("#jfType").value = types.includes(jf.type) ? jf.type : ""; $("#jfStyle").value = stylesUsed.includes(jf.style) ? jf.style : "";
   let list = jobsCache.map(j => ({...j, info: jobInfo(j)})).filter(j =>
     (!q || (j.character + " " + j.job_id).toLowerCase().includes(q))
@@ -987,7 +1042,7 @@ async function loadJobs() {
     const on = current && current.character === j.character && current.job_id === j.job_id, i = j.info;
     const needs = [i.review.length ? `review: ${i.review.join(", ")}` : "", i.failed ? `${i.failed} QA fail` : ""].filter(Boolean).join(" · ");
     const kind = j.base ? (j.item ? `wearing ${j.item.split("/")[0]}` : "variant") : typeLabel(j.asset_type);
-    return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""} ${sub ? "sub" : ""}">
+    return `<a href="#${esc(j.character)}/${esc(j.job_id)}" class="job ${on ? "on" : ""} ${sub ? "sub" : ""}" ${on ? 'aria-current="page"' : ""}>
       ${j.thumb ? `<img src="${esc(j.thumb)}" alt="${esc(j.character)}">` : `<div class="noimg"></div>`}
       <div><div class="name">${esc(sub ? j.job_id : j.character)} <span class="chip">${esc(kind)}</span>${j.style !== "pixel" ? ` <span class="chip">${esc(j.style)}</span>` : ""}</div>
       <small>${sub ? "" : esc(j.job_id) + " · "}step ${i.done}/${i.total}</small>${needs ? `<small class="needs">${esc(needs)}</small>` : ""}</div></a>`;
@@ -999,16 +1054,27 @@ async function loadJobs() {
   list.forEach(j => { if (under(j)) (kids[`${j.character}/${j.base}`] ??= []).push(j); });
   const tops = list.filter(j => !under(j));
   const tree = js => js.map(j => row(j) + (kids[key(j)] || []).map(k => row(k, true)).join("")).join("");
+  const container = $("#jobs");
+  const active = document.activeElement;
+  const focusLink = container.contains(active) ? active.getAttribute("href") : null;
+  const focusGroup = container.contains(active) ? active.closest("details")?.dataset.group : null;
   let html;
   if (jf.group) {
     const groups = {};
     tops.forEach(j => (groups[(TYPES[j.asset_type] || {}).group || "Other"] ??= []).push(j));
-    const order = ["Characters", "Base bodies", "Items", "Animals", "Effects", "Props", "Other"];
-    html = order.filter(g => groups[g]).map(g => `<details class="jgroup" open><summary>${g} <span class="muted">(${groups[g].length})</span></summary>${tree(groups[g])}</details>`).join("");
+    const order = ["Characters", "Base bodies", "Items", "Animals", "Effects", "Props", "Terrain", "Other"];
+    html = order.filter(g => groups[g]).map(g => `<details class="jgroup" data-group="${g}" ${collapsedJobGroups.has(g) ? "" : "open"}><summary>${g} <span class="muted">(${groups[g].length})</span></summary>${tree(groups[g])}</details>`).join("");
   } else html = tree(tops);
   const filtered = q || jf.type || jf.style || jf.needs;
-  $("#jobs").innerHTML = html || `<p class="muted" style="padding:8px">${filtered ? "No match." : "No jobs yet. Click New."}</p>`;
+  container.innerHTML = html || `<p class="muted" style="padding:8px">${filtered ? "No matching jobs." : "No jobs yet. Choose New asset to start."}</p>`;
+  $$("details[data-group]", container).forEach(group => {
+    group.ontoggle = () => group.open ? collapsedJobGroups.delete(group.dataset.group) : collapsedJobGroups.add(group.dataset.group);
+  });
+  if (focusLink) $$("a.job", container).find(link => link.getAttribute("href") === focusLink)?.focus({preventScroll: true});
+  else if (focusGroup) $$("details[data-group]", container).find(group => group.dataset.group === focusGroup)
+    ?.querySelector("summary")?.focus({preventScroll: true});
 }
+const collapsedJobGroups = new Set();
 function saveJf() { try { localStorage.setItem("sw.jobfilters", JSON.stringify(jf)); } catch {} loadJobs(); }
 function stepDone(step, stages) {
   const st = k => stages[k]?.status ?? stages[k];
@@ -1069,7 +1135,7 @@ async function showCamera(j) {
   if ($("#cProjClear")) $("#cProjClear").onclick = async () => {
     if (!confirm("Remove the project's camera profile? Assets fall back to their game profile's values.")) return;
     await api("/api/project/camera", {camera: null}); done("Project camera profile removed"); };
-  if (!d.open) d.showModal();
+  openWorkspaceDialog(d);
 }
 
 // Turntable: read-only. Spins through an asset's views in yaw order; snap or crossfade between the
@@ -1161,7 +1227,7 @@ async function showTurntable(j, action) {
   $("#tMir").onchange = e => { st.mirrored = e.target.checked; draw(); };
   $("#tFoot").onchange = e => { st.foot = e.target.checked; draw(); };
   $("#tSpeedV").textContent = `${st.speed}°/s`;
-  d.showModal(); draw(); requestAnimationFrame(tick);
+  openWorkspaceDialog(d); draw(); requestAnimationFrame(tick);
 }
 
 // --- job page ----------------------------------------------------------------------------
@@ -1198,6 +1264,7 @@ function renderJob() {
   $("#main").classList.toggle("smooth", j.style !== "pixel");
   const canVary = st("facings") === "approved" && !["item", "effect", "prop"].includes(j.asset_type);
   const itemReady = j.asset_type === "item" && st("facings") === "approved";
+  const settingsOpen = $("#jobSettings")?.open && $("#jobSettings").dataset.job === jobPath();
   $("#main").innerHTML = `
     <div class="jobhead">
       ${thumb ? `<img src="${esc(thumb)}" alt="">` : ""}
@@ -1206,32 +1273,30 @@ function renderJob() {
       <span class="spacer"></span>
       ${canVary ? `<button id="jVariant" title="This character with one change: fit one of your items, add clothing, swap a weapon. Keeps every pose of this job">Make a variant…</button>` : ""}
       ${j.asset_type === "item" ? `<button ${itemReady ? 'class="primary"' : "disabled"} id="jFit" title="${itemReady ? "Put this item on a character or base body" : "Approve the front and back first (Facings)"}">Fit on…</button>` : ""}
-      <button class="danger" id="jArchive" title="Move to jobs/_archive">Archive</button>
     </div>
-    ${j.asset_type === "tileset" ? "" : `<div class="jobsettings">
-      <label>Profile <select id="jProfile"><option value="">default</option>
-        ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
-        <button class="ghost" id="jSizes" title="Cell size, sprite height, palette size, fps…">Sizes…</button></label>
-      <label title="Art style for new generations; generate a new anchor after switching">Style
+    <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
+      <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
+    <details id="jobSettings" class="jobsettings" data-job="${esc(jobPath())}" ${settingsOpen ? "open" : ""}>
+      <summary>Job settings</summary>
+      ${j.asset_type === "tileset" ? "" : `<div class="jobsettings-fields" style="margin-top:.65rem">
+      <label class="field">Game profile <select id="jProfile"><option value="">Built-in defaults</option>
+        ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+      <label class="field" title="Art style for new generations; generate a new anchor after switching">Art style
         <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
-      <label title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompt writer
+      <label class="field" title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompt writer
         <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
+      </div><div class="row">
+      <button id="jSizes" title="Cell size, sprite height, palette size, fps…">Profile sizes…</button>
       <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
       ${j.inputs.style_guide ? '<button class="ghost" id="jProjectStyle" aria-haspopup="dialog">Saved style guide…</button>' : ""}
       <button class="ghost" id="jStyleCheck" aria-haspopup="dialog">Check project style…</button>
-    </div>`}
-    <nav class="tabs" aria-label="Job stages">${steps.map((s, i) => `<button class="tab ${s === tab ? "on" : ""}" data-tab="${s}" ${s === tab ? 'aria-current="step"' : ""}>
-      <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
+      </div>`}
+      <div class="row"><button class="danger" id="jArchive" title="Move to jobs/_archive">Archive this job…</button></div>
+    </details>
     <div id="pane"></div>`;
   ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack, tileset: paneTileset})[tab](j, st);
-  $$(".tab").forEach(b => b.onclick = () => {
-    tab = b.dataset.tab;
-    setHash();
-    lastSig = JSON.stringify(j) + tab;
-    renderJob();
-    $(".tab.on").focus({preventScroll: true});
-  });
+  $$(".tab").forEach(b => b.onclick = () => goToStage(b.dataset.tab));
   if (j.asset_type !== "tileset") {
     $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
     $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
@@ -1250,13 +1315,22 @@ function renderJob() {
       ${guide.target_engine ? `<dt>Target engine</dt><dd>${esc(guide.target_engine)}</dd>` : ""}
       ${guide.art_direction ? `<dt>Art direction</dt><dd class="project-style-notes">${esc(guide.art_direction)}</dd>` : ""}</dl>
       <form method="dialog"><button>Close</button></form>`;
-    d.showModal();
+    openWorkspaceDialog(d);
   };
   if ($("#jVariant")) $("#jVariant").onclick = () => showVariant(j);
   if ($("#jFit") && itemReady) $("#jFit").onclick = () => showFitOn(j);
   $("#jArchive").onclick = async () => {
     if (!confirm(`Archive ${j.character}/${j.job_id}? It moves to jobs/_archive and can be moved back.`)) return;
     await api(jobPath() + "/archive", {}); toast("Job archived"); location.hash = ""; };
+}
+
+function goToStage(stage) {
+  tab = stage;
+  setHash();
+  lastSig = JSON.stringify(job) + tab;
+  renderJob();
+  $("#main").scrollTop = 0;
+  $(".tab.on").focus();
 }
 
 // Make a variant: one of three ways (audit #9), so only the fields that matter are shown.
@@ -1292,7 +1366,7 @@ function showVariant(j) {
       location.hash = `${r.character}/${r.job_id}/anchor`;
     };
   };
-  draw(); d.showModal();
+  draw(); openWorkspaceDialog(d);
 }
 
 // Fit on…: the same fit, started from the item (audit #4). Any job with approved facings can wear it.
@@ -1317,7 +1391,7 @@ function showFitOn(item) {
     d.close(); toast(`Fitting on ${c}: rendering its anchor`);
     location.hash = `${r.character}/${r.job_id}/anchor`;
   };
-  d.showModal();
+  openWorkspaceDialog(d);
 }
 
 const anchorReferenceDrafts = new Map();
@@ -1427,7 +1501,7 @@ function paneAnchor(j, st) {
     run("anchor", args, "Anchor queued");
   };
   if ($("#apAnchor")) $("#apAnchor").onclick = () => approve("anchor");
-  if ($("#nextStep")) $("#nextStep").onclick = () => { tab = (STEPS[j.asset_type] || STEPS.character)[1]; setHash(); renderJob(); };
+  if ($("#nextStep")) $("#nextStep").onclick = () => goToStage((STEPS[j.asset_type] || STEPS.character)[1]);
   $("#genAnchor").onclick = ((go) => () => {
     if (st("anchor") === "approved" && !confirm("Draw a new anchor? The current one is kept as a take, and the approval is reset.")) return;
     go();
@@ -1500,6 +1574,7 @@ function paneAnimations(j, st) {
         <label>Source <select id="src"><option value="">H3 render</option>
           ${j.motions.map(m => `<option value="flow|${esc(m)}" ${form.source === "flow|" + m ? "selected" : ""}>flow · ${esc(m)} (experimental)</option>
             <option value="tara|${esc(m)}" ${form.source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
+        <div><button id="animLibrary" type="button" aria-haspopup="dialog">Motion library…</button></div>
         <label>Clip length <input id="secs" type="number" value="${form.seconds}" min="1" max="8" step="0.5" style="width:70px"> s</label>
         ${mirrorPolicyHtml(j)}
         ${(j.inputs.mirror_policy || "legacy") === "legacy"
@@ -1541,6 +1616,7 @@ function paneAnimations(j, st) {
   $("#fAll").onclick = () => { COMPASS.filter(Boolean).forEach(f => form.facings.add(f)); renderJob(); };
   $("#fNone").onclick = () => { form.facings.clear(); renderJob(); };
   $("#src").onchange = e => { form.source = e.target.value; renderJob(); };
+  $("#animLibrary").onclick = showLibrary;
   $("#secs").onchange = e => form.seconds = +e.target.value || 2;
   if ($("#mirror")) $("#mirror").onchange = e => { form.mirror = e.target.checked; renderJob(); };
   bindMirrorPolicy(j);
@@ -1604,7 +1680,7 @@ function showAnim(a) {
     ${(r.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
     ${r.fallback ? `<p class="warn">${esc(r.fallback)}</p>` : ""}
     ${r.identity_drift ? `<p class="muted">identity drift ${r.identity_drift.mean} (max ${r.identity_drift.max})</p>` : ""}
-    ${a.clip ? `<p><a href="${esc(a.clip)}" data-view="Clip ${esc(a.action)} ${esc(a.facing)}"><button class="ghost">▶ play clip</button></a></p>` : ""}
+    ${a.clip ? `<p><a class="button-link ghost" href="${esc(a.clip)}" data-view="Clip ${esc(a.action)} ${esc(a.facing)}">Play clip</a></p>` : ""}
     ${a.takes?.length ? `<h3>Earlier clips</h3>${takesHtml(a.takes, `03_actions/${a.facing}/${a.action}/raw.mp4`, `Clip ${a.action} ${a.facing}`)}` : ""}
     ${a.contact ? `<h3>Source frames</h3><a href="${esc(a.contact)}" data-view="Source frames"><img class="pix" src="${esc(a.contact)}" style="max-width:100%"></a>` : ""}
     ${(a.sets["12f"].frames || []).length ? `<h3>Effect <span class="muted">a spell, a burst, a thrown object: a separate sprite, an event in the export</span></h3>
@@ -1629,7 +1705,7 @@ function showAnim(a) {
       <input id="dLibName" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
       <button id="dLib" ${a.has_clip ? "" : "disabled"} title="Reuse this clip's motion for other characters">Add to motion library</button>
     </div>`;
-  d.showModal();
+  openWorkspaceDialog(d);
   $("#dClose").onclick = () => d.close();
   $("#dTimeline").onclick = () => showTimeline(a);
   $("#dCheckExports").onclick = async event => {
@@ -1725,6 +1801,8 @@ function paneExport(j) {
   const groups = {};
   j.exports.forEach(e => (groups[e.group] ??= []).push(e));
   const ch = j.stages["export:character"], it = j.stages["export:item"];
+  const hasShowcaseMedia = j.facings.some(facing => facing.full) ||
+    j.actions.some(action => action.sets["12f"]?.has_frames);
   if (j.asset_type === "item") {
     $("#pane").innerHTML = `<section><h2>Export item <span id="exportFreshnessBadge" class="badge" ${it ? "" : "hidden"}>Built</span></h2>
       <p class="muted" style="margin-top:0">The item on its own (inventory icon, ground drop, shop picture): front and back as sprites at this
@@ -1751,10 +1829,11 @@ function paneExport(j) {
         <select id="eMax">${[2048, 4096, 8192].map(v => `<option ${v === form.maxSize ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label title="Leave exact colour-only mirrors of E/NE/SE out of the atlas. Facings with depth or normal maps are packed separately.">
         <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
-      <button class="primary" id="eGo">Export character</button>
+      <button class="primary" id="eGo" aria-describedby="eReadiness">Export character</button>
       <button id="eCheck">Check freshness</button>
       <button id="eRealign" hidden>Re-align feet</button>
     </div>
+    <p id="eReadiness" class="muted" role="status" hidden></p>
     <p id="exportStatus" class="muted" role="status" hidden></p>
     ${ch ? `<p class="muted">Last export: ${(ch.animations || []).length} animations, ${ch.colours} colours (${esc(ch.mode)})${ch.pages ? `, ${ch.pages} atlas page${ch.pages === 1 ? "" : "s"}${ch.mirror === "flip" ? ", mirrors flipped by the engine" : ""}` : ""}
       ${(ch.skipped || []).length ? `<br><span class="warn">skipped: ${esc(ch.skipped.join("; "))}</span>` : ""}</p>` : ""}
@@ -1762,8 +1841,9 @@ function paneExport(j) {
     <section><h2>Showcase GIF ${badge(j.stages["export:showcase"]?.status)}</h2>
       <p class="muted" style="margin-top:0">For showing people: a turnaround through every facing, then each saved action with all its facings playing at once.</p>
       <div class="row"><label>Size <select id="scSize">${[384, 512, 768].map(s => `<option ${s === (form.scSize || 512) ? "selected" : ""}>${s}</option>`).join("")}</select></label>
-        <button class="primary" id="scGo">Make showcase GIF</button>
-        ${j.showcase ? `<a href="${esc(j.showcase)}&download=1"><button>Download</button></a>` : ""}</div>
+        <button class="primary" id="scGo" ${hasShowcaseMedia ? "" : "disabled"}>Make showcase GIF</button>
+        ${j.showcase ? `<a class="button-link" href="${esc(j.showcase)}&download=1">Download GIF</a>` : ""}</div>
+      ${hasShowcaseMedia ? "" : '<p class="muted">Add a facing or processed 12-frame animation to make a showcase.</p>'}
       ${j.showcase ? `<img src="${esc(j.showcase)}" alt="showcase" style="margin-top:12px;max-width:min(100%,512px);border-radius:8px;display:block">` : ""}
     </section>
     <section><h2>Files</h2>
@@ -1780,7 +1860,14 @@ function paneExport(j) {
   if ($("#eGo")) {
     bindBundleCheck("/export_character", "character", "Export the character again.");
     $("#eRealign").onclick = () => run("align", {}, "Foot alignment queued");
-    $("#eSet").onchange = e => form.set = e.target.value;
+    function updateExportReadiness() {
+      const ready = j.actions.some(action => action.sets[form.set]?.has_frames);
+      $("#eGo").disabled = !ready;
+      $("#eReadiness").hidden = ready;
+      $("#eReadiness").textContent = ready ? "" : "Process an animation with the selected frame set to export.";
+    }
+    $("#eSet").onchange = e => { form.set = e.target.value; updateExportReadiness(); };
+    updateExportReadiness();
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
     $("#eMax").onchange = e => form.maxSize = +e.target.value;
     $("#eFlip").onchange = e => form.flip = e.target.checked;
@@ -1825,7 +1912,7 @@ function paneEffect(j, st) {
     <p id="exportStatus" class="muted" role="status" hidden></p>
     <div class="row" style="align-items:flex-start;margin-top:14px;gap:16px;flex-wrap:wrap">
       ${e.still ? `<figure><a href="${esc(e.still)}" data-view="First frame">${img(e.still, "first frame")}</a><figcaption>first frame</figcaption></figure>` : ""}
-      ${e.clip ? `<figure><a href="${esc(e.clip)}" data-view="Effect clip"><button class="ghost">▶ play clip</button></a><figcaption>H3 clip</figcaption></figure>` : ""}
+      ${e.clip ? `<figure><a class="button-link ghost" href="${esc(e.clip)}" data-view="Effect clip">Play clip</a><figcaption>H3 clip</figcaption></figure>` : ""}
       ${e.preview ? `<figure><img class="pix" src="${esc(e.preview)}" style="max-width:256px;border-radius:6px"><figcaption>${m.frames} frames · ${m.cell.join("×")} px · ${m.loop ? "loop" : "one-shot"} · ${esc(m.blend)}</figcaption></figure>` : ""}
       ${e.sheet ? `<figure><a href="${esc(e.sheet)}" data-view="Flipbook sheet"><img class="pix" src="${esc(e.sheet)}" style="max-width:256px;border-radius:6px"></a><figcaption>flipbook sheet ${m.sheet.cols}×${m.sheet.rows}</figcaption></figure>` : ""}
     </div>
@@ -1971,14 +2058,16 @@ function renderHome() {
     <p class="muted">Characters: anchor → 8 facings → animations → one .aseprite for Unity.<br>
       Equipment: make an <b>item</b> (front + back) and a <b>base body</b>, then <b>Fit on…</b> from the item, or <b>Make a variant…</b> from the body.<br>
       Sprite stacks (props): anchor → views → slices you can spin, rotation sheet, spin and build-up GIFs.</p>
-    ${!status.comfy || status.comfy.ok ? "" : `<p class="warn">ComfyUI is unavailable. You can still process existing frames. ${esc(status.comfy.detail)}</p>`}</div>`;
+    ${!status.comfy || status.comfy.ok ? "" : '<p class="warn">ComfyUI is offline. You can still edit and export existing assets.</p>'}</div>`;
   $$("[data-new]").forEach(b => b.onclick = () => showNew(b.dataset.new));
 }
 
 // --- queue + library ---------------------------------------------------------------------
 async function loadQueue() {
-  const ts = await api("/api/queue?status=" + qFilter);
-  $("#tasks").innerHTML = ts.map(t => {
+  const filter = qFilter;
+  const ts = await api("/api/queue?status=" + filter);
+  if (filter !== qFilter) return;
+  const markup = ts.map(t => {
     const [c, j] = t.job.split(/[\\/]/).slice(-2);
     const args = Object.entries(t.args).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : v}`).join(" ");
     return `<div class="task">${badge(t.status)} <b>${esc(t.stage)}</b> <span class="muted">${esc(t.resource)}</span>
@@ -1989,6 +2078,17 @@ async function loadQueue() {
       ${t.status === "queued" ? `<button class="ghost" data-cancel="${esc(t.id)}">Cancel</button>` : ""}
       ${["failed", "cancelled"].includes(t.status) ? `<button class="ghost" data-retry="${esc(t.id)}">Retry</button>` : ""}</div>`;
   }).join("") || `<p class="muted">Nothing here.</p>`;
+  const tasks = $("#tasks");
+  if (markup === loadQueue.markup) return;
+  loadQueue.markup = markup;
+  const active = tasks.contains(document.activeElement) ? document.activeElement : null;
+  const action = active?.dataset.cancel ? "cancel" : active?.dataset.retry ? "retry" : null;
+  const value = action && active.dataset[action];
+  tasks.innerHTML = markup;
+  if (action) {
+    const next = $$("[data-" + action + "]", tasks).find(button => button.dataset[action] === value);
+    (next || $("#qClose")).focus({preventScroll: true});
+  }
   $$("[data-cancel]").forEach(b => b.onclick = () => api(`/api/queue/${b.dataset.cancel}/cancel`, {}).then(loadQueue));
   $$("[data-retry]").forEach(b => b.onclick = () => api(`/api/queue/${b.dataset.retry}/retry`, {}).then(() => { toast("Queued again"); loadQueue(); }));
 }
@@ -2003,7 +2103,7 @@ async function showLibrary() {
       ${m.notes ? `<span class="muted">${esc(m.notes)}</span>` : ""}
       ${m.status === "approved" ? badge("approved") : `<button class="primary" data-mapprove="${esc(m.name)}">Approve</button>`}</div>`).join("")
       || `<p class="muted">No motions yet.</p>`}</div>`;
-  d.showModal();
+  openWorkspaceDialog(d);
   $("#dClose").onclick = () => d.close();
   $$("[data-mapprove]").forEach(b => b.onclick = async () => { await api(`/api/motions/${encodeURIComponent(b.dataset.mapprove)}/approve`, {}); toast("Motion approved"); showLibrary(); lastSig = ""; });
 }
@@ -2034,11 +2134,41 @@ function fromHash() {
 }
 
 // --- wiring ------------------------------------------------------------------------------
-function showQueue(open) {
+function showQueue(open, focus = false) {
   $("#queue").hidden = !open;
   $("#pQueue").setAttribute("aria-expanded", String(open));
+  if (focus) $(open ? "#qClose" : "#pQueue").focus({preventScroll: true});
 }
-$("#pQueue").onclick = () => showQueue($("#queue").hidden);
+$("#pQueue").onclick = () => showQueue($("#queue").hidden, true);
+$("#qClose").onclick = () => showQueue(false, true);
+const projectMenu = $("#projectMenu"), projectTrigger = $("summary", projectMenu);
+const systemStatus = $("#systemStatus"), statusTrigger = $("summary", systemStatus);
+const compactStatus = matchMedia("(max-width: 760px)");
+const syncSystemStatus = () => systemStatus.open = !compactStatus.matches;
+compactStatus.addEventListener("change", syncSystemStatus);
+syncSystemStatus();
+projectMenu.addEventListener("click", event => {
+  if (event.target.closest("nav button")) {
+    projectMenu.open = false;
+    projectTrigger.focus({preventScroll: true});
+  }
+}, {capture: true});
+document.addEventListener("click", event => {
+  if (projectMenu.open && !projectMenu.contains(event.target)) projectMenu.open = false;
+  if (compactStatus.matches && systemStatus.open && !systemStatus.contains(event.target)) systemStatus.open = false;
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape" || $("dialog[open]")) return;
+  if (projectMenu.open) {
+    projectMenu.open = false;
+    projectTrigger.focus({preventScroll: true});
+  } else if (compactStatus.matches && systemStatus.open) {
+    systemStatus.open = false;
+    statusTrigger.focus({preventScroll: true});
+  } else if (!$("#queue").hidden) {
+    showQueue(false, true);
+  }
+});
 $("#btnLib").onclick = showLibrary;
 $("#search").oninput = loadJobs;
 $("#jfSort").value = jf.sort || "recent"; $("#jfNeeds").checked = !!jf.needs; $("#jfGroup").checked = !!jf.group;
@@ -2057,7 +2187,14 @@ $("#btnAbout").onclick = () => {
   $("#aboutVersion").textContent = status.version ? `Version ${status.version}` : "";
   $("#aboutDialog").showModal();
 };
-$$("#qFilter button").forEach(b => b.onclick = () => { qFilter = b.dataset.f; $$("#qFilter button").forEach(x => x.classList.toggle("on", x === b)); loadQueue(); });
+$$("#qFilter button").forEach(b => b.onclick = () => {
+  qFilter = b.dataset.f;
+  $$("#qFilter button").forEach(x => {
+    x.classList.toggle("on", x === b);
+    x.setAttribute("aria-pressed", String(x === b));
+  });
+  loadQueue();
+});
 $("#qClear").onclick = async () => { const r = await api("/api/queue/clear", {}); toast(`Removed ${r.removed} finished tasks`); loadQueue(); };
 window.addEventListener("hashchange", () => { fromHash(); poll([refreshAll]); });
 fromHash();
@@ -2073,6 +2210,7 @@ async function poll(fns) {
       offline = true;
       $("#pComfy .dot").className = "dot bad"; $("#pComfy").lastChild.textContent = "SpriteWaffle server offline";
       $("#pWorker .dot").className = "dot bad"; $("#pWorker").lastChild.textContent = "start: spritewaffle ui";
+      $("#systemStatus summary .dot").className = "dot bad";
     }
   }
 }
