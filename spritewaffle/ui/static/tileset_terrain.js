@@ -29,12 +29,15 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
             <select id="terrainCellMode">
               <option value="terrain">Paint terrain</option>
               <option value="tile">Place selected tile</option>
+              <option value="stamp" hidden>Place module</option>
               <option value="empty">Leave empty</option>
               <option value="restore">Restore terrain</option>
             </select>
           </label>
           <button type="button" id="terrainPaint">Paint cell</button>
         </div>
+        <label class="field" id="terrainModuleField" hidden>Module <select id="terrainModule"></select></label>
+        <p id="terrainStampError" class="warn" role="alert" hidden></p>
         <p id="terrainOverrideHint" class="hint" hidden></p>
         <details id="terrainObjectPanel"></details>
         <h3 id="terrainMapsHeading">Saved maps</h3>
@@ -60,6 +63,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   const corners = [...panel.querySelectorAll("[data-corner]")], cellInput = find("#terrainCell");
   const mapList = find("#terrainMapList"), mapName = find("#terrainMapName");
   const cellMode = find("#terrainCellMode"), cellButton = find("#terrainPaint"), overrideHint = find("#terrainOverrideHint");
+  const moduleSelect = find("#terrainModule");
   let cols = 8, rows = 6;
   const lattice = (name = null, width = cols, height = rows) =>
     Array.from({length: height + 1}, () => Array(width + 1).fill(name));
@@ -100,10 +104,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   }
 
   function updateCellTool() {
-    const labels = {terrain: "Paint cell", tile: "Place tile " + tile, empty: "Leave cell empty", restore: "Restore cell"};
+    const labels = {terrain: "Paint cell", tile: "Place tile " + tile, stamp: "Stamp module", empty: "Leave cell empty", restore: "Restore cell"};
     const stale = overrideAtlas && overrideAtlas !== state.atlas_revision;
+    find("#terrainModuleField").hidden = cellMode.value !== "stamp";
     cellButton.textContent = labels[cellMode.value];
-    cellButton.disabled = (cellMode.value === "terrain" && !brush.value) || (cellMode.value === "tile" && !!stale);
+    cellButton.disabled = (cellMode.value === "terrain" && !brush.value) || (cellMode.value === "tile" && !!stale)
+      || (cellMode.value === "stamp" && (!moduleSelect.value || !!stale));
     overrideHint.hidden = !stale;
     overrideHint.textContent = stale ? "The tile sheet changed. Restore the marked cells before placing tiles from this sheet." : "";
   }
@@ -122,14 +128,14 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     mapControls();
   }
 
-  async function mapAction(action) {
+  async function mapAction(action, report = mapError) {
     if (mapWorking) return;
     mapWorking = true;
     find("#terrainMapControls").disabled = true;
     objects.locked(true);
-    mapError();
+    report();
     try { await action(); }
-    catch (cause) { mapError(cause.message); }
+    catch (cause) { report(cause.message); }
     finally {
       find("#terrainMapControls").disabled = false;
       objects.locked(false);
@@ -213,6 +219,17 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   function paint(id) {
     if (mapWorking || cellButton.disabled || !Number.isInteger(id) || id < 0 || id >= cols * rows) return;
     cellInput.value = id;
+    if (cellMode.value === "stamp") {
+      cellButton.disabled = true;
+      mapAction(async () => {
+        const placed = await request("/stamp", {name: moduleSelect.value, cell: id, vertices, overrides,
+          override_atlas: overrideAtlas, revision: state.revision});
+        overrides = placed.overrides;
+        overrideAtlas = placed.override_atlas;
+        editMap(vertices);
+      }, stampError).finally(updateCellTool);
+      return;
+    }
     switch (cellMode.value) {
       case "terrain": {
         const x = id % cols, y = Math.floor(id / cols);
@@ -234,6 +251,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     error();
     updateCellTool();
     editMap(vertices);
+  }
+
+  function stampError(message = "") {
+    const notice = find("#terrainStampError");
+    notice.textContent = message;
+    notice.hidden = !message;
   }
 
   function selectTile(id, reset = false) {
@@ -284,6 +307,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     }
     const before = rules.colors;
     rules = next.tileset.terrain || {colors: [], tiles: {}};
+    const modules = next.tileset.modules || [];
+    const selection = moduleSelect.value;
+    moduleSelect.replaceChildren(...modules.map(item => new Option(`${item.name} · ${item.width} × ${item.height}`, item.name)));
+    if (modules.some(item => item.name === selection)) moduleSelect.value = selection;
+    cellMode.querySelector('option[value="stamp"]').hidden = !modules.length;
+    if (!modules.length && cellMode.value === "stamp") cellMode.value = "terrain";
     if (JSON.stringify(before) !== JSON.stringify(rules.colors)) names.value = rules.colors.join("\n");
     find("#terrainCorners").hidden = !rules.colors.length;
     find("#terrainPreview").hidden = false;
@@ -314,7 +343,8 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     updateCellTool();
     editMap(lattice());
   };
-  cellMode.onchange = updateCellTool;
+  cellMode.onchange = () => { stampError(); updateCellTool(); };
+  moduleSelect.onchange = () => { stampError(); updateCellTool(); };
   cellButton.onclick = () => paint(cellInput.valueAsNumber);
   mapList.onchange = mapControls;
   mapName.oninput = () => {

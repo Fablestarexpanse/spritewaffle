@@ -416,6 +416,23 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError) as error:
             bad(error)
 
+    @app.post("/api/jobs/{char}/{jid}/tileset/modules")
+    def save_tileset_module(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.save_module(j, body.get("name"), body.get("start"), body.get("end"),
+                                                      body.get("revision")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/stamp")
+    def stamp_tileset_module(char: str, jid: str, body: dict = Body(...)):
+        try:
+            return tileset.stamp(job_or_404(char, jid), body.get("name"), body.get("cell"), body.get("vertices"),
+                                 body.get("overrides"), body.get("override_atlas"), body.get("revision"))
+        except (ValueError, OSError) as error:
+            bad(error)
+
     @app.get("/api/jobs/{char}/{jid}/tileset/maps")
     def list_tilemaps(char: str, jid: str):
         try:

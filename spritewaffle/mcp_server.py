@@ -405,7 +405,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 grid: dict | None = None, tile: int | None = None, solid: bool = True,
                 revision: str | None = None, terrain: dict | None = None,
                 vertices: list[list[str | None]] | None = None, frames: list[dict] | None = None,
-                overrides: dict | None = None, override_atlas: str | None = None, allow_unknown: bool = False) -> dict:
+                overrides: dict | None = None, override_atlas: str | None = None, allow_unknown: bool = False,
+                module: dict | None = None) -> dict:
         """Import, inspect, edit, preview, or export a local PNG tileset.
 
         Import takes a local path and grid with tile_width, tile_height, margin and spacing.
@@ -414,6 +415,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         Animation takes a tile ID and ordered frames with tile and duration_ms. Pass [] to clear.
         Preview resolves cells from a rectangular vertex lattice of terrain names or null.
         It accepts manual cell overrides and their atlas binding from a saved map.
+        Module takes a module object with name, start, and end atlas corner IDs.
+        Stamp takes a module object with name, cell, vertices, and optional overrides,
+        override_atlas, and revision. It returns overrides for the map draft.
         Export writes the PNG and two metadata files to the job's 06_export/tileset folder.
         """
         from .core import tileset as workspace
@@ -437,7 +441,14 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if operation == "preview":
             return workspace.preview(job, vertices, revision, allow_unknown=allow_unknown,
                                      overrides=overrides, override_atlas=override_atlas)
-        raise ValueError("Choose import, inspect, collision, terrain, animation, preview, or export.")
+        if operation == "module":
+            options = module or {}
+            return workspace.save_module(job, options.get("name"), options.get("start"), options.get("end"), revision)
+        if operation == "stamp":
+            options = module or {}
+            return workspace.stamp(job, options.get("name"), options.get("cell"), options.get("vertices"),
+                                   options.get("overrides"), options.get("override_atlas"), options.get("revision", revision))
+        raise ValueError("Choose import, inspect, collision, terrain, animation, preview, module, stamp, or export.")
 
     @mcp.tool()
     def tilemap(character: str, job_id: str, operation: str = "list", map_id: str | None = None,

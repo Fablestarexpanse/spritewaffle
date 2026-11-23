@@ -8,6 +8,7 @@ function paneTileset() {
     <nav class="row tileset-navigation" id="tileNavigation" aria-label="Tileset tools" hidden>
       <button type="button" data-tile-jump="sheet">Tile sheet</button>
       <button type="button" data-tile-jump="animation">Tile animation</button>
+      <button type="button" data-tile-jump="modules">Tile modules</button>
       <button type="button" data-tile-jump="terrain">Terrain rules</button>
       <button type="button" data-tile-jump="map">Map preview</button>
       <button type="button" data-tile-jump="objects">Map objects</button>
@@ -40,6 +41,7 @@ function paneTileset() {
       </div>
     </div>
     <div id="tileAnimationPanel" hidden></div>
+    <div id="tileModulePanel" hidden></div>
     <div id="terrainPanel" hidden></div>
   </section>`;
   const root = pane.querySelector("#tileWorkspace");
@@ -50,6 +52,7 @@ function paneTileset() {
   let state, active = 0, scale = 1;
   const animation = bindTilesetAnimation(find("#tileAnimationPanel"), request, image, result => render(result),
     () => terrain.draw());
+  const modules = bindTilesetModules(find("#tileModulePanel"), request, image, result => render(result), () => active);
   const terrain = bindTilesetTerrain(find("#terrainPanel"), route, request, image, result => render(result),
     animation.frameFor);
   const keys = ["tile_width", "tile_height", "margin", "spacing"];
@@ -106,6 +109,7 @@ function paneTileset() {
     const record = result.tileset;
     if (result.preview && image.getAttribute("src") !== result.preview) image.src = result.preview;
     animation.sync(result);
+    modules.sync(result);
     terrain.sync(result);
     find("#tileControls").hidden = !record;
     find("#tileNavigation").hidden = !record;
@@ -141,6 +145,7 @@ function paneTileset() {
     canvas.height = Math.max(1, Math.round(height * scale));
     redraw();
     animation.draw();
+    modules.draw();
     terrain.draw();
   };
   image.onerror = () => error("The retained PNG could not be displayed. Import it again.");
@@ -156,7 +161,7 @@ function paneTileset() {
     }
   };
   selection.onchange = () => select(selection.valueAsNumber);
-  const sections = {sheet: "#tileSheetHeading", animation: "#tileAnimationPanel h2", terrain: "#terrainPanel h2",
+  const sections = {sheet: "#tileSheetHeading", animation: "#tileAnimationPanel h2", modules: "#tileModulePanel h2", terrain: "#terrainPanel h2",
     map: "#terrainPreview h3", objects: "#terrainObjectPanel summary", maps: "#terrainMapsHeading"};
   root.querySelectorAll("[data-tile-jump]").forEach(button => {
     button.onclick = () => {

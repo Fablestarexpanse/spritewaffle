@@ -253,6 +253,31 @@ Override keys are zero-based cell numbers in row order. Each value is an atlas t
 `/api/jobs/{character}/{job}/tileset/maps` expose the same operations. ZIPs are written under
 the job's `06_export/maps/` folder.
 
+#### Tile modules
+
+Open **Tile modules** after importing a sheet. Choose two corner tile IDs, preview the
+rectangle, and save it under a unique name. Each module can cover up to 16 × 16 tiles.
+Use **Map preview → Cell action → Place module** to select the module and position its
+top-left corner. A transparent atlas slot leaves that map cell intact. The entire
+module must fit inside the map. Placement changes the draft, which you save with
+**Save map**.
+
+The tileset export includes the module definitions in SpriteWaffle JSON. In Tiled,
+each placed tile appears on the map's ground layer with its existing collision and
+animation metadata.
+
+```powershell
+spritewaffle tileset module --job meadow/v1 --file module.json
+spritewaffle tileset stamp --job meadow/v1 --file stamp.json
+```
+
+`module.json` takes `name`, `start`, and `end`, such as
+`{"name":"Workshop doorway","start":0,"end":6}`. A stamp takes `name`, `cell`, and
+`vertices`, with optional `overrides`, `override_atlas`, and `revision`. It returns
+updated placement overrides to include when saving a map. Use the same payload as
+the `module` argument in the MCP `tileset` tool. The HTTP routes are
+`POST /tileset/modules` and `POST /tileset/stamp` under the job.
+
 #### Stateful map objects
 
 Open **Map objects** inside the map editor. Enter the object name, type, and zero-based

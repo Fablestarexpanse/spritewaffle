@@ -22,6 +22,8 @@ MAX_DIMENSION = 4096
 MAX_TILES = 4096
 MAX_ANIMATION_FRAMES = 64
 MAX_FRAME_DURATION_MS = 60_000
+MAX_MODULES = 64
+MAX_MODULE_SIDE = 16
 FILES = ("tiles.png", "tileset.json", "tileset.tsj")
 
 
@@ -75,6 +77,8 @@ def _read(directory: Path) -> dict | None:
             raise ValueError("The stored tile animations are invalid.")
         for frames in animations.values():
             _validate_frames(frames, count)
+    if "modules" in record:
+        _validate_modules(record["modules"], count)
     return record
 
 
@@ -138,7 +142,7 @@ def import_bytes(job: Job, data: bytes, filename: str, values: dict) -> dict:
         previous = _read(directory)
         if previous and (previous["digest"], previous["grid"]) == (digest, grid):
             record["solid_tiles"] = previous["solid_tiles"]
-            for key in ("terrain", "animations"):
+            for key in ("terrain", "animations", "modules"):
                 if key in previous:
                     record[key] = previous[key]
         elif previous:
@@ -248,6 +252,87 @@ def _atlas_revision(record: dict) -> str:
     return _revision({key: record[key] for key in ("digest", "grid")})
 
 
+def _module_name(value: str) -> str:
+    if not isinstance(value, str) or not 1 <= len(value.strip()) <= 64 or len(value.strip().splitlines()) != 1:
+        raise ValueError("Enter a module name of 1 to 64 characters on one line.")
+    return value.strip()
+
+
+def _validate_modules(modules: list, count: int) -> None:
+    if not isinstance(modules, list) or len(modules) > MAX_MODULES:
+        raise ValueError("The saved tile module list is invalid.")
+    names = set()
+    for module in modules:
+        if not isinstance(module, dict) or set(module) != {"name", "width", "height", "tiles"}:
+            raise ValueError("A saved tile module has an unsupported format.")
+        name = _module_name(module["name"]).casefold()
+        if name in names:
+            raise ValueError("Tile module names must be unique.")
+        names.add(name)
+        width, height, rows = module["width"], module["height"], module["tiles"]
+        if (type(width) is not int or type(height) is not int or not 1 <= width <= MAX_MODULE_SIDE
+                or not 1 <= height <= MAX_MODULE_SIDE or not isinstance(rows, list) or len(rows) != height
+                or any(not isinstance(row, list) or len(row) != width for row in rows)):
+            raise ValueError("A saved tile module has invalid dimensions.")
+        cells = [tile for row in rows for tile in row if tile is not None]
+        if not cells or any(type(tile) is not int or not 0 <= tile < count for tile in cells):
+            raise ValueError("A saved tile module contains invalid atlas tiles.")
+
+
+def save_module(job: Job, name: str, start: int, end: int, revision: str | None = None) -> dict:
+    name = _module_name(name)
+    with _edit(job, revision) as record:
+        modules = record.setdefault("modules", [])
+        if len(modules) >= MAX_MODULES:
+            raise ValueError(f"A tileset can hold up to {MAX_MODULES} modules.")
+        if any(module["name"].casefold() == name.casefold() for module in modules):
+            raise ValueError("A module already has that name.")
+        grid = record["grid"]
+        cols = grid["columns"]
+        if any(type(tile) is not int or not 0 <= tile < cols * grid["rows"] for tile in (start, end)):
+            raise ValueError("Choose two corner tile IDs inside the atlas.")
+        y0, y1 = sorted(tile // cols for tile in (start, end))
+        x0, x1 = sorted(tile % cols for tile in (start, end))
+        width, height = x1 - x0 + 1, y1 - y0 + 1
+        if max(width, height) > MAX_MODULE_SIDE:
+            raise ValueError(f"A module can cover at most {MAX_MODULE_SIDE} × {MAX_MODULE_SIDE} tiles.")
+        empty = set(record["empty_tiles"])
+        rows = [[None if tile in empty else tile for tile in range(y * cols + x0, y * cols + x1 + 1)]
+                for y in range(y0, y1 + 1)]
+        if all(tile is None for row in rows for tile in row):
+            raise ValueError("Choose a region with at least one visible tile.")
+        modules.append({"name": name, "width": width, "height": height, "tiles": rows})
+    return inspect(job)
+
+
+def stamp(job: Job, name: str, cell: int, vertices: list, overrides: dict | None = None,
+          override_atlas: str | None = None, revision: str | None = None) -> dict:
+    name = _module_name(name)
+    record = _read(_workspace(job))
+    if record is None:
+        raise ValueError("Import a tile sheet first.")
+    if revision is not None and revision != _revision(record):
+        raise ValueError("The tileset changed. Reload it before placing the module.")
+    module = next((item for item in record.get("modules", []) if item["name"].casefold() == name.casefold()), None)
+    if module is None:
+        raise ValueError("Choose a module saved on this tileset.")
+    layout = _preview(record, vertices, allow_unknown=True, overrides=overrides, override_atlas=override_atlas)
+    if layout.get("invalid_overrides"):
+        raise ValueError("Restore outdated placements before stamping a module.")
+    width, height = layout["width"], layout["height"]
+    if type(cell) is not int or not 0 <= cell < width * height:
+        raise ValueError("Choose a starting cell inside the map.")
+    row, col = divmod(cell, width)
+    if col + module["width"] > width or row + module["height"] > height:
+        raise ValueError("The whole module must fit inside the map.")
+    edited = dict(overrides or {})
+    for y, line in enumerate(module["tiles"]):
+        for x, tile in enumerate(line):
+            if tile is not None:
+                edited[str((row + y) * width + col + x)] = tile
+    return {"overrides": edited, "override_atlas": _atlas_revision(record)}
+
+
 def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
              overrides: dict | None = None, override_atlas: str | None = None) -> dict:
     result = terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown)
@@ -285,7 +370,7 @@ def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
     return receipt.snapshot(job.root, [_source(directory, record)],
-                            {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations")
+                            {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations", "modules")
                              if key in record})
 
 
@@ -337,6 +422,8 @@ def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
     if rules := record.get("terrain"):
         native["terrain"] = rules
         tiled["wangsets"] = [terrain.tiled_wangset(rules)]
+    if modules := record.get("modules"):
+        native["modules"] = modules
     return native, tiled
 
 

@@ -23,7 +23,7 @@ setup         doctor, profile, project-style, project-palette, project-reference
 character     anchor -> approve -> facings -> approve -> animate (or action) -> export-character
               also: mirror, bridge, archive
 props         anchor --asset-type prop -> approve -> ortho -> stack   (sprite stacking)
-tilesets      tileset import -> tileset collision / terrain / animation / preview -> tileset export
+tilesets      tileset import -> collision / terrain / animation / module / stamp -> tileset export
 video->art    run (all of): extract, sheet, select, pixelize, qa, export
 motion lib    motion, transfer (TARA), flow (pixel-exact)          [experimental]
 services      ui (web app), worker, queue, mcp
@@ -85,16 +85,24 @@ def cmd_tileset(a):
                 raise ValueError("Pass either --file with JSON animation frames or --clear.")
             frames = [] if a.clear else json.loads(Path(a.file).read_text(encoding="utf-8"))
             result = tileset.update_animation(job, a.tile, frames)
-        elif a.operation in ("terrain", "preview"):
+        elif a.operation in ("terrain", "preview", "module", "stamp"):
             if not a.file:
-                raise ValueError("Pass --file with JSON terrain rules or preview vertices.")
+                raise ValueError("Pass --file with JSON terrain rules, vertices, or a module request.")
             data = json.loads(Path(a.file).read_text(encoding="utf-8"))
             if a.operation == "terrain":
                 result = tileset.update_terrain(job, data)
-            else:
+            elif a.operation == "preview":
                 draft = data if isinstance(data, dict) else {"vertices": data}
                 result = tileset.preview(job, draft.get("vertices"), allow_unknown=draft.get("allow_unknown") is True,
                                          overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"))
+            elif not isinstance(data, dict):
+                raise ValueError("A module request must be a JSON object.")
+            elif a.operation == "module":
+                result = tileset.save_module(job, data.get("name"), data.get("start"), data.get("end"),
+                                             data.get("revision"))
+            else:
+                result = tileset.stamp(job, data.get("name"), data.get("cell"), data.get("vertices"),
+                                       data.get("overrides"), data.get("override_atlas"), data.get("revision"))
         else:
             result = tileset.inspect(job)
     _print(result)
@@ -723,8 +731,9 @@ def build() -> argparse.ArgumentParser:
         (("--query",), {"action": "append", "default": [], "help": "query parameter as NAME=VALUE"}))
 
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
-        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "export")}), JOB,
-        (("--file",), {"help": "source PNG for import, JSON for terrain, animation or preview"}),
+        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "module",
+                                      "stamp", "export")}), JOB,
+        (("--file",), {"help": "source PNG for import, JSON for terrain, animation, preview or module placement"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),

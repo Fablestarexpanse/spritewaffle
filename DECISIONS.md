@@ -1,6 +1,10 @@
-NEXT: Improve modular tileset authoring and export validation for game engines.
+NEXT: Export individual modular sections with collision and pivot metadata.
 
 # SpriteWaffle decisions log
+
+- Modular sections use rectangles from a retained atlas. Save the tile IDs in SpriteWaffle tileset metadata and stamp them into existing map drafts as manual placements. Transparent atlas cells preserve the ground below. Refuse placements that cross map boundaries, and keep source art intact. Tiled receives the placed tiles through its established map format.
+- Baseline `f8842c6` was 335 passing Python tests in 133.95 s. The module tests failed on the missing HTTP and CLI operations before implementation. Chromium then authored and placed a 3 × 2 doorway twice in a 48-cell workshop, refused a placement across the map edge, and reopened the saved draft. Layout passed at 1440, 800, and 390 px. Tiled 1.12.2 imported, re-exported, and rendered the map with both doorways and their original ground. Fifteen focused Python and eight Node tests passed.
+- The full suite passed 337 Python tests in 127.78 s with the existing Starlette warning.
 
 - The owner clarified that SpriteWaffle is for asset production. Its previews help creators inspect artwork, animation, layout, and exported metadata. The game engine handles movement, interaction logic, and runtime collision. Replace the playable-preview milestone with modular tileset authoring and export validation.
 

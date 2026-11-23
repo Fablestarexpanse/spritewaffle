@@ -12,7 +12,7 @@ SpriteWaffle creates, edits, validates, and exports assets. Preview tools help c
 | Production reliability | Queue recovery and QA exist. Action and character exports have separate writers. | Character, action, item, and effect bundles have local freshness receipts. Action processing tracks imported and generated clips, mirrors, optical-flow inputs, and palettes. Palette-only rebuilds retain the source selection. Tracked alignment guards character exports and keeps auxiliary maps, pivots, and effect points registered to the colour frames. |
 | Animation and editing | Frame extraction, selection, pixel processing, takes, and animated preview exist. | The timeline supports timing, onion skins, ranges, tags, and pose markers. The comparison supports local reprocessing, whole-pixel offsets, and alignment to a reference foot. Saved edits are reversible and flow into QA or export metadata as appropriate. |
 | Project style | Job palettes, game profiles, camera defaults and overrides, and directional manifests exist. | Delivered style defaults, palettes, read-only consistency checks, and portable reference collections. One selected library image can guide an anchor and is recorded in its provenance. Multi-image generation and family palette rules remain open. |
-| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain, manual tile placement, and objects with named states and reusable atlas-bound templates. Tiled 1.12.2 imported a workshop door and two instances of a harvestable resource. Improve modular tileset authoring and validate the artwork and metadata in exported packages. |
+| World assets | Props, effects, and asset-specific workflows exist. | Named maps support terrain, manual tile placement, reusable rectangular tile modules, and atlas-bound object templates with named states. Tiled 1.12.2 imported a workshop with stamped doorways. Export individual modular sections with collision and pivot metadata next. |
 | Advanced production | Item fits are flattened. Sprite stacks and an optional 3D template exist. Manifest map slots and arbitrary view metadata exist. | Prove layered equipment, higher-angle generation, and depth/normal generation independently using representative assets. |
 | Engine integration | PNG, atlas, JSON, GIF, and Aseprite writers exist. | Tiled import and rasterization verified for a single orthogonal tile layer. Validate engine-specific imports in Unity and Godot. LDtk remains open. |
 
@@ -42,3 +42,7 @@ files together. The Tiled layer stores 0 for empty cells and offsets local tile 
 external tileset's first global ID of 1. The native layer retains local IDs and the authored
 corner grid. Missing transitions block export and leave any previous ZIP in place.
 [Tiled global tile IDs](https://doc.mapeditor.org/en/stable/reference/global-tile-ids/)
+
+The module library lives in the tileset record. Map stamps use the existing manual tile
+placements. Tiled verified the stamped cells through a TMJ-to-TMX round trip and raster
+render. The SpriteWaffle tileset JSON retains the reusable definitions.

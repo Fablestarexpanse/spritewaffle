@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added reusable tile modules for modular asset authoring. Save a rectangle from the atlas and stamp it into a map draft, with transparent slots preserving the original ground.
 - Reorganized the workspace around the Home link, global New asset, Project menu, job stages, and contextual settings. Added direct Tileset navigation and fixed queue focus, grouped Terrain discovery, and empty export controls.
 - Added 28 named local `studio` operations shared by the browser, CLI, and MCP. Brought manual map preview controls and character export options into parity.
 - Shortened the README, added workspace screenshots, and moved detailed setup and workflows into the wiki.
