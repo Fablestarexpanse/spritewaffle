@@ -22,6 +22,8 @@ points come from the code.
 
 ## P2: painful
 
+**Status 2026-11-26:** #4 guide fixed (one project PPU). #5 done (no colour list in RGBA mode). #6 done (durations, fps/loop/flip_x_of in meta). #8 done as options (POT, extrude); Unity pivot convention still unverified in an editor. #10 documented (ship `06_export/character`, 21 MB of the hare's 183 MB); per-action previews still always written. Open: #7 collision shapes, #9 task-first docs.
+
 4. **Unity PPU guide = each profile's cell size**, so every asset gets a different texel density
    (cat 96, goblin 64, hare 384, tiles 16). This breaks Pixel Perfect Camera. → One project PPU.
 5. **Painted characters write a 345,331-entry "palette"** into the atlas JSON (5.6 MB, character.py

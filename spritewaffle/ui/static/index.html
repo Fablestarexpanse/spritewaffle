@@ -625,7 +625,7 @@ let status = {profiles: [], actions: [], asset_types: []};
 let jobsCache = [];
 let current = null, tab = null, job = null, lastSig = "", qFilter = "all";
 const form = {facings: new Set(["S", "E", "N", "W", "SE", "NE", "NW", "SW"]), actions: new Set(["idle", "walk"]),
-              seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24, maxSize: 4096, flip: false};
+              seconds: 2, source: "", mirror: true, set: "12f", includeFailed: false, stackH: 24, maxSize: 4096, flip: false, pot: false, extrude: 0};
 
 function openWorkspaceDialog(dialog) {
   const heading = $("h2", dialog);
@@ -1980,6 +1980,10 @@ function paneExport(j) {
         <select id="eMax">${[2048, 4096, 8192].map(v => `<option ${v === form.maxSize ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label title="Leave exact colour-only mirrors of E/NE/SE out of the atlas. Facings with depth or normal maps are packed separately.">
         <input type="checkbox" id="eFlip" ${form.flip ? "checked" : ""}> engine flips W/NW/SW</label>
+      <label title="Round atlas pages up to power-of-two sizes (older GPUs, mip maps)">
+        <input type="checkbox" id="ePot" ${form.pot ? "checked" : ""}> power-of-two pages</label>
+      <label title="Repeat each sprite's edge pixels outward so bilinear filtering or mip maps don't bleed in the neighbour. Pixel art with Point filtering doesn't need it.">Extrude
+        <select id="eExtrude">${[0, 1, 2].map(v => `<option ${v === form.extrude ? "selected" : ""}>${v}</option>`).join("")}</select> px</label>
       <button class="primary" id="eGo" aria-describedby="eReadiness">Export character</button>
       <button id="eCheck">Check freshness</button>
       <button id="eRealign" hidden>Re-align feet</button>
@@ -2022,9 +2026,12 @@ function paneExport(j) {
     $("#eFailed").onchange = e => form.includeFailed = e.target.checked;
     $("#eMax").onchange = e => form.maxSize = +e.target.value;
     $("#eFlip").onchange = e => form.flip = e.target.checked;
+    $("#ePot").onchange = e => form.pot = e.target.checked;
+    $("#eExtrude").onchange = e => form.extrude = +e.target.value;
     $("#eGo").onclick = async () => {
       const out = await api(jobPath() + "/export_character", {set: form.set, include_failed: form.includeFailed,
-                                                               max_size: form.maxSize, mirror: form.flip ? "flip" : "pack"});
+                                                               max_size: form.maxSize, mirror: form.flip ? "flip" : "pack",
+                                                               pot: form.pot, extrude: form.extrude});
       toast(`Exported ${out.animations.length} animations`); lastSig = ""; refreshAll();
     };
   }

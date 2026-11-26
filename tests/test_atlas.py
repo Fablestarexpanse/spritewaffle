@@ -81,3 +81,36 @@ def test_texturepacker_json(tmp_path):
             assert f["sourceSize"] == {"w": 64, "h": 64} and f["pivot"] == {"x": 0.5, "y": round(63 / 64, 6)}
         names |= set(d["frames"])
     assert len(names) == 30 * 12
+
+
+def test_pot_pages_and_extrude_keep_every_frame_exact():
+    """Audit P2 #8: optional power-of-two pages and edge extrusion against filtering bleed."""
+    anims = [_anim(f"walk_{k}", k, "walk", n=6, seed=k) for k in range(8)]
+    pages, lay = atlas.pack(anims, max_size=512, pot=True, extrude=2)
+    assert all(p.shape[0] & (p.shape[0] - 1) == 0 and p.shape[1] & (p.shape[1] - 1) == 0 for p in pages)
+    rects = []
+    for a in anims:
+        for i, f in enumerate(lay[a["name"]]["frames"]):
+            assert np.array_equal(_rebuild(pages, f, 64), a["cells"][i])
+            pg = pages[f["page"]]
+            assert np.array_equal(pg[f["y"] - 2, f["x"]:f["x"] + f["w"]], pg[f["y"], f["x"]:f["x"] + f["w"]])  # edge repeated
+            rects.append((f["page"], f["x"] - 2, f["y"] - 2, f["x"] + f["w"] + 2, f["y"] + f["h"] + 2))
+    rects = sorted(set(rects))
+    for i, r in enumerate(rects):                     # extruded footprints never overlap
+        for s in rects[i + 1:]:
+            assert r[0] != s[0] or r[3] <= s[1] or s[3] <= r[1] or r[4] <= s[2] or s[4] <= r[2]
+    with pytest.raises(ValueError, match="power-of-two"):
+        atlas.pack(anims, max_size=3000, pot=True)
+
+
+def test_texturepacker_has_durations_and_keeps_flipped_animations(tmp_path):
+    """Audit P2 #6: no fps in the file, and mirror='flip' made W animations vanish from it."""
+    e = _anim("walk_E", "E", "walk", seed=1)
+    w = dict(e, name="walk_W", facing="W", cells=np.ascontiguousarray(e["cells"][:, :, ::-1]))
+    pages, lay = atlas.pack([e, w], mirror="flip")
+    files = atlas.write_texturepacker(tmp_path, "hero_atlas", pages, lay, (64, 64), {},
+                                      {"walk_E": {"fps": 10, "loop": True}, "walk_W": {"fps": 10, "loop": True}})
+    d = json.loads(files[0].read_text())
+    assert d["frames"]["walk_E_000"]["duration"] == 100
+    assert d["meta"]["animations"]["walk_W"] == {"fps": 10, "loop": True, "flip_x_of": "walk_E"}
+    assert "walk_W" not in d["animations"]            # no frames of its own: the engine flips walk_E

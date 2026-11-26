@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Character atlas options: power-of-two pages and 0-4 px edge extrusion (UI, CLI `--pot` / `--extrude`, HTTP, MCP). TexturePacker files gain per-frame `duration` and `meta.animations` (fps, loop, `flip_x_of`), so flipped W/NW/SW animations no longer vanish from them. RGBA characters omit the colour list from the atlas JSON (hare: 5.62 MB -> 0.09 MB). Unity guide: one project PPU. Docs say which export folder is the game bundle.
 - Godot 4 export: character exports also write a SpriteFrames `.tres` and an AnimatedSprite2D `.tscn` (pivot on the origin). Tileset exports write a TileSet `.tres` with collision and the terrain set. Verified by importing into Godot 4.6.
 - Blob (47 + plain) terrain transitions alongside the 16-tile corner sets, with a mixed terrain rule mode exported as a Tiled mixed Wang set and a Godot Match Corners and Sides terrain set. Transitions gain an edge lip. Pixel textures snap to the project master palette (OKLab) and lose orphan pixels without breaking the wrap.
 - The app's scripts and page are now served with revalidation and versioned URLs, so a browser picks up an update instead of running cached old JavaScript.

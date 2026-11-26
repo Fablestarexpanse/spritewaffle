@@ -170,17 +170,19 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
 
     @mcp.tool()
     def export_character(character: str, job_id: str, frame_set: str = "12f", include_failed: bool = False,
-                         max_size: int = 4096, mirror: str = "pack") -> dict:
+                         max_size: int = 4096, mirror: str = "pack", pot: bool = False, extrude: int = 0) -> dict:
         """Bundle every QA-passed animation of a job into ONE .aseprite (a tag per facing x action, so
         Unity's Aseprite Importer makes one clip each) plus atlas pages. Defaults to a
         4096 px page limit and packed facings. Mirror 'flip' allows supported engine flips.
-        Include_failed explicitly opts into frames with failed QA. Returns files and skipped actions."""
+        Include_failed explicitly opts into frames with failed QA. pot: power-of-two pages; extrude:
+        repeat sprite edges 0-4 px for bilinear filtering / mip maps. Returns files and skipped actions."""
         from .core.profile import resolve
         from .export import character as char_export
         job = job_for(character, job_id)
         prof = resolve(job.read_meta()["inputs"].get("profile"))
         out = char_export.export(job.root, job.stage_dir("06_export") / "character", character, prof.fps, frame_set,
-                                 require_pass=not include_failed, max_size=max_size, mirror=mirror, profile=prof)
+                                 require_pass=not include_failed, max_size=max_size, mirror=mirror, profile=prof,
+                                 pot=pot, extrude=extrude)
         job.set_stage("export:character", "done", **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
         return out
 

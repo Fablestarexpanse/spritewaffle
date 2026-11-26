@@ -201,9 +201,10 @@ def export_status(job_root: Path, out_dir: Path, fps_for, *, profile: GameProfil
 
 def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: str = "12f",
            require_pass: bool = True, max_size: int = 4096, mirror: str = "pack", *,
-           profile: GameProfile | None = None) -> dict:
+           profile: GameProfile | None = None, pot: bool = False, extrude: int = 0) -> dict:
     """fps_for(action) -> fps. Returns paths + what was included/skipped. max_size: atlas page
-    limit in px; mirror='flip' leaves exact W/NW/SW mirrors out of the atlas (flip at runtime)."""
+    limit in px; mirror='flip' leaves exact W/NW/SW mirrors out of the atlas (flip at runtime);
+    pot / extrude: power-of-two pages and edge extrusion (atlas.pack)."""
     job_root, out_dir = Path(job_root), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     with receipt.locked(out_dir):
@@ -212,17 +213,20 @@ def export(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: st
             processing.require_current(result, clip)
         if stale := snapshot["settings"].get("alignment"):
             raise RuntimeError(f"Re-align feet for {', '.join(stale)} before exporting the character.")
-        result, files = _write_bundle(job_root, out_dir, character, fps_for, frame_set, require_pass, max_size, mirror)
+        result, files = _write_bundle(job_root, out_dir, character, fps_for, frame_set, require_pass, max_size, mirror,
+                                      pot, extrude)
         if snapshot != _input_snapshot(job_root, fps_for, frame_set, require_pass, profile):
             raise RuntimeError("Character export inputs changed during export. Wait for processing to finish, then export again.")
         receipt.save(_receipt(out_dir), out_dir, snapshot, files, options={
             "frame_set": frame_set, "require_pass": require_pass, "max_size": max_size, "mirror": mirror,
+            "pot": pot, "extrude": extrude,
         })
     return result
 
 
 def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_set: str,
-                  require_pass: bool, max_size: int, mirror: str) -> tuple[dict, list[Path]]:
+                  require_pass: bool, max_size: int, mirror: str, pot: bool = False,
+                  extrude: int = 0) -> tuple[dict, list[Path]]:
     anims, skipped = collect(job_root, frame_set, require_pass)
     if not anims:
         raise RuntimeError(f"nothing to export ({'; '.join(skipped) or 'no pixelized animations'})")
@@ -316,17 +320,18 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     base = f"{character}_atlas"
     old = out_dir / f"{base}.png"                              # the old single-sheet atlas
     old.unlink(missing_ok=True)
-    pages, layout = atlasmod.pack(anims, max_size=max_size, mirror=mirror)
+    pages, layout = atlasmod.pack(anims, max_size=max_size, mirror=mirror, pot=pot, extrude=extrude)
     page_files = atlasmod.save_pages(out_dir, base, pages)
     tp_files = atlasmod.write_texturepacker(out_dir, base, pages, layout, (w, h),
-                                            {m["name"]: m["pivot"] for m in meta_anims})
+                                            {m["name"]: m["pivot"] for m in meta_anims},
+                                            {m["name"]: m for m in meta_anims})
     map_pages = {}                                               # depth/normal: same rectangles as the colour pages
     for kind in alignment.MAP_KINDS:
         for old in out_dir.glob(f"{base}_{kind}_*.png"):
             old.unlink()
         if any(kind in a.get("maps", {}) for a in anims):
             map_pages[kind] = [p.name for p in atlasmod.save_map_pages(out_dir, f"{base}_{kind}",
-                                                                      atlasmod.map_pages(pages, layout, anims, kind))]
+                                                                      atlasmod.map_pages(pages, layout, anims, kind, extrude))]
     for ma in meta_anims:
         ma.pop("row", None)
         ma["frames_atlas"] = layout[ma["name"]]["frames"]
@@ -335,9 +340,9 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
     pivot = list(one.pop()) if len(one) == 1 else None          # one pivot for the whole character
     meta = {"character": character, "cell": [w, h], "frame_set": frame_set, "aseprite_mode": mode,
             "pivot": pivot, "pivot_norm": [pivot[0] / w, 1 - pivot[1] / h] if pivot else None,
-            "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()],
+            **({"palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in pal.tolist()]} if mode == "indexed" else {}),
             "pages": [{"image": p.name, "w": int(pg.shape[1]), "h": int(pg.shape[0])} for p, pg in zip(page_files, pages)],
-            "max_size": max_size, "mirror": mirror, "animations": meta_anims,
+            "max_size": max_size, "mirror": mirror, "pot": pot, "extrude": extrude, "animations": meta_anims,
             "skipped": skipped, **({"map_pages": map_pages} if map_pages else {})}
     js = out_dir / f"{character}_atlas.json"
     js.write_text(json.dumps(meta, indent=2))

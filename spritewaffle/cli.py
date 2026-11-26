@@ -406,7 +406,7 @@ def cmd_export_character(a):
     prof = _profile(a, job)
     out = character.export(job.root, job.stage_dir("06_export") / "character", job.read_meta()["character"],
                            prof.fps, a.set, require_pass=not a.include_failed, max_size=a.max_size, mirror=a.mirror,
-                           profile=prof)
+                           profile=prof, pot=a.pot, extrude=a.extrude)
     job.set_stage("export:character", "done", pages=len(out["pages"]), mirror=a.mirror,
                   **{k: out[k] for k in ("animations", "skipped", "mode", "colours")})
     _print(out)
@@ -894,7 +894,9 @@ def build() -> argparse.ArgumentParser:
         (("--include-failed",), {"action": "store_true", "help": "also ship animations that failed QA"}),
         (("--max-size",), {"type": int, "default": 4096, "help": "atlas page limit in px (default 4096)"}),
         (("--mirror",), {"choices": ("pack", "flip"), "default": "pack",
-                         "help": "flip: leave exact W/NW/SW mirrors out of the atlas; the engine flips E/NE/SE"}))
+                         "help": "flip: leave exact W/NW/SW mirrors out of the atlas; the engine flips E/NE/SE"}),
+        (("--pot",), {"action": "store_true", "help": "power-of-two atlas pages"}),
+        (("--extrude",), {"type": int, "default": 0, "help": "repeat sprite edges 0-4 px (bilinear / mip maps)"}))
     cmd("showcase", cmd_showcase, "GIF to show people: turnaround through the facings, then every action in all its facings",
         JOB, PROFILE, (("--size",), {"type": int, "default": 512, "help": "square size in px"}),
         (("--set",), {"default": "12f", "choices": ("12f", "24f")}))

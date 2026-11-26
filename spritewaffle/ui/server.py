@@ -903,7 +903,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             mirror = body.get("mirror", "pack")
             out = character.export(j.root, j.stage_dir("06_export") / "character", char, prof.fps,
                                    body.get("set", "12f"), require_pass=not body.get("include_failed"),
-                                   max_size=int(body.get("max_size", 4096)), mirror=mirror, profile=prof)
+                                   max_size=int(body.get("max_size", 4096)), mirror=mirror, profile=prof,
+                                   pot=bool(body.get("pot")), extrude=int(body.get("extrude") or 0))
         except (RuntimeError, ValueError, OSError) as e:
             bad(e)
         j.set_stage("export:character", "done", pages=len(out["pages"]), mirror=mirror,

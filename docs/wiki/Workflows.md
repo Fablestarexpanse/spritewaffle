@@ -51,7 +51,9 @@ Each asset lives in a job. Use **New asset** and choose its type.
 
 With the 2D Aseprite Importer package, select the `.aseprite` and set:
 Filter Mode **Point**, Compression **None**, Max Size **at least the atlas size**, Pixels Per Unit =
-your profile's cell size, Pivot **Custom** at the JSON's `pivot_norm` (for a 64 px cell,
+**one number for the whole project**, usually your tile size (16 or 32), never each sprite's cell
+size: a 64 px goblin and a 384 px hare at their own cell sizes would both come out one unit tall and
+break the Pixel Perfect Camera. Pivot **Custom** at the JSON's `pivot_norm` (for a 64 px cell,
 `(0.5, 0.0156)`), Pivot Space **Canvas**. Each tag becomes a clip; one-shot actions (attack,
 jump, …) are tagged to play once. (Unity behaviour of the play-once tags is not yet checked in an editor.)
 
@@ -445,9 +447,27 @@ painted neighbours to match. Mirrored animations the atlas leaves out (*engine f
 reuse their source frames and are listed in the scene's `flip_h` metadata.
 
 **Unity** (tiles and pixel art): Texture Type Sprite, Sprite Mode Multiple (grid by cell size),
-**Pixels Per Unit = tile size** (use the same PPU for characters so sizes match), Filter Mode
+**Pixels Per Unit = tile size**, the same project PPU on every character, effect and tile, Filter Mode
 **Point**, Compression **None**, mip maps off. Pack tiles into a Sprite Atlas with **padding ≥ 2**
 and rotation and tight packing off. Use a Pixel Perfect Camera (plus the Cinemachine Pixel Perfect
 extension if you use Cinemachine) with anti-aliasing off. Rule Tile (2D Tilemap Extras) handles
 corner and blob sets, and a Rule Override Tile reuses one rule set across terrains with the same
 layout.
+
+### What to put in the game
+
+**Ship `06_export/character/`** (atlas pages, `<name>_atlas.json`, the TexturePacker page files,
+Godot `.tres`/`.tscn`, the `.aseprite`). The per-facing folders (`06_export/S/walk/…`: strips,
+single frames, GIF and APNG previews) are review files. Measured on `hare/courier`: 150 MB of the
+183 MB export is those preview folders; the game bundle is about 21 MB.
+
+**Atlas options** (Export tab, `export-character`, HTTP and MCP `export_character`):
+- *Page limit* 2048 for Unity's default import size.
+- *Power-of-two pages* (`--pot`) rounds pages up to 2^n, for older GPUs or mip maps.
+- *Extrude* (`--extrude 1-2`) repeats each sprite's edge pixels outward, so bilinear filtering or
+  mip maps don't pull in the neighbour. Pixel art on Point filtering doesn't need it.
+- The TexturePacker page files give each frame a `duration` (ms) and list every animation's fps,
+  loop and `flip_x_of` in `meta.animations`. With *engine flips W/NW/SW*, a flipped animation has no
+  frames of its own: play its `flip_x_of` animation mirrored.
+- Painted (RGBA) characters no longer write a colour list into the JSON (it was 5.6 MB for the
+  hare); indexed pixel characters keep their `palette`.

@@ -131,3 +131,22 @@ def test_character_export_refuses_concurrent_writer_and_changed_inputs(tmp_path,
     with pytest.raises(RuntimeError, match="inputs changed"):
         character.export(job.root, out_dir, "hero", lambda action: 12)
     assert character.export_status(job.root, out_dir, lambda action: 12)["status"] == "incomplete"
+
+
+def test_rgba_export_writes_no_palette_list(tmp_path):
+    """Audit P2 #5: a painted character wrote a 345,331-entry 'palette' (5.6 MB) into the JSON."""
+    job = Job.create("hero", "j", base=tmp_path)
+    _anim(job, "S", "walk", [(c, 255 - c, c // 2) for c in range(0, 256, 1)], n=12)
+    sd = job.root / "04_pixel" / "S" / "walk" / "12f" / "frames"
+    for i in range(12):                                # > 255 colours: RGBA mode
+        f = np.zeros((32, 32, 4), np.uint8)
+        f[..., :3] = np.arange(32 * 32 * 3).reshape(32, 32, 3) % 251 + i
+        f[..., 3] = 255
+        Image.fromarray(f).save(sd / f"{i:03d}.png")
+    out = character.export(job.root, tmp_path / "out", "hero", lambda a: 12)
+    meta = json.loads(Path(out["json"]).read_text())
+    assert out["mode"] == "rgba" and "palette" not in meta
+    small = Job.create("hero", "k", base=tmp_path)
+    _anim(small, "S", "walk", [(200, 0, 0)])
+    out = character.export(small.root, tmp_path / "out2", "hero", lambda a: 12)
+    assert json.loads(Path(out["json"]).read_text())["palette"] == ["#c80000"]
