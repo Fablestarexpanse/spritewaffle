@@ -34,6 +34,8 @@ def export(job: Job, name: str, pivot: list | None = None, revision: str | None 
         _, original = tileset._export_image(directory, record)
         rects = list(tileset._rectangles(grid))
         solid = set(record["solid_tiles"])
+        shapes = record.get("tile_shapes") or {}
+        from . import tile_collision as tc
         collision = []
         rendered = Image.new("RGBA", size)
         with Image.open(BytesIO(original)) as image:
@@ -46,7 +48,13 @@ def export(job: Job, name: str, pivot: list | None = None, revision: str | None 
                     x, y = col * tw, row * th
                     rendered.paste(atlas.crop((sx, sy, sx + w, sy + h)), (x, y))
                     if tile in solid:
-                        collision.append({"x": x, "y": y, "width": w, "height": h})
+                        box = {"x": x, "y": y, "width": w, "height": h}
+                        if shape := shapes.get(str(tile)):          # bounding box + the real polygon
+                            pts = [[x + px, y + py] for px, py in tc.polygon(shape, w, h)]
+                            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                            box = {"x": min(xs), "y": min(ys), "width": max(xs) - min(xs), "height": max(ys) - min(ys),
+                                   "polygon": pts, **({"one_way": True} if shape.get("one_way") else {})}
+                        collision.append(box)
         name = module["name"]
         metadata = {"schema_version": 1, "type": "tile_module", "name": name, "image": "module.png",
                     "size": list(size), "pivot": point, "collision": collision,

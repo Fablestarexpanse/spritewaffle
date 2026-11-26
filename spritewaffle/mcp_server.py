@@ -408,11 +408,15 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 revision: str | None = None, terrain: dict | None = None,
                 vertices: list[list[str | None]] | None = None, frames: list[dict] | None = None,
                 overrides: dict | None = None, override_atlas: str | None = None, allow_unknown: bool = False,
-                module: dict | None = None) -> dict:
+                module: dict | None = None, shape: dict | None = None, properties: dict | None = None) -> dict:
         """Import, inspect, edit, preview, or export a local PNG tileset.
 
         Import takes a local path and grid with tile_width, tile_height, margin and spacing.
         Collision takes a zero-based tile ID and solid true or false. Pass a revision to guard edits.
+        Optional shape for a solid tile: {"shape": full | half_bottom | half_top | slope_up | slope_down |
+        slope_up_low | slope_up_high | slope_down_low | slope_down_high} or {"points": [[x, y], ...]} in
+        tile pixels (top-left origin), plus "one_way": true for jump-through platforms.
+        Properties takes a tile ID and properties {name: bool | int | float | text}; {} clears them.
         Terrain takes colors (named terrains) and tiles (ID keys with NW, NE, SE, SW names or null).
         Animation takes a tile ID and ordered frames with tile and duration_ms. Pass [] to clear.
         Preview resolves cells from a rectangular vertex lattice of terrain names or null.
@@ -434,7 +438,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         if operation == "inspect":
             return workspace.inspect(job)
         if operation == "collision":
-            return workspace.collision(job, tile, solid, revision)
+            return workspace.collision(job, tile, solid, revision, shape)
+        if operation == "properties":
+            return workspace.properties(job, tile, properties or {}, revision)
         if operation == "export":
             return workspace.export(job)
         if operation == "terrain":

@@ -68,6 +68,18 @@ def _read(directory: Path) -> dict | None:
         ids = record.get(key)
         if not isinstance(ids, list) or any(type(i) is not int or not 0 <= i < count for i in ids):
             raise ValueError("The stored tile IDs are invalid.")
+    from . import tile_collision as tc
+    tw, th = grid["tile_width"], grid["tile_height"]
+    if "tile_shapes" in record:
+        shapes = record["tile_shapes"]
+        if not isinstance(shapes, dict) or any(not k.isdigit() or int(k) not in record["solid_tiles"] for k in shapes):
+            raise ValueError("The stored collision shapes are invalid.")
+        record["tile_shapes"] = {k: v for k, v in ((k, tc.clean_shape(v, tw, th)) for k, v in shapes.items()) if v}
+    if "tile_properties" in record:
+        props = record["tile_properties"]
+        if not isinstance(props, dict) or any(not k.isdigit() or not 0 <= int(k) < count for k in props):
+            raise ValueError("The stored tile properties are invalid.")
+        record["tile_properties"] = {k: tc.clean_properties(v) for k, v in props.items() if v}
     if "terrain" in record:
         record["terrain"] = terrain.normalize(record["terrain"], count)
     if "animations" in record:
@@ -142,7 +154,7 @@ def import_bytes(job: Job, data: bytes, filename: str, values: dict) -> dict:
         previous = _read(directory)
         if previous and (previous["digest"], previous["grid"]) == (digest, grid):
             record["solid_tiles"] = previous["solid_tiles"]
-            for key in ("terrain", "animations", "modules"):
+            for key in ("terrain", "animations", "modules", "tile_shapes", "tile_properties"):
                 if key in previous:
                     record[key] = previous[key]
         elif previous:
@@ -185,14 +197,46 @@ def _edit(job: Job, revision: str | None):
         fsutil.write_text(directory / "tileset.json", json.dumps(record, indent=2))
 
 
-def collision(job: Job, tile: int, solid: bool, revision: str | None = None) -> dict:
+def collision(job: Job, tile: int, solid: bool, revision: str | None = None, shape: dict | None = None) -> dict:
+    """Set or clear a tile's collision. shape (optional, solid tiles only): {"shape": preset} or
+    {"points": [[x, y], ...]} plus "one_way" (core/tile_collision.py); None = the full square."""
+    from . import tile_collision as tc
     with _edit(job, revision) as record:
         grid = record["grid"]
         if type(solid) is not bool or type(tile) is not int or not 0 <= tile < grid["columns"] * grid["rows"]:
             raise ValueError("Choose a tile in the grid and set collision to true or false.")
+        cleaned = tc.clean_shape(shape, grid["tile_width"], grid["tile_height"]) if solid else None
         ids = set(record["solid_tiles"])
         (ids.add if solid else ids.discard)(tile)
         record["solid_tiles"] = sorted(ids)
+        shapes = record.get("tile_shapes") or {}
+        if cleaned:
+            shapes[str(tile)] = cleaned
+        else:
+            shapes.pop(str(tile), None)
+        if shapes:
+            record["tile_shapes"] = dict(sorted(shapes.items(), key=lambda kv: int(kv[0])))
+        else:
+            record.pop("tile_shapes", None)
+    return inspect(job)
+
+def properties(job: Job, tile: int, values: dict, revision: str | None = None) -> dict:
+    """Replace a tile's custom properties ({} clears them). One type per name across the tileset."""
+    from . import tile_collision as tc
+    with _edit(job, revision) as record:
+        grid = record["grid"]
+        if type(tile) is not int or not 0 <= tile < grid["columns"] * grid["rows"]:
+            raise ValueError("Choose a tile in the grid.")
+        props = record.get("tile_properties") or {}
+        cleaned = tc.clean_properties(values, {k: v for k, v in props.items() if k != str(tile)})
+        if cleaned:
+            props[str(tile)] = cleaned
+        else:
+            props.pop(str(tile), None)
+        if props:
+            record["tile_properties"] = dict(sorted(props.items(), key=lambda kv: int(kv[0])))
+        else:
+            record.pop("tile_properties", None)
     return inspect(job)
 
 
@@ -375,7 +419,8 @@ def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
 
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
     return receipt.snapshot(job.root, [_source(directory, record)],
-                            {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations", "modules")
+                            {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations", "modules",
+                                                         "tile_shapes", "tile_properties")
                              if key in record})
 
 
@@ -410,11 +455,26 @@ def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
     collision_layer = {"type": "objectgroup", "draworder": "index", "name": "Collision", "visible": True,
                        "opacity": 1, "x": 0, "y": 0, "objects": [{"id": 1, "name": "", "x": 0, "y": 0,
                            "width": w, "height": h, "rotation": 0, "visible": True}]}
+    from . import tile_collision as tc
+    shapes, props = record.get("tile_shapes") or {}, record.get("tile_properties") or {}
     tiled_tiles = []
-    for tile in sorted(ids | animations.keys()):
+    for tile in sorted(ids | animations.keys() | {int(k) for k in props}):
         entry = {"id": tile}
-        if tile in ids:
+        shape = shapes.get(str(tile))
+        if tile in ids and shape:
+            pts = tc.polygon(shape, w, h)
+            native["tiles"][tile]["collision"] = {**({"shape": shape["shape"]} if "shape" in shape else {}),
+                                                  "polygon": pts, "one_way": bool(shape.get("one_way"))}
+            obj = {"id": 1, "name": "", "x": 0, "y": 0, "rotation": 0, "visible": True,
+                   "polygon": [{"x": x, "y": y} for x, y in pts]}
+            if shape.get("one_way"):
+                obj["properties"] = [{"name": "one_way", "type": "bool", "value": True}]
+            entry["objectgroup"] = {**collision_layer, "objects": [obj]}
+        elif tile in ids:
             entry["objectgroup"] = collision_layer
+        if str(tile) in props:
+            native["tiles"][tile]["properties"] = props[str(tile)]
+            entry["properties"] = tc.tiled_properties(props[str(tile)])
         if tile in animations:
             frames = animations[tile]
             native["tiles"][tile]["animation"] = frames

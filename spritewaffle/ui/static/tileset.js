@@ -20,8 +20,22 @@ function paneTileset() {
         <canvas id="tileCanvas" aria-label="Tile sheet preview" hidden></canvas>
         <div class="row" id="tileControls" hidden>
           <label>Tile ID <input id="tileSelection" type="number" value="0" min="0" step="1"></label>
-          <label><input id="tileSolid" type="checkbox"> Full-tile collision</label>
+          <label><input id="tileSolid" type="checkbox"> Collision</label>
+          <label>Shape <select id="tileShape">
+            <option value="full">Full square</option><option value="half_bottom">Half (bottom)</option>
+            <option value="half_top">Half (top)</option><option value="slope_up">Slope up ◢</option>
+            <option value="slope_down">Slope down ◣</option><option value="slope_up_low">Gentle slope up, low half</option>
+            <option value="slope_up_high">Gentle slope up, high half</option><option value="slope_down_high">Gentle slope down, high half</option>
+            <option value="slope_down_low">Gentle slope down, low half</option><option value="custom">Custom polygon…</option></select></label>
+          <label title="Jump-through platform: solid from above only"><input id="tileOneWay" type="checkbox"> One-way</label>
+          <label id="tilePointsField" hidden title="Tile pixels, top-left origin, e.g. 0,16 16,8 16,16">Points
+            <input id="tilePoints" size="22" placeholder="0,16 16,8 16,16"></label>
           <span id="tileEmpty" class="muted" role="status"></span>
+        </div>
+        <div class="row" id="tilePropsRow" hidden>
+          <label title="Custom data for the game: name=value, comma separated. Numbers and true/false keep their type.">Properties
+            <input id="tileProps" size="30" placeholder="damage=5, water=true"></label>
+          <button type="button" id="tilePropsSave">Save properties</button>
         </div>
       </div>
       <div>
@@ -48,6 +62,29 @@ function paneTileset() {
   const find = selector => root.querySelector(selector);
   const form = find("#tileImport"), canvas = find("#tileCanvas"), summary = find("#tileSummary");
   const solid = find("#tileSolid"), selection = find("#tileSelection"), exportButton = find("#tileExport");
+  const shapeSelect = find("#tileShape"), oneWay = find("#tileOneWay"), pointsInput = find("#tilePoints");
+  const propsInput = find("#tileProps");
+  const SHAPES = {full: [[0, 0], [1, 0], [1, 1], [0, 1]], half_bottom: [[0, .5], [1, .5], [1, 1], [0, 1]],
+    half_top: [[0, 0], [1, 0], [1, .5], [0, .5]], slope_up: [[0, 1], [1, 0], [1, 1]], slope_down: [[0, 0], [1, 1], [0, 1]],
+    slope_up_low: [[0, 1], [1, .5], [1, 1]], slope_up_high: [[0, .5], [1, 0], [1, 1], [0, 1]],
+    slope_down_high: [[0, 0], [1, .5], [1, 1], [0, 1]], slope_down_low: [[0, .5], [1, 1], [0, 1]]};
+  const shapeOf = id => (state.tileset.tile_shapes || {})[id] || {};
+  function polygonOf(id, w, h) {
+    const s = shapeOf(id);
+    return s.points ? s.points : SHAPES[s.shape || "full"].map(([x, y]) => [x * w, y * h]);
+  }
+  const propsText = values => Object.entries(values || {}).map(([k, v]) => `${k}=${v}`).join(", ");
+  function parseProps(text) {
+    const out = {};
+    for (const part of text.split(",").map(p => p.trim()).filter(Boolean)) {
+      const at = part.indexOf("=");
+      if (at < 1) throw new Error(`Write properties as name=value, not "${part}".`);
+      const k = part.slice(0, at).trim(), v = part.slice(at + 1).trim();
+      out[k] = /^(true|false)$/i.test(v) ? v.toLowerCase() === "true" : /^-?\d+$/.test(v) ? parseInt(v, 10)
+        : /^-?\d*\.\d+$/.test(v) ? parseFloat(v) : v;
+    }
+    return out;
+  }
   const image = new Image();
   let state, active = 0, scale = 1;
   const animation = bindTilesetAnimation(find("#tileAnimationPanel"), request, image, result => render(result),
@@ -81,8 +118,15 @@ function paneTileset() {
       if (filled.has(i)) {
         context.fillStyle = style.getPropertyValue("--warn").trim();
         context.globalAlpha = .35;
-        context.fillRect(x, y, w * scale, h * scale);
+        context.beginPath();
+        polygonOf(String(i), w, h).forEach(([px, py], n) => context[n ? "lineTo" : "moveTo"](x + px * scale, y + py * scale));
+        context.closePath();
+        context.fill();
         context.globalAlpha = 1;
+        if (shapeOf(String(i)).one_way) {
+          context.strokeStyle = style.getPropertyValue("--warn").trim();
+          context.setLineDash([4, 3]); context.strokeRect(x + 2, y + 2, w * scale - 4, 2); context.setLineDash([]);
+        }
       }
       context.strokeStyle = style.getPropertyValue(i === active ? "--accent" : "--line").trim();
       context.lineWidth = i === active ? 2 : 1;
@@ -98,6 +142,13 @@ function paneTileset() {
     active = id;
     selection.value = id;
     solid.checked = state.tileset.solid_tiles.includes(id);
+    const s = shapeOf(String(id));
+    shapeSelect.value = s.points ? "custom" : s.shape || "full";
+    oneWay.checked = !!s.one_way;
+    pointsInput.value = s.points ? s.points.map(p => p.join(",")).join(" ") : "";
+    find("#tilePointsField").hidden = shapeSelect.value !== "custom";
+    shapeSelect.disabled = oneWay.disabled = !solid.checked;
+    propsInput.value = propsText((state.tileset.tile_properties || {})[String(id)]);
     find("#tileEmpty").textContent = state.tileset.empty_tiles.includes(id) ? "Transparent tile" : "";
     terrain.selectTile(id);
     animation.selectTile(id);
@@ -112,6 +163,7 @@ function paneTileset() {
     modules.sync(result);
     terrain.sync(result);
     find("#tileControls").hidden = !record;
+    find("#tilePropsRow").hidden = !record;
     find("#tileNavigation").hidden = !record;
     find("#tileExportRow").hidden = !record;
     find("#tileImportHint").hidden = !record;
@@ -172,9 +224,34 @@ function paneTileset() {
       target.focus({preventScroll: true});
     };
   });
-  solid.onchange = async () => {
-    await perform(solid, () => request("/collision", {tile: active, solid: solid.checked, revision: state.revision}), render);
+  function shapeBody() {
+    if (shapeSelect.value === "custom") {
+      const points = pointsInput.value.trim().split(/\s+/).filter(Boolean).map(p => p.split(",").map(Number));
+      if (points.length < 3 || points.some(p => p.length !== 2 || p.some(Number.isNaN))) return null;
+      return {points, one_way: oneWay.checked};
+    }
+    return {shape: shapeSelect.value, one_way: oneWay.checked};
+  }
+  async function saveCollision(control) {
+    const shape = solid.checked ? shapeBody() : null;
+    if (solid.checked && !shape) {
+      find("#tilePointsField").hidden = false;
+      return error("Enter at least three x,y points, separated by spaces.");
+    }
+    await perform(control, () => request("/collision", {tile: active, solid: solid.checked, shape, revision: state.revision}), render);
     select(active);
+  }
+  solid.onchange = () => saveCollision(solid);
+  oneWay.onchange = () => saveCollision(oneWay);
+  shapeSelect.onchange = () => {
+    find("#tilePointsField").hidden = shapeSelect.value !== "custom";
+    if (shapeSelect.value !== "custom" || shapeBody()) saveCollision(shapeSelect);
+  };
+  pointsInput.onchange = () => saveCollision(pointsInput);
+  find("#tilePropsSave").onclick = () => {
+    let values;
+    try { values = parseProps(propsInput.value); } catch (cause) { return error(cause.message); }
+    perform(find("#tilePropsSave"), () => request("/properties", {tile: active, properties: values, revision: state.revision}), render);
   };
   exportButton.onclick = () => perform(exportButton, () => request("/export", {}), render);
   form.onsubmit = event => {

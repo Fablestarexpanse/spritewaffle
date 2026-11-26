@@ -438,7 +438,16 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     def tileset_collision(char: str, jid: str, body: dict = Body(...)):
         j = job_or_404(char, jid)
         try:
-            return tileset_view(j, tileset.collision(j, body.get("tile"), body.get("solid"), body.get("revision")))
+            return tileset_view(j, tileset.collision(j, body.get("tile"), body.get("solid"), body.get("revision"),
+                                                     body.get("shape")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
+    @app.post("/api/jobs/{char}/{jid}/tileset/properties")
+    def tileset_properties(char: str, jid: str, body: dict = Body(...)):
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.properties(j, body.get("tile"), body.get("properties"), body.get("revision")))
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 

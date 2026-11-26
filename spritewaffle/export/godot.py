@@ -96,11 +96,25 @@ def _color(hexstr: str) -> str:
     return f"Color({r:.4f}, {g:.4f}, {b:.4f}, 1)"
 
 
+def _f(v: float) -> str:
+    return str(float(v))
+
+
+def _value(v) -> str:
+    if type(v) is bool:
+        return "true" if v else "false"
+    if type(v) is str:
+        return f'"{_q(v)}"'
+    return str(v)
+
+
 def tileset(record: dict, image: str = "tiles.png") -> str:
     """Godot 4 TileSet .tres for a tileset workspace record: one atlas source over the PNG,
-    full-tile collision polygons for solid tiles, and the terrain rules as a terrain set
+    collision polygons for solid tiles (full square, slope / half presets or custom points; one-way
+    where set), tile properties as typed custom data layers, and the terrain rules as a terrain set
     (corner rules -> Match Corners, mixed / blob rules -> Match Corners and Sides)."""
     from ..core import terrain as terrain_mod
+    from ..core import tile_collision as tc
     g = record["grid"]
     w, h = g["tile_width"], g["tile_height"]
     solid, empty = set(record.get("solid_tiles") or []), set(record.get("empty_tiles") or [])
@@ -113,6 +127,8 @@ def tileset(record: dict, image: str = "tiles.png") -> str:
              f"separation = Vector2i({g['spacing']}, {g['spacing']})"]
     hw, hh = w / 2, h / 2
     centres = (rules or {}).get("centers") or {}
+    shapes, props = record.get("tile_shapes") or {}, record.get("tile_properties") or {}
+    layers = tc.property_layers(record)
     for i in range(g["columns"] * g["rows"]):
         if i in empty:
             continue
@@ -129,10 +145,20 @@ def tileset(record: dict, image: str = "tiles.png") -> str:
                 if n is not None:
                     lines.append(f"{c}/terrains_peering_bit/{bit} = {index[n]}")
         if i in solid:
-            lines.append(f"{c}/physics_layer_0/polygon_0/points = PackedVector2Array({-hw}, {-hh}, {hw}, {-hh}, {hw}, {hh}, {-hw}, {hh})")
+            shape = shapes.get(str(i))
+            pts = ", ".join(f"{_f(x - hw)}, {_f(y - hh)}" for x, y in tc.polygon(shape, w, h))
+            lines.append(f"{c}/physics_layer_0/polygon_0/points = PackedVector2Array({pts})")
+            if shape and shape.get("one_way"):
+                lines.append(f"{c}/physics_layer_0/polygon_0/one_way = true")
+        for n, (k, _) in enumerate(layers):
+            if k in props.get(str(i), {}):
+                lines.append(f"{c}/custom_data_{n} = {_value(props[str(i)][k])}")
     res = ["[resource]", f"tile_size = Vector2i({w}, {h})"]
     if solid:
         res += ["physics_layer_0/collision_layer = 1"]
+    gd_type = {bool: 1, int: 2, float: 3, str: 4}                 # Godot Variant.Type
+    for n, (k, kind) in enumerate(layers):
+        res += [f'custom_data_layer_{n}/name = "{_q(k)}"', f"custom_data_layer_{n}/type = {gd_type[kind]}"]
     if names:
         res.append(f"terrain_set_0/mode = {0 if mixed else 1}")
         for i, n in enumerate(names):

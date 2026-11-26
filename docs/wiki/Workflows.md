@@ -172,9 +172,21 @@ fit the image exactly. Imports accept still PNGs up to 16 MiB and 4096 × 4096 p
 with at most 4096 tiles.
 
 Click the grid or enter a **Tile ID** to select a cell. IDs start at zero and run left
-to right, top to bottom. Transparent cells keep their IDs. **Full-tile collision**
-sets a rectangle the size of that cell. Importing a different sheet or grid preserves
-the earlier PNG and grid record and starts a new collision layout.
+to right, top to bottom. Transparent cells keep their IDs. **Collision** makes the cell solid;
+**Shape** picks the full square, a half tile (top or bottom), a 45° slope (◢ up, ◣ down), one
+half of a gentle 2:1 slope, or a custom polygon (x,y points in tile pixels, top-left origin).
+**One-way** makes a jump-through platform (solid from above only). **Properties** are name=value
+pairs for the game (`damage=5, water=true, footstep=grass`); numbers and true/false keep their
+type, and one name keeps one type across the tileset. The sheet preview draws each shape, with a
+dashed top edge on one-way tiles. Importing the same sheet again keeps shapes and properties;
+a different sheet or grid preserves the earlier PNG and grid record and starts a new collision
+layout.
+
+In the exports, a shaped tile becomes a polygon object in Tiled's tile collision editor (with a
+`one_way` bool property), a collision polygon with `one_way = true` in the Godot TileSet, and a
+`collision` entry (shape, polygon, one_way) in `tileset.json`. Properties become Tiled tile
+properties and typed Godot custom data layers (`get_custom_data("damage")`), checked by loading
+the TileSet in Godot 4.6. Tile modules list each shaped tile's bounding box plus its `polygon`.
 
 **Export tileset** writes `tiles.png`, `tileset.json`, and `tileset.tsj` to the job's
 `06_export/tileset` folder. Keep the PNG next to either metadata file. Collision changes
@@ -183,12 +195,15 @@ flag the previous export as stale. The PNG in the bundle is an exact copy of the
 ```powershell
 spritewaffle tileset import --job meadow/v1 --file meadow.png --tile-width 16 --tile-height 16
 spritewaffle tileset collision --job meadow/v1 --tile 1
+spritewaffle tileset collision --job meadow/v1 --tile 2 --shape slope_up
+spritewaffle tileset collision --job meadow/v1 --tile 3 --shape half_top --one-way
+spritewaffle tileset properties --job meadow/v1 --tile 2 --set "damage=5, footstep=grass"
 spritewaffle tileset export --job meadow/v1
 ```
 
 `tileset inspect` reports the grid and export status. Add `--clear` to a collision command
 to remove the rectangle. The MCP `tileset` tool offers the same operations. The HTTP
-base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision`, `terrain`, `animation`, `preview`,
+base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision` (optional `shape`), `properties`, `terrain`, `animation`, `preview`,
 and `export` POST routes.
 
 #### Terrain transitions
@@ -438,7 +453,7 @@ Only corner sets (16 tiles) for now; no blob-47 / edge sets yet.
 **Godot 4.** Every character export now also writes `<name>.tres` (a SpriteFrames with each frame
 cut from the atlas pages, trim restored, per-frame durations, loop flags) and `<name>.tscn` (an
 AnimatedSprite2D with the pivot on the node origin, nearest filtering for pixel art). Every tileset
-export writes `tileset.tres` (a TileSet with the atlas, full-tile collision and the terrain set).
+export writes `tileset.tres` (a TileSet with the atlas, collision shapes, custom data and the terrain set).
 Paths inside are relative, so copy the export folder anywhere in the Godot project. Verified with
 Godot 4.6: the knight's SpriteFrames loads with 64×64 frames and the right fps and loops, and a blob
 TileSet paints terrain with `set_cells_terrain_connect`. Paint the base terrain one cell beyond

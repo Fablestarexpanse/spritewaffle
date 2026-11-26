@@ -77,7 +77,18 @@ def cmd_tileset(a):
     else:
         job = _job(a.job)
         if a.operation == "collision":
-            result = tileset.collision(job, a.tile, not a.clear)
+            from .core import tile_collision
+            shape = None
+            if a.points:
+                shape = {"points": json.loads(a.points)}
+            elif a.shape:
+                shape = {"shape": a.shape}
+            if a.one_way:
+                shape = {**(shape or {}), "one_way": True}
+            result = tileset.collision(job, a.tile, not a.clear, shape=shape)
+        elif a.operation == "properties":
+            from .core import tile_collision
+            result = tileset.properties(job, a.tile, {} if a.clear else tile_collision.parse_text(a.set or ""))
         elif a.operation == "export":
             result = tileset.export(job)
         elif a.operation == "animation":
@@ -770,13 +781,18 @@ def build() -> argparse.ArgumentParser:
         (("--query",), {"action": "append", "default": [], "help": "query parameter as NAME=VALUE"}))
 
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
-        (("operation",), {"choices": ("import", "inspect", "collision", "terrain", "animation", "preview", "module",
-                                      "stamp", "export-module", "export")}), JOB,
+        (("operation",), {"choices": ("import", "inspect", "collision", "properties", "terrain", "animation", "preview",
+                                      "module", "stamp", "export-module", "export")}), JOB,
         (("--file",), {"help": "source PNG for import, JSON for terrain, animation, preview or module placement"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
         (("--margin",), {"type": int, "default": 0}), (("--spacing",), {"type": int, "default": 0}),
         (("--tile",), {"type": int, "help": "zero-based tile ID"}),
-        (("--clear",), {"action": "store_true", "help": "remove collision or animation from the tile"}))
+        (("--clear",), {"action": "store_true", "help": "remove collision, properties or animation from the tile"}),
+        (("--shape",), {"help": "collision preset: full, half_bottom, half_top, slope_up, slope_down, slope_up_low, "
+                                "slope_up_high, slope_down_low, slope_down_high"}),
+        (("--points",), {"help": "collision polygon as JSON [[x, y], ...] in tile pixels, top-left origin"}),
+        (("--one-way",), {"action": "store_true", "help": "jump-through platform collision"}),
+        (("--set",), {"help": "properties as name=value, comma separated (damage=5, water=true)"}))
 
     cmd("tilemap", cmd_tilemap, "manage named terrain maps and object templates",
         (("operation",), {"choices": ("list", "load", "save", "export", "templates", "save-template",
