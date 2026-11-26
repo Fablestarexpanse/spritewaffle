@@ -433,6 +433,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                           for p in ex.glob("*") if p.is_file()], key=lambda e: e["name"]) if ex.is_dir() else []
         return {"character": meta["character"], "job_id": meta["job_id"], "asset_type": texture.TYPE,
                 "style": meta["inputs"].get("style") or "pixel", "stages": meta["stages"], "inputs": meta["inputs"],
+                "textures": [{"character": x.parent.parent.name, "job_id": x.parent.name}
+                             for x in sorted(base.glob("*/*/job.json")) if not x.parts[-3].startswith("_")
+                             and (read_json(x) or {}).get("inputs", {}).get("asset_type") == texture.TYPE
+                             and ((read_json(x) or {}).get("stages", {}).get("texture") or {}).get("status") == "approved"
+                             and x.parent != j.root],
                 "texture": {"settings": texture.settings(j), "variants": variants, "exports": exports,
                             "tile_sizes": list(texture.TILE_SIZES), "prompt": rep.get("prompt")}}
 
@@ -451,6 +456,21 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         try:
             return texture.export(job_or_404(char, jid))
         except (ValueError, RuntimeError, FileNotFoundError) as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/texture/transition")
+    def texture_transition(char: str, jid: str, body: dict = Body(...)):
+        """16-tile corner transition between this texture and another approved one, as a tileset
+        job with its terrain rules filled in. body: other ('character/job_id'), names [a, b],
+        tile_size, roughness 0..1, seed, variant_a, variant_b (0-based), name, job_id."""
+        from ..core import transition
+        try:
+            oc, _, oj = str(body.get("other") or "").partition("/")
+            names = body.get("names")
+            return transition.make(job_or_404(char, jid), job_or_404(oc, oj), body.get("name") or None, body.get("job_id") or None,
+                                   tuple(names) if names else None, body.get("tile_size"), float(body.get("roughness", 0.5)),
+                                   int(body.get("seed", 0)), int(body.get("variant_a", 0)), int(body.get("variant_b", 0)))
+        except (ValueError, RuntimeError, FileNotFoundError, TypeError) as e:
             bad(e)
 
     @app.post("/api/jobs/{char}/{jid}/texture/tileset")

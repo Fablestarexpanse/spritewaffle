@@ -39,7 +39,8 @@ function paneTexture(j, st) {
       <button class="primary" id="txGen" title="Render every variant (GPU), make it seamless, cut the tiles">${have ? "Re-generate all" : "Generate"}</button>
       ${have ? `<button id="txRetile" title="Seam and cut every variant again from its saved render: new size, zoom or colours, no new render">Re-cut tiles</button>` : ""}
       ${have && !approved ? `<button class="primary" id="txApprove">Approve</button>` : ""}
-      ${approved ? `<button id="txExport">Export</button><button class="primary" id="txTileset" title="Export, then open the variants as a new tileset (terrain, maps, Tiled)">Send to tileset</button>` : ""}
+      ${approved ? `<button id="txExport">Export</button><button class="primary" id="txTileset" title="Export, then open the variants as a new tileset (terrain, maps, Tiled)">Send to tileset</button>
+        <button id="txTransition" title="Blend this texture with another approved one into the 16 corner transition tiles, with terrain rules filled in">Make transition…</button>` : ""}
     </div>
     <p class="hint">Each variant is generated seen from straight above, then joined edge to edge along the least visible cut,
       so it wraps exactly. <b>Wrap score</b>: how visible the seam is, about 1.0 = seamless (green ≤ 1.3).</p>
@@ -71,7 +72,42 @@ function paneTexture(j, st) {
     const r = await api(jobPath() + "/texture/tileset", {});
     toast(`Tileset made: ${r.tiles} tiles`); location.hash = `${r.character}/${r.job_id}/tileset`;
   };
+  if ($("#txTransition")) $("#txTransition").onclick = () => texTransitionDialog(j);
   $$("[data-txroll]").forEach(b => b.onclick = () => run("texture", {only: [+b.dataset.txroll]}, `Variant ${+b.dataset.txroll + 1} re-roll queued`));
   if ($("#txN")) $("#txN").onchange = e => { paneTexture.view = {...view, n: +e.target.value}; renderJob(); };
   if ($("#txOff")) $("#txOff").onchange = e => { paneTexture.view = {...view, offset: e.target.checked}; renderJob(); };
+}
+
+// Terrain transition: this texture + another approved one -> the 16 corner tiles as a tileset with
+// its terrain rules filled in (core/transition.py). Opens the new tileset's workspace.
+function texTransitionDialog(j) {
+  const d = $("#dlg"), others = j.textures || [], s = j.texture.settings;
+  d.innerHTML = `<h2>Terrain transition <span class="spacer"></span><button class="ghost" id="trClose">Close</button></h2>
+    ${others.length ? `<p class="hint" style="margin-top:0">Blends <b>${esc(j.character)}</b> with another approved texture into the 16 tiles a corner
+      terrain needs (every mix of the four corners). The tileset gets its terrain rules, so the map preview and Tiled export work right away.</p>
+    <div class="tileset-form" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+      <label class="field"><span>Other texture</span><select id="trOther">${others.map(o => `<option value="${esc(o.character)}/${esc(o.job_id)}">${esc(o.character)} / ${esc(o.job_id)}</option>`).join("")}</select></label>
+      <label class="field"><span>Name for ${esc(j.character)}</span><input id="trNameA" value="${esc(j.character)}"></label>
+      <label class="field"><span>Name for the other</span><input id="trNameB" value="${esc(others[0].character)}"></label>
+      <label class="field"><span>Tile size (px)</span><input id="trSize" type="number" value="${s.tile_size}"></label>
+      <label class="field"><span>Border: straight ↔ ragged</span><input id="trRough" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+      <label class="field"><span>Border shape (seed)</span><input id="trSeed" type="number" value="0"></label>
+      <label class="field"><span>Variant of ${esc(j.character)}</span><input id="trVa" type="number" min="1" value="1"></label>
+      <label class="field"><span>Variant of the other</span><input id="trVb" type="number" min="1" value="1"></label>
+    </div>
+    <div class="row"><button class="primary" id="trGo">Make transition tileset</button></div>`
+    : `<p class="warn">Approve a second seamless texture first (e.g. dirt next to grass), then come back.</p>`}`;
+  $("#trClose").onclick = () => d.close();
+  if ($("#trOther")) $("#trOther").onchange = e => { $("#trNameB").value = e.target.value.split("/")[0]; };
+  if ($("#trGo")) $("#trGo").onclick = async () => {
+    $("#trGo").disabled = true;
+    try {
+      const r = await api(jobPath() + "/texture/transition", {other: $("#trOther").value, names: [$("#trNameA").value.trim(), $("#trNameB").value.trim()],
+        tile_size: +$("#trSize").value, roughness: +$("#trRough").value, seed: +$("#trSeed").value,
+        variant_a: +$("#trVa").value - 1, variant_b: +$("#trVb").value - 1});
+      d.close(); toast(`Transition tileset made: ${r.names.join(" / ")}`);
+      location.hash = `${r.character}/${r.job_id}/tileset`;
+    } finally { if ($("#trGo")) $("#trGo").disabled = false; }
+  };
+  d.showModal();
 }

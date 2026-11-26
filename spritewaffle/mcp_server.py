@@ -599,6 +599,19 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 "variants": json.loads(rp.read_text())["variants"] if rp.exists() else {}}
 
     @mcp.tool()
+    def transition(a: str, b: str, names: list[str] | None = None, tile_size: int | None = None, roughness: float = 0.5,
+                   seed: int = 0, variant_a: int = 1, variant_b: int = 1, name: str | None = None,
+                   job_id: str | None = None) -> dict:
+        """Terrain transition: two approved seamless texture jobs ('character/job_id') -> a tileset job
+        with the 16-tile corner set (every corner combination) and its corner terrain rules filled in,
+        ready for the terrain map preview and Tiled export. roughness 0 (straight border) .. 1 (ragged).
+        Variants are 1-based."""
+        from .core import transition as tr
+        ja, jb = (job_for(*x.split("/", 1)) for x in (a, b))
+        return tr.make(ja, jb, name, job_id, tuple(names) if names else None, tile_size, roughness, seed,
+                       variant_a - 1, variant_b - 1)
+
+    @mcp.tool()
     def manifest_migrate(rebuild: bool = False, limit: int = 0) -> dict:
         """Write manifests for jobs that have none (rebuild=True: all). limit > 0 stops after that
         many writes, so very large projects can be migrated in batches."""

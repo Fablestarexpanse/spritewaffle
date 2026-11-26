@@ -115,3 +115,63 @@ def test_texture_mcp(tmp_path):
     assert s["settings"]["tile_size"] == 64 and s["variants"] == {}
     r = call(character="water", action="generate", only=[2])
     assert q.get(r["queued"])["stage"] == "texture" and q.get(r["queued"])["args"] == {"only": [1]}
+
+
+# --- terrain transitions ------------------------------------------------------------------
+from spritewaffle.core import tileset, transition as tr  # noqa: E402
+
+
+def test_transition_masks_fit_any_corner_arrangement():
+    ms = tr.masks(32, 0.9, 5)
+    assert ms[0].max() == 0 and ms[15].min() == 1                      # all-A and all-B stay pure
+    rng = np.random.default_rng(1)
+    V = rng.integers(0, 2, (7, 7))
+    mos = np.block([[ms[V[y, x] * 8 + V[y, x + 1] * 4 + V[y + 1, x + 1] * 2 + V[y + 1, x]] for x in range(6)] for y in range(6)])
+    for s in range(32, 6 * 32, 32):                                     # the mask continues across every seam
+        assert np.abs(mos[:, s] - mos[:, s - 1]).mean() <= np.abs(np.diff(mos, axis=1)).mean() * 2 + 0.05
+        assert np.abs(mos[s] - mos[s - 1]).mean() <= np.abs(np.diff(mos, axis=0)).mean() * 2 + 0.05
+    r = tr.rules("grass", "dirt")
+    assert r["tiles"]["0"] == ["grass"] * 4 and r["tiles"]["8"] == ["dirt", "grass", "grass", "grass"]
+    with pytest.raises(ValueError):
+        tr.build(np.zeros((16, 16, 3), np.uint8), np.zeros((32, 32, 3), np.uint8))
+
+
+def test_transition_tileset_from_two_approved_textures(tmp_path):
+    a = _job(tmp_path)
+    b = Job.create("dirt", "t1", base=tmp_path, asset_type=tx.TYPE, style="pixel")
+    tx.configure(b, description="dry dirt", tile_size=32, variants=1)
+    c = FakeComfy()
+    tx.generate(a, client=c, seed=1)
+    tx.generate(b, client=c, seed=9)
+    with pytest.raises(RuntimeError):
+        tr.make(a, b)                                                   # both need a human's approval
+    gen.approve(a, "texture"); gen.approve(b, "texture")
+    with pytest.raises(ValueError):
+        tr.make(a, b, names=("grass", "Grass"))
+    r = tr.make(a, b, names=("grass", "dirt"), roughness=0.6, seed=2)
+    ts = Job.open(tmp_path / r["character"] / r["job_id"])
+    view = tileset.inspect(ts)
+    assert r["tiles"] == 16 and ts.read_meta()["inputs"]["transition"]["names"] == ["grass", "dirt"]
+    assert Image.open(ts.root / "06_export" / "transition" / "grass_dirt_transition.png").size == (128, 128)
+    prev =tileset.preview(ts, [["grass", "dirt", "dirt"], ["grass", "grass", "dirt"], ["grass", "grass", "grass"]])
+    assert prev["missing"] == [] and view is not None                   # every corner combination resolves
+    r2 = tr.make(a, b, names=("grass", "dirt"), roughness=0.2, seed=3)  # re-run replaces the sheet in place
+    assert r2["job_id"] == r["job_id"]
+
+
+def test_transition_api_and_mcp(tmp_path):
+    a = _job(tmp_path)
+    b = Job.create("dirt", "t1", base=tmp_path, asset_type=tx.TYPE, style="painted")
+    tx.configure(b, description="dry dirt", tile_size=32, variants=1)
+    c = FakeComfy()
+    tx.generate(a, client=c, seed=1); tx.generate(b, client=c, seed=9)
+    gen.approve(a, "texture"); gen.approve(b, "texture")
+    with TestClient(create_app(tmp_path, worker=False)) as cl:
+        assert cl.get("/api/jobs/cobble/t1").json()["textures"] == [{"character": "dirt", "job_id": "t1"}]
+        r = cl.post("/api/jobs/cobble/t1/texture/transition", json={"other": "dirt/t1", "names": ["stone", "dirt"]}).json()
+        assert r["tiles"] == 16 and r["names"] == ["stone", "dirt"]
+        assert cl.post("/api/jobs/cobble/t1/texture/transition", json={"other": "nope/x"}).status_code == 404
+    m, _ = build(tmp_path)
+    out = json.loads((lambda res: (res[0] if isinstance(res, tuple) else res)[0].text)(asyncio.run(m.call_tool(
+        "transition", {"a": "cobble/t1", "b": "dirt/t1", "name": "path", "roughness": 0.3}))))
+    assert out["character"] == "path" and out["tile_size"] == 32

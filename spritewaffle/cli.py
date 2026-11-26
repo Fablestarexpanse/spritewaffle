@@ -472,6 +472,15 @@ def cmd_texture(a):
         print(json.dumps(s, indent=2))
 
 
+def cmd_transition(a):
+    """16-tile corner transition between two approved seamless textures -> a tileset job."""
+    from .core import transition
+    names = tuple(x.strip() for x in a.names.split(",")) if a.names else None
+    r = transition.make(_job(a.a), _job(a.b), a.name, a.job_id, names, a.tile_size, a.roughness, a.seed or 0,
+                        a.variant_a - 1, a.variant_b - 1)
+    print(f"tileset {r['character']}/{r['job_id']}: 16 tiles of {r['tile_size']} px, terrains {r['names'][0]} / {r['names'][1]}")
+
+
 def cmd_manifest(a):
     """Write asset manifests (docs/MANIFEST.md): one job, or every job (the migration)."""
     from .core import manifest
@@ -904,6 +913,13 @@ def build() -> argparse.ArgumentParser:
         (("--generate",), {"action": "store_true"}), (("--retile",), {"action": "store_true"}),
         (("--approve",), {"action": "store_true", "help": "only after a human looked at the variants"}),
         (("--export",), {"action": "store_true"}), (("--to-tileset",), {"action": "store_true"}))
+    cmd("transition", cmd_transition, "terrain transition: two approved seamless textures -> 16-tile corner tileset with rules",
+        (("--a",), {"required": True, "help": "first texture job, e.g. grass/t1"}),
+        (("--b",), {"required": True, "help": "second texture job, e.g. dirt/t1"}),
+        (("--names",), {"help": "terrain names, e.g. grass,dirt (default: the job names)"}),
+        (("--name",), {"help": "tileset name (default: <a>_<b>)"}), (("--job-id",), {"help": "default: transition"}),
+        (("--tile-size",), {"type": int}), (("--roughness",), {"type": float, "default": 0.5, "help": "0 straight .. 1 ragged border"}),
+        SEED, (("--variant-a",), {"type": int, "default": 1}), (("--variant-b",), {"type": int, "default": 1}))
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),
         (("--rebuild",), {"action": "store_true", "help": "rewrite manifests that already exist"}))

@@ -393,3 +393,24 @@ MCP: `texture(character, job_id, action="setup"|"generate"|"retile"|"status"|"ex
 Generator feature size varies between renders (some come out with tiny detail even when zoomed):
 re-roll those or raise Detail zoom. Variants don't share edges with each other yet. Each tiles with
 itself, so mixing variants in one map can show edges between different variants.
+
+### Terrain transitions (two textures → corner tileset)
+
+On an approved seamless texture: **Make transition…** → pick a second approved texture (e.g. dirt
+next to grass), name the two terrains, the tile size, how ragged the border is, and a border-shape
+seed. The result is a new tileset job with the **16 corner tiles** (every combination of the four
+corners being one terrain or the other) and its **corner terrain rules already filled in**. The
+tileset's map preview and Tiled export (corner Wang set) work straight away. Running it again on
+the same pair replaces the sheet.
+
+Each tile blends the two textures with a mask: its four corners interpolated across the tile, plus
+a noise wobble that repeats once per tile. Neighbouring tiles share their edge's corners, and the
+noise and both textures continue across tile edges, so any arrangement fits pixel for pixel.
+Pixel art gets a hard border, painted styles a soft blend.
+
+CLI: `spritewaffle transition --a grass/t1 --b dirt/t1 --names grass,dirt --roughness 0.5`.
+MCP: `transition(a, b, names, tile_size, roughness, seed, ...)`. Both textures need a human's approval.
+
+Limits: the border wobble repeats every tile, so a long straight border shows a regular pattern
+(change the seed for another shape). Pixel art can leave single-pixel specks along the border.
+Only corner sets (16 tiles) for now; no blob-47 / edge sets yet.
