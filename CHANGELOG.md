@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Texture variants can share edges ("Variants fit together"; CLI `--shared-edges on`, HTTP/MCP `shared_edges`): each takes variant 1's colour-matched border, joined along least-visible cuts, with one palette for pixel art, so any variant fits next to any other. Mixed preview and a side-by-side score in the UI.
+- Queue: a worker that loses the lock (the web UI takes it over) stops claiming tasks and takes the queue back when the holder exits; the MCP server's worker waits in standby instead of giving up. Before, an older MCP worker kept running next to the UI's and failed tasks its code didn't know.
 - Checked in Unity 6000.6 (Aseprite Importer 6.0.0): one-shot animations import as non-looping clips with 83 ms frames, and the documented custom pivot puts every frame on the exported foot point. The Unity guide says the default pivot is 1 px low.
 - Map export can leave unresolved cells empty (UI checkbox, `--allow-empty`, HTTP/MCP `allow_empty`). Tiled files carry `tiledversion` and the terrain set has an icon tile. One open roadmap (wiki); `.aseprite` ms rounding documented.
 - New task-first wiki page, [Guide: what do you want to make?](docs/wiki/Guide.md): one section per job (character, own art, animal, items, effects, seamless ground, transitions, collision, modules, engine import) using only app buttons, plus a glossary.

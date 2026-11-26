@@ -8,6 +8,17 @@ function texScoreClass(s) { return s == null ? "" : s <= 1.3 ? "drift-ok" : s <=
 
 // Draw a tile repeated n x n on a canvas, nearest-neighbour; optionally offset by half a tile so the
 // wrap seams meet in the middle of the view (where a seam is easiest to spot).
+// Draw n x n cells, each a variant picked by a fixed hash of its position (same picture every refresh).
+function texDrawMixed(canvas, srcs, n) {
+  const ims = srcs.map(s => { const im = new Image(); im.src = s; return im; });
+  Promise.all(ims.map(im => im.decode().catch(() => null))).then(() => {
+    const ctx = canvas.getContext("2d"), c = canvas.width / n;
+    ctx.imageSmoothingEnabled = false;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
+      ctx.drawImage(ims[((x * 7 + y * 13 + x * y * 3) % ims.length)], x * c, y * c, c, c);
+  });
+}
+
 function texDrawTiled(canvas, src, n, offset) {
   const im = new Image();
   im.onload = () => {
@@ -34,6 +45,8 @@ function paneTexture(j, st) {
       <label class="field" ${s.style === "pixel" ? "" : "hidden"}><span>Colours</span><input id="txCol" type="number" min="2" max="256" value="${s.colours || 16}"></label>
       <label class="field" title="How far to zoom into the generated swatch: higher = fewer, bigger features per tile"><span>Detail zoom</span>
         <select id="txZoom"><option value="0" ${s.zoom_auto ? "selected" : ""}>Auto (${s.zoom}×)</option>${[1, 2, 3, 4, 5, 6].map(z => `<option value="${z}" ${!s.zoom_auto && z === s.zoom ? "selected" : ""}>${z}×</option>`).join("")}</select></label>
+      <label class="field" title="Every variant takes variant 1's border (colour-matched, joined along the least visible cut), so any two variants fit side by side. Re-cut tiles after changing it."><span>Variants fit together</span>
+        <select id="txShared"><option value="0">No, each tiles with itself</option><option value="1" ${s.shared_edges ? "selected" : ""}>Yes, shared edges</option></select></label>
     </div>
     <div class="row">
       <button class="primary" id="txGen" title="Render every variant (GPU), make it seamless, cut the tiles">${have ? "Re-generate all" : "Generate"}</button>
@@ -48,6 +61,9 @@ function paneTexture(j, st) {
   ${have ? `<section><h2>Variants <span class="spacer"></span>
       <label>Repeat <select id="txN">${[2, 3, 4, 8].map(n => `<option ${n === view.n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
       <label title="Shift the view by half a tile so the wrap edges meet in the middle"><input type="checkbox" id="txOff" ${view.offset ? "checked" : ""}> Offset by half</label></h2>
+    ${tx.variants.length > 1 ? `<div class="row" style="align-items:flex-start"><canvas id="txMix" width="360" height="360" style="width:240px;border-radius:4px" aria-label="All variants mixed"></canvas>
+      <p class="hint">All variants mixed, as a map would use them. Side by side: <b class="${texScoreClass(tx.cross_score)}">${tx.cross_score ?? "?"}</b>
+      (about 1.0 = they fit${s.shared_edges ? "" : "; turn on <i>Variants fit together</i> and Re-cut tiles if the joins show"}).</p></div>` : ""}
     <div class="grid4">${tx.variants.map(v => `<div class="card">
       <canvas width="240" height="240" data-tile="${esc(v.tile)}" style="width:100%;border-radius:4px"></canvas>
       <div class="row" style="margin:0;justify-content:space-between"><b>#${v.index + 1}</b>
@@ -58,8 +74,10 @@ function paneTexture(j, st) {
   ${tx.exports.length ? `<section><h2>Files</h2>${tx.exports.map(f => `<p><a href="${esc(f.url)}">${esc(f.name)}</a> <span class="muted">${kb(f.size)}</span></p>`).join("")}</section>` : ""}`;
 
   $$("[data-tile]").forEach(c => texDrawTiled(c, c.dataset.tile, view.n, view.offset));
+  if ($("#txMix")) texDrawMixed($("#txMix"), tx.variants.map(v => v.tile), 6);
   const save = () => api(jobPath() + "/texture", {description: $("#txDesc").value.trim(), tile_size: +$("#txSize").value,
-    style: $("#txStyle").value, variants: +$("#txVar").value, colours: +($("#txCol")?.value || 16), zoom: +$("#txZoom").value});
+    style: $("#txStyle").value, variants: +$("#txVar").value, colours: +($("#txCol")?.value || 16), zoom: +$("#txZoom").value,
+    shared_edges: $("#txShared").value === "1"});
   $("#txStyle").onchange = async () => { await save(); lastSig = ""; refreshAll(); };
   $("#txGen").onclick = async () => {
     if (!$("#txDesc").value.trim()) return toast("Describe the texture first", true);

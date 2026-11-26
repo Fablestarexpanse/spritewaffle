@@ -26,8 +26,7 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
 Done: seamless textures, corner and blob transitions, collision shapes and tile properties, Godot
 export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-26.md). Open:
 
-1. **Texture variants that share edges**, so mixed variants tile with each other; then Tiled
-   `probability` per variant (pointless until then: every tile is 1, Tiled's default).
+1. **Tiled `probability` per texture variant** (variants can now share edges, so a map may mix them).
 2. **Edge-only terrain sets**, more than one layer per map, maps larger than 32 × 32.
 3. **Normal / height maps** for textures that tile with the colour map.
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;

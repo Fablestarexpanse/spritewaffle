@@ -462,12 +462,14 @@ def cmd_texture(a):
     job = _job(a.job, create=True, asset_type=texture.TYPE, style=a.style or "pixel")
     if job.read_meta()["inputs"].get("asset_type") != texture.TYPE:
         raise ValueError(f"{a.job} is not a texture job")
+    a.shared_edges = None if a.shared_edges is None else a.shared_edges == "on"
     s = texture.configure(job, description=a.describe, tile_size=a.tile_size, variants=a.variants,
-                          colours=a.colours, style=a.style)
+                          colours=a.colours, style=a.style, shared_edges=a.shared_edges)
     if a.generate:
         rep = texture.generate(job, seed=a.seed, only=[int(x) - 1 for x in a.only.split(",")] if a.only else None)
         for k, v in rep["variants"].items():
             print(f"variant {int(k) + 1}: seed {v['seed']}, wrap {v['wrap_raw']} -> {v['wrap_tile']}")
+        print(f"variants side by side: {rep.get('cross_score')}")
     if a.retile:
         texture.retile(job)
     if a.approve:
@@ -928,6 +930,7 @@ def build() -> argparse.ArgumentParser:
         (("--tile-size",), {"type": int, "help": "16 24 32 48 64 96 128 256 512"}),
         (("--variants",), {"type": int}), (("--colours",), {"type": int, "help": "pixel art palette size"}),
         (("--style",), {"choices": ("pixel", "painted", "anime", "comic")}), SEED,
+        (("--shared-edges",), {"choices": ("on", "off"), "help": "variants take variant 1's border so any two fit side by side"}),
         (("--only",), {"help": "re-roll these variants, e.g. 2,4"}),
         (("--generate",), {"action": "store_true"}), (("--retile",), {"action": "store_true"}),
         (("--approve",), {"action": "store_true", "help": "only after a human looked at the variants"}),

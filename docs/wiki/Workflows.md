@@ -422,8 +422,16 @@ then `--approve` (after looking), `--export` or `--to-tileset`; `--retile` after
 MCP: `texture(character, job_id, action="setup"|"generate"|"retile"|"status"|"export"|"to_tileset", ...)`.
 
 Generator feature size varies between renders (some come out with tiny detail even when zoomed):
-re-roll those or raise Detail zoom. Variants don't share edges with each other yet. Each tiles with
-itself, so mixing variants in one map can show edges between different variants.
+re-roll those or raise Detail zoom.
+
+**Variants fit together** (setting; CLI `--shared-edges on`, MCP/HTTP `shared_edges`): every variant
+takes variant 1's outer border, colour-matched to it and joined along the least visible cut, and pixel
+art gets one palette for all variants. Any variant then sits next to any other, so a map can mix them
+for variety. The Variants panel shows all of them mixed and a **side by side** score (the step across
+a join against the steps beside it; about 1.0 = fits). Measured 2026-11-26: grass 2.98 -> 1.26 and
+cobble 3.25 -> 0.80, the same as variant 1 tiling with itself; each variant keeps 60-70 % of its own
+pixels. The shared border repeats, and a variant with very different detail size can still read as a
+patch: re-roll it. Off by default; Re-cut tiles after changing it.
 
 ### Terrain transitions (two textures → corner or blob tileset)
 

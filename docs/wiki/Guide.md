@@ -69,6 +69,8 @@ animation.
 2. **Generate**. Look at each variant in the repeat preview; tick **Offset by half** to put the
    joins in the middle where you'd notice them. A wrap score near 1.0 means seamless. **Re-roll** bad
    ones. Tiny detail on a small tile? Raise **Detail zoom** and **Re-cut tiles**.
+   Want to mix variants on one map? Set **Variants fit together** to *Yes, shared edges* and
+   **Re-cut tiles**; the mixed preview shows whether they blend.
 3. **Approve**, then **Export** (tiles and a sheet), or **Send to tileset** to build maps with it.
 
 ## Ground that blends into other ground (grass to dirt)

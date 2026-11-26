@@ -74,6 +74,68 @@ def wrap_score(rgb: np.ndarray) -> float:
     return round(float((edge_c / max(np.median(cols), 1e-6) + edge_r / max(np.median(rows), 1e-6)) / 2), 2)
 
 
+def _side_cut(base: np.ndarray, img: np.ndarray, keep: int) -> np.ndarray:
+    """Cut through a left-edge strip (rows x band): per row, the column where `img` takes over from
+    `base`, along their least-different path, never closer than `keep` to the outer edge."""
+    cost = ((base.astype(float) - img.astype(float)) ** 2).sum(-1)
+    cost[:, :keep] = 1e12
+    return _min_cut(cost)
+
+
+def share_edges(base: np.ndarray, img: np.ndarray, band: float = 0.15, feather: int = 2) -> np.ndarray:
+    """`img` with its outer band replaced by `base`'s, joined along minimum-difference cuts (one per
+    side). Every variant made this way has the base's edges, so any variant sits next to any other
+    (and the base wraps, so they all wrap). Both images: same size, seamless masters."""
+    if base.shape != img.shape:
+        raise ValueError("variants must be the same size to share edges")
+    h, w = img.shape[:2]
+    bx, by = max(4, int(w * band)), max(4, int(h * band))
+    kx, ky = max(2, bx // 4), max(2, by // 4)
+    left = _side_cut(base[:, :bx], img[:, :bx], kx)                                   # img from here
+    right = bx - 1 - _side_cut(base[:, ::-1][:, :bx], img[:, ::-1][:, :bx], kx)       # img up to here
+    top = _side_cut(base.transpose(1, 0, 2)[:, :by], img.transpose(1, 0, 2)[:, :by], ky)
+    bottom = by - 1 - _side_cut(base.transpose(1, 0, 2)[:, ::-1][:, :by], img.transpose(1, 0, 2)[:, ::-1][:, :by], ky)
+    ys, xs = np.mgrid[0:h, 0:w]
+    inside = ((xs >= left[:, None]) & (xs <= (w - bx + right)[:, None])
+              & (ys >= top[None, :]) & (ys <= (h - by + bottom)[None, :])).astype(float)
+    if feather > 0:
+        import cv2
+        inside = cv2.GaussianBlur(inside, (0, 0), feather)
+        ring = np.zeros_like(inside, bool)
+        ring[:ky], ring[-ky:], ring[:, :kx], ring[:, -kx:] = True, True, True, True
+        inside[ring] = 0                                    # the outer edge stays exactly the base's
+    out = base.astype(float) * (1 - inside[..., None]) + img.astype(float) * inside[..., None]
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+
+
+def match_tone(img: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """img's colours shifted and scaled per OKLab channel to ref's mean and spread, so a variant
+    rendered lighter or darker doesn't show as a square patch inside the shared border."""
+    from ..pixel.color import oklab_to_srgb, srgb_to_oklab
+    a, b = srgb_to_oklab(img[..., :3].astype(float)), srgb_to_oklab(ref[..., :3].astype(float))
+    ma, sa = a.reshape(-1, 3).mean(0), a.reshape(-1, 3).std(0)
+    mb, sb = b.reshape(-1, 3).mean(0), b.reshape(-1, 3).std(0)
+    out = oklab_to_srgb((a - ma) * (sb / np.maximum(sa, 1e-6)) + mb)
+    return np.clip(np.rint(out), 0, 255).astype(np.uint8)
+
+
+def cross_score(tiles: list[np.ndarray]) -> float:
+    """How visible the joins are when different variants sit side by side: wrap_score's edge
+    measure over every ordered pair (left-right and top-bottom), worst pair. About 1 = they fit."""
+    if len(tiles) < 2:
+        return 1.0
+
+    def step(a, b):          # a's last column next to b's first, against the steps just inside each
+        across = np.abs(a[:, -1] - b[:, 0]).mean()
+        inside = (np.abs(a[:, -1] - a[:, -2]).mean() + np.abs(b[:, 1] - b[:, 0]).mean()) / 2
+        return across / max(inside, 1e-6)
+
+    f = [t[..., :3].astype(float) for t in tiles]
+    worst = max((step(a, b) + step(a.transpose(1, 0, 2), b.transpose(1, 0, 2))) / 2
+                for i, a in enumerate(f) for j, b in enumerate(f) if i != j)
+    return round(float(worst), 2)
+
+
 def resize_wrapped(rgb: np.ndarray, size: int, resample: str = "area") -> np.ndarray:
     """Resize a tileable image to size x size so it still tiles: the image is padded with its own
     wrap-around before resampling, then the padding is cut away."""
@@ -129,7 +191,7 @@ def settings(job) -> dict:
             "tile_size": tile, "variants": int(i.get("variants") or 4),
             "colours": int(i.get("colours") or 16), "overlap": float(i.get("overlap") or 0.15),
             "zoom": int(i.get("zoom") or 0) or auto_zoom(tile), "zoom_auto": not int(i.get("zoom") or 0),
-            "palette": _project_palette(job)}
+            "shared_edges": bool(i.get("shared_edges", False)), "palette": _project_palette(job)}
 
 
 def _project_palette(job) -> list[str] | None:
@@ -143,9 +205,12 @@ def _project_palette(job) -> list[str] | None:
 
 def configure(job, **values) -> dict:
     """Save texture settings (description, tile_size, variants, colours, overlap, style, zoom;
-    zoom 0 = automatic from the tile size)."""
-    v = {k: values[k] for k in ("description", "tile_size", "variants", "colours", "overlap", "style", "zoom")
-         if values.get(k) is not None}
+    zoom 0 = automatic from the tile size; shared_edges: every variant takes variant 0's border so
+    variants fit next to each other)."""
+    v = {k: values[k] for k in ("description", "tile_size", "variants", "colours", "overlap", "style", "zoom",
+                                "shared_edges") if values.get(k) is not None}
+    if "shared_edges" in v:
+        v["shared_edges"] = bool(v["shared_edges"])
     if "tile_size" in v and int(v["tile_size"]) not in TILE_SIZES:
         raise ValueError(f"tile size must be one of {TILE_SIZES}")
     if "variants" in v and not 1 <= int(v["variants"]) <= 16:
@@ -193,18 +258,42 @@ def clean_orphans(rgb: np.ndarray) -> np.ndarray:
     return out
 
 
+def _blocks(master: np.ndarray, s: dict) -> np.ndarray:
+    """Pixel art before colour reduction: each tile pixel the dominant colour of its block."""
+    from ..pixel import grid
+    k = 12
+    big = resize_wrapped(master, s["tile_size"] * k, "area")
+    return np.ascontiguousarray(grid.downscale(np.dstack([big, np.full(big.shape[:2], 255, np.uint8)]), k)[..., :3])
+
+
 def tile_from(master: np.ndarray, s: dict) -> np.ndarray:
     """The game tile from a seamless master. Pixel art: each tile pixel takes the dominant colour of
     its block (pixel/grid.downscale: crisp edges, measured sharper than averaging), then the palette.
     Other styles: an area-averaged resize. Both keep the wrap (blocks line up with the tile edge)."""
     if s["style"] != "pixel":
         return resize_wrapped(master, s["tile_size"], "area")
-    from ..pixel import grid
-    k = 12
-    big = resize_wrapped(master, s["tile_size"] * k, "area")
-    t = np.ascontiguousarray(grid.downscale(np.dstack([big, np.full(big.shape[:2], 255, np.uint8)]), k)[..., :3])
+    t = _blocks(master, s)
     t = snap_palette(t, s["palette"]) if s.get("palette") else _quantize(t, s["colours"])
     return clean_orphans(t)
+
+
+def shared_tiles(masters: list[np.ndarray], s: dict) -> list[np.ndarray]:
+    """Tiles for variants that share variant 0's edges: each master takes the base's border band,
+    pixel art is reduced to ONE palette for all of them (per-tile palettes gave each variant's edge
+    different colours), and the outermost tile pixel ring is copied from the base tile so the edges
+    match exactly."""
+    joined = [masters[0]] + [share_edges(masters[0], match_tone(m, masters[0]), s["overlap"]) for m in masters[1:]]
+    if s["style"] != "pixel":
+        tiles = [resize_wrapped(m, s["tile_size"], "area") for m in joined]
+    else:
+        pre = [_blocks(m, s) for m in joined]
+        strip = np.concatenate(pre, axis=1)
+        strip = snap_palette(strip, s["palette"]) if s.get("palette") else _quantize(strip, s["colours"])
+        tiles = [clean_orphans(t) for t in np.split(strip, len(pre), axis=1)]
+    base = tiles[0]
+    for t in tiles[1:]:
+        t[0], t[-1], t[:, 0], t[:, -1] = base[0], base[-1], base[:, 0], base[:, -1]
+    return tiles
 
 
 def _report_path(job):
@@ -225,6 +314,21 @@ def _process(job, k: int, s: dict) -> dict:
     tile = tile_from(master, s)
     Image.fromarray(tile).save(out / f"tile_{k}.png")
     return {"wrap_raw": wrap_score(src), "wrap_master": wrap_score(master), "wrap_tile": wrap_score(tile)}
+
+
+def _finish(job, s: dict, variants: dict) -> dict:
+    """After the variants are (re)made: with shared edges, rebuild every tile from the masters;
+    then score how well different variants fit side by side."""
+    from PIL import Image
+    d = job.root / "02_facings"
+    keys = sorted(variants)
+    if s.get("shared_edges") and len(keys) > 1:
+        masters = [np.array(Image.open(d / f"master_{k}.png").convert("RGB")) for k in keys]
+        for k, t in zip(keys, shared_tiles(masters, s)):
+            Image.fromarray(t).save(d / f"tile_{k}.png")
+            variants[k]["wrap_tile"] = wrap_score(t)
+    tiles = [np.array(Image.open(d / f"tile_{k}.png").convert("RGB")) for k in keys]
+    return {"cross_score": cross_score(tiles) if len({t.shape for t in tiles}) == 1 else None}
 
 
 def generate(job, client=None, seed: int | None = None, only: list[int] | None = None) -> dict:
@@ -256,7 +360,8 @@ def generate(job, client=None, seed: int | None = None, only: list[int] | None =
         variants[k] = {"seed": sd, **_process(job, k, s)}
         job.log_provenance(f"01_anchor/raw_{k}.png", template="anchor_still", values={"prompt": text, "seed": sd})
     variants = {k: v for k, v in variants.items() if k < s["variants"]}
-    rep = {"settings": s, "prompt": text, "variants": {str(k): variants[k] for k in sorted(variants)}}
+    extra = _finish(job, s, variants)
+    rep = {"settings": s, "prompt": text, "variants": {str(k): variants[k] for k in sorted(variants)}, **extra}
     rp.write_text(json.dumps(rep, indent=2))
     job.set_stage("texture", "review", variants=len(variants))
     return rep
@@ -273,6 +378,9 @@ def retile(job) -> dict:
     rep = json.loads(rp.read_text())
     for k, v in rep["variants"].items():
         v.update(_process(job, int(k), s))
+    variants = {int(k): v for k, v in rep["variants"].items()}
+    rep.update(_finish(job, s, variants))
+    rep["variants"] = {str(k): variants[k] for k in sorted(variants)}
     rep["settings"] = s
     rp.write_text(json.dumps(rep, indent=2))
     job.set_stage("texture", "review", variants=len(rep["variants"]))
@@ -306,7 +414,8 @@ def export(job) -> dict:
     Image.fromarray(np.concatenate(tiles, axis=1)).save(out / f"{name}_sheet.png")
     info = {"texture": name, "tile_size": int(tiles[0].shape[0]), "style": s["style"], "variants": len(tiles),
             "sheet": f"{name}_sheet.png", "tiles": files, "seeds": [rep["variants"][k]["seed"] for k in keys],
-            "wrap_scores": [rep["variants"][k]["wrap_tile"] for k in keys]}
+            "wrap_scores": [rep["variants"][k]["wrap_tile"] for k in keys],
+            "shared_edges": s["shared_edges"], "cross_score": rep.get("cross_score")}
     (out / f"{name}.json").write_text(json.dumps(info, indent=2))
     job.set_stage("export:texture", "done", variants=len(tiles), tile_size=info["tile_size"])
     return info

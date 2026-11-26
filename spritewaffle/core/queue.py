@@ -439,8 +439,22 @@ class Worker:
         os.write(fd, f"pid {os.getpid()} since {_now()}".encode())
         os.close(fd)
 
+    def _owns(self) -> bool:
+        """True while the lock file still names this process. The web UI takes the lock with
+        force=True; a worker that was already running (e.g. inside `spritewaffle mcp`, possibly with
+        older code) must then stop claiming tasks, or two workers race for the queue. Seen
+        2026-11-26: an MCP worker started the day before took a texture_retile task its old code
+        didn't know and failed it with KeyError."""
+        if not self._lockfile:
+            return True
+        try:
+            holder = self._lockfile.read_text().split()
+        except OSError:
+            return False
+        return len(holder) > 1 and holder[0] == "pid" and holder[1] == str(os.getpid())
+
     def _release(self) -> None:
-        if self._lockfile:
+        if self._lockfile and self._owns():                # never delete another worker's lock
             self._lockfile.unlink(missing_ok=True)
 
     def _recover(self) -> None:
@@ -521,14 +535,27 @@ class Worker:
                 th.join()
             self._release()
 
-    def start(self, force: bool = False) -> None:
-        """Background loop until stop() (web UI)."""
-        self._acquire(force)
-        self._recover()
+    def start(self, force: bool = False, standby: bool = False) -> None:
+        """Background loop until stop() (web UI). The loop only claims tasks while this worker holds
+        the lock: if another worker takes it over (force), this one goes idle. standby=True: don't
+        refuse when the lock is held; wait and take the queue once its holder has gone."""
+        try:
+            self._acquire(force)
+            self._recover()
+        except RuntimeError:
+            if not standby:
+                raise
 
         def loop():
             while not self._stop.is_set():
-                self.tick()
+                if self._owns():
+                    self.tick()
+                else:
+                    try:                                  # the holder exited (or died): take over
+                        self._acquire(False)
+                        self._recover()
+                    except (RuntimeError, OSError):
+                        pass
                 self._stop.wait(self.poll)
 
         self._thread = threading.Thread(target=loop, daemon=True, name="queue-worker")

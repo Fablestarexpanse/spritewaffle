@@ -580,19 +580,23 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def texture(character: str, job_id: str = "t1", action: str = "status", description: str | None = None,
                 tile_size: int | None = None, variants: int | None = None, colours: int | None = None,
-                style: str | None = None, only: list[int] | None = None, seed: int | None = None) -> dict:
+                style: str | None = None, only: list[int] | None = None, seed: int | None = None,
+                shared_edges: bool | None = None) -> dict:
         """Seamless tileable textures (ground, walls, water). action: 'setup' (creates the job, saves
         settings), 'generate' (queues every variant, or `only` = 1-based variant numbers to re-roll),
         'retile' (queues re-cutting tiles at a new tile_size/colours, no render), 'status',
         'export' and 'to_tileset' (need the human's approval first: approve(character, job_id,
-        'texture')). Each variant is seamed in code and gets a wrap score (about 1.0 = seamless)."""
+        'texture')). Each variant is seamed in code and gets a wrap score (about 1.0 = seamless).
+        shared_edges: every variant takes variant 1's border (tone-matched, joined on least-visible cuts) so any
+        two variants fit side by side; cross_score in the status is the worst join between different variants."""
         from .core import texture as tx
         root = base / character / job_id
         job = Job.open(root) if (root / "job.json").exists() else Job.create(character, job_id, base=base,
                                                                               asset_type=tx.TYPE, style=style or "pixel")
         if job.read_meta()["inputs"].get("asset_type") != tx.TYPE:
             raise ValueError(f"{character}/{job_id} is not a texture job")
-        s = tx.configure(job, description=description, tile_size=tile_size, variants=variants, colours=colours, style=style)
+        s = tx.configure(job, description=description, tile_size=tile_size, variants=variants, colours=colours, style=style,
+                         shared_edges=shared_edges)
         if action == "generate":
             if not s["description"]:
                 raise ValueError("give a description first")
@@ -700,12 +704,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
 def main(base: str | None = None) -> None:
     mcp, q = build(base)
     worker = Worker(q)
-    try:
-        worker.start()
-    except RuntimeError:
-        worker = None                      # the web UI or a CLI worker already runs the queue
+    worker.start(standby=True)             # idle while the web UI or a CLI worker holds the queue
     try:
         mcp.run("stdio")
     finally:
-        if worker:
-            worker.stop()
+        worker.stop()

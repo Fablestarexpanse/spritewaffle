@@ -468,11 +468,12 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                              and ((read_json(x) or {}).get("stages", {}).get("texture") or {}).get("status") == "approved"
                              and x.parent != j.root],
                 "texture": {"settings": texture.settings(j), "variants": variants, "exports": exports,
-                            "tile_sizes": list(texture.TILE_SIZES), "prompt": rep.get("prompt")}}
+                            "tile_sizes": list(texture.TILE_SIZES), "prompt": rep.get("prompt"),
+                            "cross_score": rep.get("cross_score")}}
 
     @app.post("/api/jobs/{char}/{jid}/texture")
     def texture_settings(char: str, jid: str, body: dict = Body(...)):
-        """Save texture settings: description, tile_size, variants, colours, overlap, style."""
+        """Save texture settings: description, tile_size, variants, colours, overlap, style, zoom, shared_edges."""
         from ..core import texture
         try:
             return texture.configure(job_or_404(char, jid), **body)

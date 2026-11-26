@@ -167,3 +167,28 @@ def test_stack_pipeline_chain(env):
     assert [t["stage"] for t in ts] == ["ortho", "stack"] and ts[1]["args"]["method"] == "carve"
     only = q.submit_stack_pipeline(job.root, views=False)
     assert [t["stage"] for t in only] == ["stack"] and only[0]["after"] == []
+
+
+def test_worker_steps_aside_when_another_takes_the_lock_and_resumes_after(env):
+    """2026-11-26: the web UI took the lock with force while an MCP worker (older code) kept
+    claiming tasks; it failed a texture_retile it didn't know. A worker that loses the lock now
+    stops claiming, and takes the queue back once the holder is gone."""
+    import subprocess, sys, time
+    base, job, q = env
+    rec = Recorder(0.01)
+    w = Worker(q, poll=0.02, registry=rec.registry())
+    w.start()
+    live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (q.dir / "worker.lock").write_text(f"pid {live.pid} since now")      # another worker took over
+        t = q.submit(job.root, "select", {"n": "later"})
+        time.sleep(0.3)
+        assert q.get(t["id"])["status"] == "queued"                           # not claimed
+    finally:
+        live.kill(); live.wait()
+    deadline = time.time() + 5
+    while q.get(t["id"])["status"] != "done" and time.time() < deadline:
+        time.sleep(0.05)
+    w.stop()
+    assert q.get(t["id"])["status"] == "done"
+    assert not (q.dir / "worker.lock").exists()
