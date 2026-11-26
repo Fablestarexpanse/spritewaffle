@@ -632,6 +632,24 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
+    @app.get("/api/jobs/{char}/{jid}/prompt")
+    def get_prompt(char: str, jid: str, file: str):
+        """The prompt behind one generated still (file = e.g. 02_facings/NE.png) and any saved edit."""
+        from ..core import prompt_edit
+        try:
+            return prompt_edit.get(job_or_404(char, jid), file)
+        except ValueError as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/prompt")
+    def set_prompt(char: str, jid: str, body: dict = Body(...)):
+        """Save the prompt for the next generation of body.file (body.prompt; empty clears it)."""
+        from ..core import prompt_edit
+        try:
+            return prompt_edit.set_prompt(job_or_404(char, jid), body.get("file") or "", body.get("prompt"))
+        except ValueError as e:
+            bad(e)
+
     @app.post("/api/jobs/{char}/{jid}/approve")
     def approve(char: str, jid: str, body: dict = Body(...)):
         j = job_or_404(char, jid)

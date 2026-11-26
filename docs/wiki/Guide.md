@@ -7,7 +7,10 @@ versions of every step are in [CLI and MCP](Interfaces.md); details and options 
 
 Two habits hold everywhere:
 - **You approve, the tool never does.** Nothing moves on until you click **Approve**. If a result
-  looks wrong, **Re-roll** it; the old take is kept under **Earlier takes**.
+  looks wrong, **Re-roll** it; the old take is kept under **Earlier takes**. If re-rolling keeps
+  making the same mistake (a buckle on a back view), **Edit prompt…** next to Re-roll shows the exact
+  prompt that view was made with: change the wording and **Save and re-roll**. The view is marked
+  *custom prompt* until you **Reset to built prompt**.
 - **Queue** (top bar) shows what's running. A failed task waits under **Queue → Failed** with its
   error and a **Retry** button.
 

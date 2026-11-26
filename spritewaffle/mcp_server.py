@@ -642,6 +642,22 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return {"counts": counts, "failed": failed[:50]}
 
     @mcp.tool()
+    def prompt(character: str, job_id: str, file: str, text: str | None = None, clear: bool = False) -> dict:
+        """Read or edit the prompt behind one generated still before re-rolling it. file is the
+        image inside the job, e.g. '02_facings/NE.png' or '01_anchor/anchor.png'. Without text:
+        returns the prompt last used ('used') and any saved edit ('custom'). With text: saves it as
+        that file's prompt for its next generation (then re-roll it: generate(..., stage='facings',
+        only=['NE']) or the anchor). clear=True goes back to the built prompt. A human still approves
+        the result."""
+        from .core import prompt_edit
+        job = job_for(character, job_id)
+        if clear:
+            return prompt_edit.set_prompt(job, file, None)
+        if text is not None:
+            return prompt_edit.set_prompt(job, file, text)
+        return prompt_edit.get(job, file)
+
+    @mcp.tool()
     def approve(character: str, job_id: str, stage: str) -> dict:
         """Mark a stage approved ('anchor' or 'facings'). ONLY call this after the human has looked at
         the output (status with include_images) and said yes; never approve on your own judgement."""

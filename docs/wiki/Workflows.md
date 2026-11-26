@@ -143,6 +143,11 @@ The active art style sets the render style. An optional library or approved hero
 contributes up to six colour swatches. The renderer receives those cues and your description.
 Approve both views to export the item on its own.
 
+Every facing has **Edit prompt…** beside Re-roll: the prompt that view was generated with, editable,
+saved for that view's next generation only (`spritewaffle prompt --job … --file 02_facings/NE.png --set …`,
+HTTP `GET/POST /api/jobs/{character}/{job}/prompt`, MCP `prompt`, so an agent can do the same).
+Provenance marks generations made from an edited prompt (`prompt_edited`).
+
 To equip the item after approving both views, open a character, choose **Make a variant…**,
 pick the item, and say how it is used. The worn variant gets all eight facings. The standalone
 item keeps its views and lists the characters it was fitted on.

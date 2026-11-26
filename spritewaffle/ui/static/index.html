@@ -1654,7 +1654,7 @@ function paneFacings(j, st) {
     ${isItem ? `<div class="frontback">${[["S", "Front"], ["N", "Back"]].map(([f, label]) => {
       const x = j.facings.find(y => y.facing === f) || {};
       return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="${label}" title="enlarge">${img(x.image, label)}</a>` : img(null)}
-        <b>${label}</b>${f === "N" && x.image && st("anchor") === "approved" ? `<button data-reroll="N">Re-roll</button>` : ""}
+        <b>${label}</b>${f === "N" && x.image && st("anchor") === "approved" ? `<button data-reroll="N">Re-roll</button>${promptButton(j, "02_facings/N.png", label, "N")}` : ""}
         ${takesHtml(x.takes, `02_facings/${f}.png`, label)}</div>`; }).join("")}</div>` : `
     <div class="compass">${COMPASS.map(f => {
       if (!f) return `<div class="center">compass<br>view</div>`;
@@ -1663,7 +1663,7 @@ function paneFacings(j, st) {
       return `<div class="card">${x.image ? `<a href="${esc(x.full)}" data-view="Facing ${esc(f)}" title="enlarge">${img(x.image, f)}</a>` : img(null)}
         <div class="row" style="margin:0;justify-content:space-between"><b>${f}</b>
           <span class="muted ${driftCls(x.drift)}">${x.drift ? `drift ${x.drift.color}` : ""}${x.mirrored ? " · mirrored" : ""}</span></div>
-        ${f !== "S" && st("anchor") === "approved" ? `<button data-reroll="${f}">Re-roll</button>` : ""}
+        ${f !== "S" && st("anchor") === "approved" ? `<div class="row" style="margin:0"><button data-reroll="${f}">Re-roll</button>${promptButton(j, `02_facings/${f}.png`, "Facing " + f, f)}</div>` : ""}
         ${takesHtml(x.takes, `02_facings/${f}.png`, "Facing " + f)}</div>`;
     }).join("")}</div>`}
     ${(fr.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
@@ -1682,6 +1682,34 @@ function paneFacings(j, st) {
   bindMirrorPolicy(j);
   if ($("#ttFacings")) $("#ttFacings").onclick = () => showTurntable(j);
   $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
+  $$("[data-prompt-file]").forEach(b => b.onclick = () => showPromptEditor(b.dataset.promptFile, b.dataset.promptLabel,
+    () => run("facings", {only: [b.dataset.promptView]}, `${b.dataset.promptView} re-roll queued with your prompt`)));
+}
+
+// "Edit prompt…" next to a re-roll: the prompt this view was made with, editable, saved for its next
+// generation (core/prompt_edit.py). Ronan 2026-11-26: fix a view by wording, e.g. a buckle on the back.
+function promptButton(j, file, label, view) {
+  const custom = (j.inputs?.prompt_overrides || {})[file];
+  return `<button class="ghost" data-prompt-file="${esc(file)}" data-prompt-label="${esc(label)}" data-prompt-view="${esc(view)}"
+    title="See and edit the prompt this view was generated with, then re-roll it">Edit prompt…${custom ? ` <span class="badge">custom prompt</span>` : ""}</button>`;
+}
+
+async function showPromptEditor(file, label, reroll) {
+  const d = $("#dlg"), path = jobPath() + "/prompt";
+  const p = await api(`${path}?file=${encodeURIComponent(file)}`);
+  d.innerHTML = `<h2>Prompt: ${esc(label)} <span class="spacer"></span><button class="ghost" id="pClose">Close</button></h2>
+    <p class="hint" style="margin-top:0">${p.custom ? "Your saved prompt for this view." : "The prompt this view was last generated with."}
+      Change the wording (for example, take out a detail that belongs on the other side) and re-roll. The original
+      prompt comes back with <i>Reset to built prompt</i>.</p>
+    <textarea id="pText" rows="14" style="width:100%;font:inherit">${esc(p.custom || p.used || "")}</textarea>
+    <div class="row" style="margin-top:10px"><button class="primary" id="pGo">Save and re-roll</button>
+      <button id="pSave">Save only</button>${p.custom ? `<button class="ghost" id="pReset">Reset to built prompt</button>` : ""}</div>`;
+  $("#pClose").onclick = () => d.close();
+  const save = async text => { await api(path, {file, prompt: text}); lastSig = ""; };
+  $("#pSave").onclick = async () => { await save($("#pText").value); toast("Prompt saved for the next re-roll"); d.close(); refreshAll(); };
+  $("#pGo").onclick = async () => { await save($("#pText").value); d.close(); reroll(); };
+  if ($("#pReset")) $("#pReset").onclick = async () => { await save(""); toast("Back to the built prompt"); d.close(); refreshAll(); };
+  openWorkspaceDialog(d);
 }
 
 function paneAnimations(j, st) {

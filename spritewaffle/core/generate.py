@@ -32,9 +32,10 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path, *,
          project_reference_id: str | None = None, style_palette: list[str] | None = None) -> dict:
     """One image generation. A project/asset camera profile adds its sentence to the prompt here, so
     every still (anchor, facings, items, variants) gets it; none set -> the prompt is unchanged."""
-    from . import camera
+    from . import camera, prompt_edit
+    values, custom = prompt_edit.apply(job, dest, values)       # a prompt the user edited for this file
     extra = camera.prompt_sentence(job)
-    if extra and isinstance(values.get("prompt"), str):
+    if extra and isinstance(values.get("prompt"), str) and extra not in values["prompt"]:
         values = {**values, "prompt": f"{values['prompt'].rstrip()} {extra}"}
     tmp = dest.parent / f".{dest.stem}_tmp"
     prov = client.run_template(slot, values, tmp)
@@ -50,6 +51,8 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path, *,
         prov["project_reference_id"] = project_reference_id
     if style_palette is not None:
         prov["style_palette"] = style_palette
+    if custom:
+        prov["prompt_edited"] = True
     job.log_provenance(str(dest.relative_to(job.root)), **prov, camera=camera.snapshot(job))
     return prov
 

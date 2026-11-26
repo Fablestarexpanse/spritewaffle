@@ -411,6 +411,19 @@ def cmd_bridge(a):
     print(generate.bridge(job, a.a, a.b, dest, seed=a.seed, method=a.method))
 
 
+def cmd_prompt(a):
+    """Show or edit the prompt behind one generated still (before re-rolling it)."""
+    from .core import prompt_edit
+    job = _job(a.job)
+    if a.clear:
+        r = prompt_edit.set_prompt(job, a.file, None)
+    elif a.set is not None or a.from_file:
+        text = Path(a.from_file).read_text(encoding="utf-8") if a.from_file else a.set
+        r = prompt_edit.set_prompt(job, a.file, text)
+    else:
+        r = prompt_edit.get(job, a.file)
+    print(f"{r['file']}\n--- used last time ---\n{r['used'] or '(not generated yet)'}\n--- saved edit ---\n{r['custom'] or '(none)'}")
+
 def cmd_export_character(a):
     from .export import character
     job = _job(a.job)
@@ -908,6 +921,11 @@ def build() -> argparse.ArgumentParser:
         JOB, FACING, ACTION, SEED,
         (("--a",), {"required": True}), (("--b",), {"required": True}),
         (("--name",), {"default": "bridge"}), (("--method",), {"choices": ("video", "image"), "default": "video"}))
+    cmd("prompt", cmd_prompt, "show or edit the prompt behind one generated image, then re-roll it",
+        JOB, (("--file",), {"required": True, "help": "image inside the job, e.g. 02_facings/NE.png"}),
+        (("--set",), {"help": "new prompt text for the next generation of that file"}),
+        (("--from-file",), {"help": "read the new prompt from a UTF-8 text file"}),
+        (("--clear",), {"action": "store_true", "help": "go back to the built prompt"}))
     cmd("export-character", cmd_export_character, "one .aseprite (a tag per animation) + atlas for the whole job",
         JOB, PROFILE, (("--set",), {"default": "12f", "choices": ("12f", "24f")}),
         (("--include-failed",), {"action": "store_true", "help": "also ship animations that failed QA"}),

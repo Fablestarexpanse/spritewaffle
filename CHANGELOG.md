@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Edit prompt…** beside each facing's Re-roll: see the exact prompt a view was made with, edit it, save and re-roll just that view (CLI `prompt`, HTTP `/prompt`, MCP `prompt`). The edit is stored per file and applied where every still is generated; provenance marks it.
 - An item fitted on a base body (or animal) now gets its facings: they were refused as 'from the turnaround sheet' before the variant check.
 - Green-screen keying cleans enclosed gaps in passes: speckled green between arms and legs, black fills ringed by green, and the specks left behind (H3 image edit returns those for item fits). Clean sprites are unchanged.
 - Texture variants can share edges ("Variants fit together"; CLI `--shared-edges on`, HTTP/MCP `shared_edges`): each takes variant 1's colour-matched border, joined along least-visible cuts, with one palette for pixel art, so any variant fits next to any other. Mixed preview and a side-by-side score in the UI.
