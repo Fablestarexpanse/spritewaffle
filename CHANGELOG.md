@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added seamless textures: a new asset type that generates tileable ground, wall or water tiles (16–512 px, pixel or painted, 1–16 variants). Edges are joined along the least visible cut so each tile wraps exactly, with a wrap score, a repeat preview with an offset-by-half view, re-roll per variant, re-cutting without a new render, export, and Send to tileset. Browser, CLI (`texture`) and MCP (`texture`).
 - Added a file chooser to import a starting image, with original files retained for retries. Approval and the next stage sit beside the image preview.
 - Moved existing animation clips above generation and added direct timeline access. The generation form uses the job's supported directions and available artwork.
 - Kept queue failures from opening a panel or blocking clicks, preserved drafts and focus on workspace refresh, and added a clear action to empty job searches.

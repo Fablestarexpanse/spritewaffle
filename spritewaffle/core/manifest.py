@@ -21,7 +21,7 @@ from .profile import GameProfile, resolve
 
 SCHEMA_VERSION = 1
 CYCLIC = {"idle", "walk", "run"}
-SINGLE_VIEW = {"effect": 1, "prop": 1, tileset.TYPE: 1}
+SINGLE_VIEW = {"effect": 1, "prop": 1, tileset.TYPE: 1, "texture": 1}
 
 
 def path(job: Job) -> Path:

@@ -568,6 +568,37 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return mf.read(job)
 
     @mcp.tool()
+    def texture(character: str, job_id: str = "t1", action: str = "status", description: str | None = None,
+                tile_size: int | None = None, variants: int | None = None, colours: int | None = None,
+                style: str | None = None, only: list[int] | None = None, seed: int | None = None) -> dict:
+        """Seamless tileable textures (ground, walls, water). action: 'setup' (creates the job, saves
+        settings), 'generate' (queues every variant, or `only` = 1-based variant numbers to re-roll),
+        'retile' (queues re-cutting tiles at a new tile_size/colours, no render), 'status',
+        'export' and 'to_tileset' (need the human's approval first: approve(character, job_id,
+        'texture')). Each variant is seamed in code and gets a wrap score (about 1.0 = seamless)."""
+        from .core import texture as tx
+        root = base / character / job_id
+        job = Job.open(root) if (root / "job.json").exists() else Job.create(character, job_id, base=base,
+                                                                              asset_type=tx.TYPE, style=style or "pixel")
+        if job.read_meta()["inputs"].get("asset_type") != tx.TYPE:
+            raise ValueError(f"{character}/{job_id} is not a texture job")
+        s = tx.configure(job, description=description, tile_size=tile_size, variants=variants, colours=colours, style=style)
+        if action == "generate":
+            if not s["description"]:
+                raise ValueError("give a description first")
+            t = q.submit(job.root, "texture", {"only": [int(x) - 1 for x in only]} if only else ({"seed": seed} if seed is not None else {}))
+            return {"queued": t["id"], "settings": s}
+        if action == "retile":
+            return {"queued": q.submit(job.root, "texture_retile", {})["id"], "settings": s}
+        if action == "export":
+            return tx.export(job)
+        if action == "to_tileset":
+            return tx.to_tileset(job)
+        rp = job.root / "02_facings" / "texture_report.json"
+        return {"settings": s, "stage": job.read_meta()["stages"].get("texture"),
+                "variants": json.loads(rp.read_text())["variants"] if rp.exists() else {}}
+
+    @mcp.tool()
     def manifest_migrate(rebuild: bool = False, limit: int = 0) -> dict:
         """Write manifests for jobs that have none (rebuild=True: all). limit > 0 stops after that
         many writes, so very large projects can be migrated in batches."""

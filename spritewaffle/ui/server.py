@@ -205,7 +205,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts, "running": running,
                 "now": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "jobs": str(base), "profiles": list_profiles(), "actions": sorted(builder.ACTIONS),
-                "asset_types": sorted([*builder.ASSET_TYPES, tileset.TYPE]),
+                "asset_types": sorted([*builder.ASSET_TYPES, tileset.TYPE, "texture"]),
                 "styles": [{"name": k, "label": v["label"]} for k, v in styles.STYLES.items()]}
 
     # --- jobs -----------------------------------------------------------------------------
@@ -238,6 +238,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 j = tileset.create(base, char, jid)
             except (ValueError, OSError) as error:
                 bad(error)
+            return {"character": char, "job_id": j.root.name}
+        if asset_type == "texture":                      # seamless texture (core/texture.py)
+            from ..core import texture
+            style = body.get("style") or "pixel"
+            j = Job.create(char, jid, base=base, asset_type=texture.TYPE, style=style)
             return {"character": char, "job_id": j.root.name}
         if asset_type not in builder.ASSET_TYPES:
             raise HTTPException(400, f"unknown asset type {asset_type}")
@@ -291,6 +296,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         if meta["inputs"].get("asset_type") == tileset.TYPE:
             return {"character": char, "job_id": jid, "asset_type": tileset.TYPE, "style": "pixel",
                     "stages": meta["stages"], "inputs": meta["inputs"]}
+        if meta["inputs"].get("asset_type") == "texture":
+            return texture_view(j, meta)
         fr = read_json(j.root / "02_facings" / "facings_report.json") or {}
         def takes_of(rel: str, still: bool = True) -> list[dict]:
             from ..core import takes
@@ -414,6 +421,46 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return tileset_view(j, tileset.collision(j, body.get("tile"), body.get("solid"), body.get("revision")))
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
+
+    def texture_view(j: Job, meta: dict) -> dict:
+        from ..core import texture
+        rep = read_json(j.root / "02_facings" / "texture_report.json") or {}
+        d, ex = j.root / "02_facings", j.root / "06_export" / "texture"
+        variants = [{"index": int(k), **v, "tile": url(d / f"tile_{k}.png"), "master": url(d / f"master_{k}.png"),
+                     "raw": url(j.root / "01_anchor" / f"raw_{k}.png")}
+                    for k, v in sorted((rep.get("variants") or {}).items(), key=lambda kv: int(kv[0]))]
+        exports = sorted([{"name": p.name, "url": url(p) + "&download=1", "size": p.stat().st_size}
+                          for p in ex.glob("*") if p.is_file()], key=lambda e: e["name"]) if ex.is_dir() else []
+        return {"character": meta["character"], "job_id": meta["job_id"], "asset_type": texture.TYPE,
+                "style": meta["inputs"].get("style") or "pixel", "stages": meta["stages"], "inputs": meta["inputs"],
+                "texture": {"settings": texture.settings(j), "variants": variants, "exports": exports,
+                            "tile_sizes": list(texture.TILE_SIZES), "prompt": rep.get("prompt")}}
+
+    @app.post("/api/jobs/{char}/{jid}/texture")
+    def texture_settings(char: str, jid: str, body: dict = Body(...)):
+        """Save texture settings: description, tile_size, variants, colours, overlap, style."""
+        from ..core import texture
+        try:
+            return texture.configure(job_or_404(char, jid), **body)
+        except (ValueError, TypeError) as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/texture/export")
+    def texture_export(char: str, jid: str):
+        from ..core import texture
+        try:
+            return texture.export(job_or_404(char, jid))
+        except (ValueError, RuntimeError, FileNotFoundError) as e:
+            bad(e)
+
+    @app.post("/api/jobs/{char}/{jid}/texture/tileset")
+    def texture_to_tileset(char: str, jid: str, body: dict = Body(default={})):
+        """Export, then open the variants as a new tileset job (terrain, maps, Tiled export)."""
+        from ..core import texture
+        try:
+            return texture.to_tileset(job_or_404(char, jid), (body.get("job_id") or "").strip() or None)
+        except (ValueError, RuntimeError, FileNotFoundError, FileExistsError) as e:
+            bad(e)
 
     @app.post("/api/jobs/{char}/{jid}/tileset/export")
     def export_tileset(char: str, jid: str):

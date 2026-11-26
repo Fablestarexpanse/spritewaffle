@@ -2,7 +2,7 @@
 
 [Wiki home](Home.md) · [Studio guide](Studio-Guide.md) · [Asset workflows](Workflows.md)
 
-Use `spritewaffle --help` to list the 49 top-level commands and
+Use `spritewaffle --help` to list the 50 top-level commands and
 `spritewaffle <command> --help` for options. Jobs use `CHARACTER/JOB` under
 `SPRITEWAFFLE_JOBS`. Add `--debug` before the command for a traceback.
 
@@ -16,6 +16,7 @@ Use `spritewaffle --help` to list the 49 top-level commands and
 | Project style, palette, and reference images | `project-style`, `project-palette`, `project-references`, `palette`, `style-check` | `project_style`, `project_palette`, `project_references`, `project_reference_image`, `palette`, `style_check` |
 | Camera, mirrors, and manifests | `studio job-camera`, `studio set-job-camera`, `studio project-camera`, `studio set-project-camera`, `studio set-mirror-policy`, `manifest` | `camera_profile`, `mirror_policy`, `manifest`, `manifest_migrate` |
 | Export and freshness | `export`, `export-character`, `studio export-item`, `showcase`, the four `export-…-status` commands | `export_action`, `export_character`, `showcase`, `action_export_status`, `character_export_status`, `effect_export_status`, `item_export_status` |
+| Seamless textures | `texture` | `texture` |
 | Terrain, map objects, and templates | `tileset`, `tilemap` | `tileset`, `tilemap` |
 | Props, effects, motion, and queue | `stack`, `motion`, `queue`, `studio` | `stack`, `studio` |
 

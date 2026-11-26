@@ -367,3 +367,29 @@ Reuse one approved driving clip (a plain grey mannequin works best) across the w
 **Animations → Source**. *flow* moves the character's own pixels (exact colours, no render,
 can't turn the character); *TARA* re-renders with H3 (follows the motion better, colours can
 drift — each transfer reports an identity-drift score).
+
+## Seamless textures
+
+New asset → **seamless texture** (ground, walls, water, roofs…). On the Texture tab:
+
+1. Describe it ("mossy cobblestone ground with grass in the gaps"), pick the **tile size** (16–512 px),
+   **style** (pixel art, hand-painted, anime, comic), **variants** (1–16) and, for pixel art, **colours**.
+2. **Generate.** Each variant is rendered seen from straight above. It's zoomed in (**Detail zoom**;
+   Auto picks 4× for tiles up to 32 px, 3× up to 64, 2× up to 128) so a small tile holds a few readable
+   features. It's then made seamless by joining its edges along the least visible cut (image
+   quilting), and cut to the tile size. Pixel art takes each tile pixel's dominant colour, then the palette.
+3. Check each variant in the repeat preview (2×2 to 8×8, **Offset by half** puts the wrap seams in the
+   middle). The **wrap score** is about 1.0 when seamless (green ≤ 1.3). **Re-roll** a bad variant.
+   **Re-cut tiles** redoes the seaming and cutting from the saved renders, with no new render, after a
+   tile size, zoom or colour change.
+4. **Approve**, then **Export** (`06_export/texture/`: each tile, a sheet of all variants in a row,
+   3×3 previews, JSON with tile size, seeds and wrap scores). Or use **Send to tileset**: a new
+   tileset job with the variants as tiles, ready for terrain rules, maps and Tiled export.
+
+CLI: `spritewaffle texture --job cobble/t1 --describe "..." --tile-size 32 --variants 4 --generate`,
+then `--approve` (after looking), `--export` or `--to-tileset`; `--retile` after changing settings.
+MCP: `texture(character, job_id, action="setup"|"generate"|"retile"|"status"|"export"|"to_tileset", ...)`.
+
+Generator feature size varies between renders (some come out with tiny detail even when zoomed):
+re-roll those or raise Detail zoom. Variants don't share edges with each other yet. Each tiles with
+itself, so mixing variants in one map can show edges between different variants.

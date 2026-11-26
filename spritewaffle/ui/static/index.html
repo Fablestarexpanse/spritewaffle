@@ -593,6 +593,7 @@
 <script src="/static/tileset_modules.js"></script>
 <script src="/static/tileset_terrain.js"></script>
 <script src="/static/tileset.js"></script>
+<script src="/static/texture.js"></script>
 <script>
 "use strict";
 const $ = (s, el = document) => el.querySelector(s);
@@ -602,7 +603,7 @@ const COMPASS = ["NW", "N", "NE", "W", null, "E", "SW", "S", "SE"];
 const STEPS = {character: ["anchor", "facings", "animations", "export"], creature: ["anchor", "facings", "animations", "export"],
                animal: ["anchor", "facings", "animations", "export"],
                prop: ["anchor", "stack", "export"], effect: ["effect"], item: ["anchor", "facings", "export"],
-               base_body: ["anchor", "facings", "animations", "export"], tileset: ["tileset"]};
+               base_body: ["anchor", "facings", "animations", "export"], tileset: ["tileset"], texture: ["texture"]};
 // What each kind of job is, in the words the UI shows (never the raw id: audit #11).
 const TYPES = {
   character: {label: "character", group: "Characters", help: "A person with directional views and animations"},
@@ -613,11 +614,12 @@ const TYPES = {
   effect: {label: "effect", group: "Effects", help: "An animated spell, flame, explosion, or other visual effect"},
   prop: {label: "prop", group: "Props", help: "A rigid object that can be rendered from different angles"},
   tileset: {label: "tileset", group: "Terrain", help: "Tiles, terrain, reusable modules, and map layouts"},
+  texture: {label: "seamless texture", group: "Terrain", help: "Tileable ground, wall or water tiles that wrap with no seam"},
 };
 const typeLabel = t => (TYPES[t] || {}).label || String(t || "").replace(/_/g, " ");
 const assetTypes = () => Object.keys(TYPES).filter(type => !status.asset_types.length || status.asset_types.includes(type));
 const SHEET_TYPES = ["animal", "base_body"];        // facings come from one turnaround sheet
-const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack", tileset: "Tileset"};
+const TITLES = {effect: "Effect", anchor: "Anchor", facings: "Facings", animations: "Animations", export: "Export", stack: "Sprite stack", tileset: "Tileset", texture: "Texture"};
 
 let status = {profiles: [], actions: [], asset_types: []};
 let jobsCache = [];
@@ -1111,6 +1113,7 @@ function stepDone(step, stages) {
   const st = k => stages[k]?.status ?? stages[k];
   if (step === "effect") return st("effect:export") === "done";
   if (step === "tileset") return st("tileset") === "done";
+  if (step === "texture") return st("texture") === "approved";
   if (step === "anchor") return st("anchor") === "approved";
   if (step === "facings") return st("facings") === "approved";
   if (step === "animations") return Object.keys(stages).some(k => k.startsWith("export:") && k !== "export:character");
@@ -1327,7 +1330,7 @@ function renderJob() {
       <span aria-hidden="true" class="n ${stepDone(s, j.stages) ? "ok" : ""}">${stepDone(s, j.stages) ? "✓" : i + 1}</span>${TITLES[s]}</button>`).join("")}</nav>
     <details id="jobSettings" class="jobsettings" data-job="${esc(jobPath())}" ${settingsOpen ? "open" : ""}>
       <summary>Job settings</summary>
-      ${j.asset_type === "tileset" ? "" : `<div class="jobsettings-fields" style="margin-top:.65rem">
+      ${["tileset", "texture"].includes(j.asset_type) ? "" : `<div class="jobsettings-fields" style="margin-top:.65rem">
       <label class="field">Game profile <select id="jProfile"><option value="">Built-in defaults</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
       <label class="field" title="Art style for new generations; generate a new anchor after switching">Art style
@@ -1344,7 +1347,7 @@ function renderJob() {
       <div class="row"><button class="danger" id="jArchive" title="Move to jobs/_archive">Archive this job…</button></div>
     </details>
     <div id="pane"></div>`;
-  ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack, tileset: paneTileset})[tab](j, st);
+  ({effect: paneEffect, anchor: paneAnchor, facings: paneFacings, animations: paneAnimations, export: paneExport, stack: paneStack, tileset: paneTileset, texture: paneTexture})[tab](j, st);
   for (const [id, value] of drafts) {
     const field = document.getElementById(id);
     if (field && value !== undefined) field.value = value;
@@ -1365,7 +1368,7 @@ function renderJob() {
     }
   }
   $$(".tab").forEach(b => b.onclick = () => goToStage(b.dataset.tab));
-  if (j.asset_type !== "tileset") {
+  if (!["tileset", "texture"].includes(j.asset_type)) {
     $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
     $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
     $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };

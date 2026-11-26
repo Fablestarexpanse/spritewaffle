@@ -445,6 +445,33 @@ def cmd_style_check(a):
     _print(style_check.inspect(_job(a.job)))
 
 
+def cmd_texture(a):
+    """Seamless textures: set up / generate / re-cut / export / send to a tileset."""
+    from .core import texture
+    job = _job(a.job, create=True, asset_type=texture.TYPE, style=a.style or "pixel")
+    if job.read_meta()["inputs"].get("asset_type") != texture.TYPE:
+        raise ValueError(f"{a.job} is not a texture job")
+    s = texture.configure(job, description=a.describe, tile_size=a.tile_size, variants=a.variants,
+                          colours=a.colours, style=a.style)
+    if a.generate:
+        rep = texture.generate(job, seed=a.seed, only=[int(x) - 1 for x in a.only.split(",")] if a.only else None)
+        for k, v in rep["variants"].items():
+            print(f"variant {int(k) + 1}: seed {v['seed']}, wrap {v['wrap_raw']} -> {v['wrap_tile']}")
+    if a.retile:
+        texture.retile(job)
+    if a.approve:
+        from .core import generate as gen
+        gen.approve(job, "texture")
+    if a.to_tileset:
+        r = texture.to_tileset(job)
+        print(f"tileset {r['character']}/{r['job_id']}: {r['tiles']} tiles")
+    elif a.export:
+        info = texture.export(job)
+        print(f"exported {info['variants']} tiles of {info['tile_size']} px: {info['sheet']}")
+    if not (a.generate or a.retile or a.export or a.to_tileset):
+        print(json.dumps(s, indent=2))
+
+
 def cmd_manifest(a):
     """Write asset manifests (docs/MANIFEST.md): one job, or every job (the migration)."""
     from .core import manifest
@@ -868,6 +895,15 @@ def build() -> argparse.ArgumentParser:
     cmd("export-effect-status", cmd_effect_export_status, "check the last effect bundle for changed inputs or files", JOB)
     cmd("archive", cmd_archive, "move a job to jobs/_archive (reversible: move it back)", JOB)
     cmd("style-check", cmd_style_check, "compare one asset and its processed clips with the project style", JOB)
+    cmd("texture", cmd_texture, "seamless tileable textures: set up, --generate, --retile, --approve, --export, --to-tileset",
+        JOB, (("--describe",), {"help": "what it is, e.g. 'mossy cobblestone ground'"}),
+        (("--tile-size",), {"type": int, "help": "16 24 32 48 64 96 128 256 512"}),
+        (("--variants",), {"type": int}), (("--colours",), {"type": int, "help": "pixel art palette size"}),
+        (("--style",), {"choices": ("pixel", "painted", "anime", "comic")}), SEED,
+        (("--only",), {"help": "re-roll these variants, e.g. 2,4"}),
+        (("--generate",), {"action": "store_true"}), (("--retile",), {"action": "store_true"}),
+        (("--approve",), {"action": "store_true", "help": "only after a human looked at the variants"}),
+        (("--export",), {"action": "store_true"}), (("--to-tileset",), {"action": "store_true"}))
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),
         (("--rebuild",), {"action": "store_true", "help": "rewrite manifests that already exist"}))
