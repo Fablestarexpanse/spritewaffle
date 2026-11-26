@@ -55,7 +55,11 @@ Filter Mode **Point**, Compression **None**, Max Size **at least the atlas size*
 size: a 64 px goblin and a 384 px hare at their own cell sizes would both come out one unit tall and
 break the Pixel Perfect Camera. Pivot **Custom** at the JSON's `pivot_norm` (for a 64 px cell,
 `(0.5, 0.0156)`), Pivot Space **Canvas**. Each tag becomes a clip; one-shot actions (attack,
-jump, …) are tagged to play once. (Unity behaviour of the play-once tags is not yet checked in an editor.)
+jump, …) are tagged to play once and import with Loop Time off. Checked 2026-11-26 in Unity 6000.6
+with the 2D Aseprite Importer 6.0.0: a one-shot clip imported with `loopTime = false`, 12 keys
+83 ms apart, and with the custom pivot above every frame's pivot sat on the exported foot point
+(canvas (32, 1) from the bottom-left of a 64 px cell). Unity's default pivot (Canvas, Bottom
+Center) is one pixel lower, under the feet, so set the custom pivot.
 
 Frame timing: `.aseprite` stores whole milliseconds per frame, so 12 fps is 83 ms a frame
 (12.05 fps), about 0.4 % fast against the JSON's exact fps over a long loop. Engines reading the

@@ -44,7 +44,7 @@ points come from the code.
 
 ## P3: polish
 
-**Status 2026-11-26:** #11 test count fixed, UPGRADE_ROADMAP marked as a record (one open list: wiki Roadmap). #12 `tiledversion` and the Wang set icon done; per-tile `probability` waits for variants that share edges. #13 documented. #15 done (allow empty cells). #14 still needs a Unity editor run.
+**Status 2026-11-26:** #11 test count fixed, UPGRADE_ROADMAP marked as a record (one open list: wiki Roadmap). #12 `tiledversion` and the Wang set icon done; per-tile `probability` waits for variants that share edges. #13 documented. #15 done (allow empty cells). #14 checked in Unity 6000.6 / Aseprite Importer 6.0.0: one-shot tags import as non-looping clips, the documented custom pivot lands on the foot point (default Bottom Center is 1 px low). #8's pivot question is answered for `.aseprite`.
 
 11. Doc drift: AGENTS.md says ~220 tests / ~1 min (now 340 / ~100 s). There are two roadmaps
     (docs/UPGRADE_ROADMAP.md and wiki Roadmap.md).

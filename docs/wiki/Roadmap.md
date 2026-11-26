@@ -33,8 +33,8 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
    needs Ronan's approval to install).
 5. **Target engine** setting picking an export preset (Godot files are always written now).
-6. **Engine checks not yet run:** Unity import of one-shot tags and pivots from the `.aseprite` /
-   TexturePacker files; Tiled opening a shaped-collision export; LDtk map export.
+6. **Engine checks not yet run:** Tiled opening a shaped-collision export; LDtk map export.
+   (Unity `.aseprite` one-shot tags and pivots: checked 2026-11-26.)
 
 ## Studio (from the upgrade roadmap)
 
