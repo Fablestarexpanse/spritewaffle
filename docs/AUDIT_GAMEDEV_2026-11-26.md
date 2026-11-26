@@ -8,6 +8,8 @@ points come from the code.
 
 ## P1: blocks real use
 
+**Status 2026-11-26:** #1 seamless textures, terrain transitions and project-palette lock done. #2 Godot SpriteFrames/scene/TileSet export done and verified in Godot 4.6. Target engine still doesn't switch presets (Godot files are always written). #3 blob-47 / mixed sets done for generation and Tiled/Godot export. Still open: edge-only sets, layers, maps over 32×32 (paint large maps in Tiled/Godot).
+
 1. **Tileset workspace only imports tiles, it can't generate them.** There's no tile/terrain
    generation, so terrain matching a character's style is open. → Generate terrain/autotile sheets
    from the project palette and style. *(Seamless textures, 2026-11-26, are the first step.)*

@@ -1,4 +1,10 @@
-"""Rectangular terrain transitions with shared, named corner assignments."""
+"""Rectangular terrain transitions with shared, named corner assignments.
+
+Two rule modes: "corner" (default; each tile lists NW, NE, SE, SW) and "mixed" (blob / 47-tile
+sets: each tile lists N, NE, E, SE, S, SW, W, NW, Tiled's mixed Wang order). SpriteWaffle's map
+preview paints corners, so it resolves corner sets; mixed sets are painted in Tiled or Godot
+(audit 2026-11-26 P1 #3), and both exports carry them.
+"""
 from __future__ import annotations
 
 MAX_COLORS = 8
@@ -7,8 +13,12 @@ SWATCHES = ("#699154", "#5782b0", "#b89459", "#a16d58", "#8b72a5", "#659a90", "#
 
 
 def normalize(value: dict, count: int) -> dict:
-    if not isinstance(value, dict) or value.keys() - {"colors", "tiles"}:
+    if not isinstance(value, dict) or value.keys() - {"colors", "tiles", "mode", "centers"}:
         raise ValueError("Terrain needs a colors list and tile corner assignments.")
+    mode = value.get("mode") or "corner"
+    if mode not in ("corner", "mixed"):
+        raise ValueError("Terrain mode must be corner or mixed.")
+    slots = 4 if mode == "corner" else 8
     names, tiles = value.get("colors"), value.get("tiles", {})
     if (not isinstance(names, list) or len(names) > MAX_COLORS
             or any(not isinstance(name, str) or not name.strip() or len(name) > 40 or len(name.splitlines()) != 1
@@ -27,17 +37,24 @@ def normalize(value: dict, count: int) -> dict:
         i = int(key)
         if str(i) != key or not 0 <= i < count:
             raise ValueError(f"Tile {key} is outside the grid.")
-        if not isinstance(corners, list) or len(corners) != 4:
-            raise ValueError(f"Tile {i} needs four corners in NW, NE, SE, SW order.")
+        if not isinstance(corners, list) or len(corners) != slots:
+            raise ValueError(f"Tile {i} needs four corners in NW, NE, SE, SW order." if slots == 4 else
+                             f"Tile {i} needs eight entries in N, NE, E, SE, S, SW, W, NW order.")
         for name in corners:
             if name is not None and (not isinstance(name, str) or name not in valid):
                 raise ValueError(f"Tile {i} has an unknown terrain {name!r}. Clear its corners before removing a terrain.")
         if any(name is not None for name in corners):
             assigned[key] = corners
-    return {"colors": names, "tiles": assigned}
+    centers = value.get("centers") or {}
+    if not isinstance(centers, dict) or any(not str(k).isdecimal() or not 0 <= int(k) < count or n not in valid
+                                            for k, n in centers.items()):
+        raise ValueError("Tile centres must map tile IDs in the grid to terrain names.")
+    return {"colors": names, "tiles": assigned, **({"mode": "mixed"} if mode == "mixed" else {}),
+            **({"centers": {str(int(k)): n for k, n in centers.items()}} if centers else {})}
 
 
 def _matches(rules: dict) -> dict[tuple, int]:
+    """First tile for each assignment (pure tiles: the whole tuple is one terrain)."""
     matches = {}
     for key in sorted(rules["tiles"], key=int):
         matches.setdefault(tuple(rules["tiles"][key]), int(key))
@@ -45,6 +62,9 @@ def _matches(rules: dict) -> dict[tuple, int]:
 
 
 def preview(rules: dict, vertices: list, *, allow_unknown: bool = False) -> dict:
+    if rules.get("mode") == "mixed":
+        raise ValueError("This tileset uses a blob (mixed) terrain set: paint maps with it in Tiled or Godot. "
+                         "SpriteWaffle's map preview paints corner sets.")
     if (not isinstance(vertices, list) or not 2 <= len(vertices) <= MAX_SIDE + 1
             or not isinstance(vertices[0], list) or not 2 <= len(vertices[0]) <= MAX_SIDE + 1
             or any(not isinstance(row, list) or len(row) != len(vertices[0]) for row in vertices)):
@@ -73,9 +93,13 @@ def tiled_wangset(rules: dict) -> dict:
     colors = {name: i + 1 for i, name in enumerate(rules["colors"])}
     matches = _matches(rules)
     wangtiles = []
+    mixed = rules.get("mode") == "mixed"
     for key in sorted(rules["tiles"], key=int):
+        if mixed:                                               # already Tiled's order: N NE E SE S SW W NW
+            wangtiles.append({"tileid": int(key), "wangid": [colors.get(name, 0) for name in rules["tiles"][key]]})
+            continue
         nw, ne, se, sw = (colors.get(name, 0) for name in rules["tiles"][key])
         wangtiles.append({"tileid": int(key), "wangid": [0, ne, 0, se, 0, sw, 0, nw]})
-    return {"name": "Terrain", "type": "corner", "tile": -1,
-            "colors": [{"name": name, "color": swatch, "probability": 1, "tile": matches.get((name,) * 4, -1)}
+    return {"name": "Terrain", "type": "mixed" if mixed else "corner", "tile": -1,
+            "colors": [{"name": name, "color": swatch, "probability": 1, "tile": matches.get((name,) * (8 if mixed else 4), -1)}
                        for name, swatch in zip(colors, SWATCHES)], "wangtiles": wangtiles}

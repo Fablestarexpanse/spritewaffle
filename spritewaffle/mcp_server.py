@@ -601,15 +601,16 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     @mcp.tool()
     def transition(a: str, b: str, names: list[str] | None = None, tile_size: int | None = None, roughness: float = 0.5,
                    seed: int = 0, variant_a: int = 1, variant_b: int = 1, name: str | None = None,
-                   job_id: str | None = None) -> dict:
+                   job_id: str | None = None, kind: str = "corner", band: float | None = None) -> dict:
         """Terrain transition: two approved seamless texture jobs ('character/job_id') -> a tileset job
         with the 16-tile corner set (every corner combination) and its corner terrain rules filled in,
         ready for the terrain map preview and Tiled export. roughness 0 (straight border) .. 1 (ragged).
-        Variants are 1-based."""
+        kind 'corner' (16 tiles) or 'blob' (47 blob tiles + plain, painted in Tiled/Godot). band: darker
+        lip on the lower terrain in px. Variants are 1-based."""
         from .core import transition as tr
         ja, jb = (job_for(*x.split("/", 1)) for x in (a, b))
         return tr.make(ja, jb, name, job_id, tuple(names) if names else None, tile_size, roughness, seed,
-                       variant_a - 1, variant_b - 1)
+                       variant_a - 1, variant_b - 1, kind, band)
 
     @mcp.tool()
     def manifest_migrate(rebuild: bool = False, limit: int = 0) -> dict:

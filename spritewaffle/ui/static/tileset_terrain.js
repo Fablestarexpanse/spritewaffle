@@ -314,8 +314,18 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     cellMode.querySelector('option[value="stamp"]').hidden = !modules.length;
     if (!modules.length && cellMode.value === "stamp") cellMode.value = "terrain";
     if (JSON.stringify(before) !== JSON.stringify(rules.colors)) names.value = rules.colors.join("\n");
-    find("#terrainCorners").hidden = !rules.colors.length;
-    find("#terrainPreview").hidden = false;
+    // blob (mixed) sets are painted in Tiled or Godot; the corner editor and preview don't apply
+    const blob = rules.mode === "mixed";
+    let note = find("#terrainBlobNote");
+    if (!note) { note = document.createElement("p"); note.id = "terrainBlobNote"; note.className = "hint"; find("#terrainError").before(note); }
+    note.hidden = !blob;
+    note.innerHTML = blob ? `This is a <b>blob</b> set (${Object.keys(rules.centers || rules.tiles).length} tiles, edges and corners).
+      Paint maps with it in <b>Tiled</b> (mixed Wang set) or <b>Godot</b> (Match Corners and Sides terrain): export the tileset.
+      The corner editor and the map preview here work with corner sets.` : "";
+    names.disabled = find("#terrainSaveNames").disabled = blob;
+    find("#terrainCorners").hidden = !rules.colors.length || blob;
+    find("#terrainPreview").hidden = blob;
+    if (blob) { find("#terrainError").hidden = true; return; }      // no corner preview to request
     const options = rules.colors.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
     for (const select of corners) select.innerHTML = '<option value="">Unassigned</option>' + options;
     const previousBrush = brush.value;

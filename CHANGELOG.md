@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Godot 4 export: character exports also write a SpriteFrames `.tres` and an AnimatedSprite2D `.tscn` (pivot on the origin). Tileset exports write a TileSet `.tres` with collision and the terrain set. Verified by importing into Godot 4.6.
+- Blob (47 + plain) terrain transitions alongside the 16-tile corner sets, with a mixed terrain rule mode exported as a Tiled mixed Wang set and a Godot Match Corners and Sides terrain set. Transitions gain an edge lip. Pixel textures snap to the project master palette (OKLab) and lose orphan pixels without breaking the wrap.
+- The app's scripts and page are now served with revalidation and versioned URLs, so a browser picks up an update instead of running cached old JavaScript.
 - Added terrain transitions: two approved seamless textures become the 16-tile corner set as a new tileset job with corner terrain rules filled in. Tiles fit together in any arrangement, with a ragged noise border (hard for pixel art, soft for painted). Browser (Make transition…), CLI `transition` and MCP `transition`.
 - Added seamless textures: a new asset type that generates tileable ground, wall or water tiles (16–512 px, pixel or painted, 1–16 variants). Edges are joined along the least visible cut so each tile wraps exactly, with a wrap score, a repeat preview with an offset-by-half view, re-roll per variant, re-cutting without a new render, export, and Send to tileset. Browser, CLI (`texture`) and MCP (`texture`).
 - Added a file chooser to import a starting image, with original files retained for retries. Approval and the next stage sit beside the image preview.

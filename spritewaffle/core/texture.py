@@ -128,7 +128,17 @@ def settings(job) -> dict:
     return {"description": i.get("description") or "", "style": i.get("style") or "pixel",
             "tile_size": tile, "variants": int(i.get("variants") or 4),
             "colours": int(i.get("colours") or 16), "overlap": float(i.get("overlap") or 0.15),
-            "zoom": int(i.get("zoom") or 0) or auto_zoom(tile), "zoom_auto": not int(i.get("zoom") or 0)}
+            "zoom": int(i.get("zoom") or 0) or auto_zoom(tile), "zoom_auto": not int(i.get("zoom") or 0),
+            "palette": _project_palette(job)}
+
+
+def _project_palette(job) -> list[str] | None:
+    """The project's master palette (Project menu), which pixel tiles snap to when set."""
+    try:
+        from . import project
+        return project.palette(job.root.parent.parent) or None
+    except Exception:                                             # noqa: BLE001 - no project file is fine
+        return None
 
 
 def configure(job, **values) -> dict:
@@ -157,6 +167,32 @@ def _quantize(rgb: np.ndarray, colours: int) -> np.ndarray:
     return np.array(q.convert("RGB"))
 
 
+def snap_palette(rgb: np.ndarray, palette, extra_dark: bool = False) -> np.ndarray:
+    """Every pixel to its nearest palette colour in OKLab (perceptual; research 2026-11-26: map to
+    one shared palette, not per-tile k-means, or neighbouring tiles drift). palette: hex strings or
+    an N x 3 array (duplicates fine). extra_dark adds a 70 % shade of each colour (for edge lips)."""
+    from ..pixel.color import hex_to_rgb, srgb_to_oklab
+    p = np.array([hex_to_rgb(c) if isinstance(c, str) else c for c in palette], np.uint8).reshape(-1, 3)
+    p = np.unique(p, axis=0)
+    if extra_dark:
+        p = np.unique(np.concatenate([p, np.rint(p * 0.7).astype(np.uint8)]), axis=0)
+    flat = rgb[..., :3].reshape(-1, 3)
+    cols, inv = np.unique(flat, axis=0, return_inverse=True)
+    d = ((srgb_to_oklab(cols.astype(float))[:, None] - srgb_to_oklab(p.astype(float))[None]) ** 2).sum(-1)
+    return p[d.argmin(1)][inv.reshape(-1)].reshape(rgb.shape[:2] + (3,)).astype(np.uint8)
+
+
+def clean_orphans(rgb: np.ndarray) -> np.ndarray:
+    """Pixel art: a lone pixel whose four neighbours all share one other colour takes that colour
+    (research: orphans read as noise and make repetition more visible). Neighbours wrap around, so
+    a seamless tile stays seamless."""
+    nb = [np.roll(rgb, s, axis=a) for s, a in ((1, 0), (-1, 0), (1, 1), (-1, 1))]
+    same = np.all([np.all(n == nb[0], -1) for n in nb[1:]], 0) & ~np.all(rgb == nb[0], -1)
+    out = rgb.copy()
+    out[same] = nb[0][same]
+    return out
+
+
 def tile_from(master: np.ndarray, s: dict) -> np.ndarray:
     """The game tile from a seamless master. Pixel art: each tile pixel takes the dominant colour of
     its block (pixel/grid.downscale: crisp edges, measured sharper than averaging), then the palette.
@@ -166,8 +202,9 @@ def tile_from(master: np.ndarray, s: dict) -> np.ndarray:
     from ..pixel import grid
     k = 12
     big = resize_wrapped(master, s["tile_size"] * k, "area")
-    t = grid.downscale(np.dstack([big, np.full(big.shape[:2], 255, np.uint8)]), k)[..., :3]
-    return _quantize(np.ascontiguousarray(t), s["colours"])
+    t = np.ascontiguousarray(grid.downscale(np.dstack([big, np.full(big.shape[:2], 255, np.uint8)]), k)[..., :3])
+    t = snap_palette(t, s["palette"]) if s.get("palette") else _quantize(t, s["colours"])
+    return clean_orphans(t)
 
 
 def _report_path(job):

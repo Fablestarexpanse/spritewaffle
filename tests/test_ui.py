@@ -37,7 +37,7 @@ def test_appearance_assets_are_served_by_the_app(client):
     c, _ = client
     page = c.get("/").text
     assert 'id="appearanceSettings"' in page
-    assert 'src="/static/appearance.js"' in page
+    assert 'src="/static/appearance.js?v=' in page                     # versioned so updates reach the browser
     script = c.get("/static/appearance.js")
     assert script.status_code == 200
     assert "javascript" in script.headers["content-type"]
@@ -62,10 +62,10 @@ def test_project_tools_and_new_asset_have_header_entry_points(client):
 def test_official_brand_assets_are_served_by_the_app(client):
     c, _ = client
     page = c.get("/").text
-    assert 'href="/static/brand/favicon.ico"' in page
-    assert 'src="/static/brand/app-icon-64.png"' in page
-    assert 'src="/static/brand/badge.png"' in page
-    assert 'src="/static/brand/horizontal-logo.png"' in page
+    assert 'href="/static/brand/favicon.ico?v=' in page                     # versioned so updates reach the browser
+    assert 'src="/static/brand/app-icon-64.png?v=' in page                     # versioned so updates reach the browser
+    assert 'src="/static/brand/badge.png?v=' in page                     # versioned so updates reach the browser
+    assert 'src="/static/brand/horizontal-logo.png?v=' in page                     # versioned so updates reach the browser
     for filename, size in (("badge.png", (512, 512)), ("horizontal-logo.png", (650, 220)),
                            ("app-icon-64.png", (64, 64)), ("app-icon-128.png", (128, 128))):
         result = c.get(f"/static/brand/{filename}")

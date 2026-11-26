@@ -24,7 +24,7 @@ MAX_ANIMATION_FRAMES = 64
 MAX_FRAME_DURATION_MS = 60_000
 MAX_MODULES = 64
 MAX_MODULE_SIDE = 16
-FILES = ("tiles.png", "tileset.json", "tileset.tsj")
+FILES = ("tiles.png", "tileset.json", "tileset.tsj", "tileset.tres")   # .tres: Godot 4 TileSet
 
 
 def create(base: Path, name: str, job_id: str | None = None) -> Job:
@@ -457,6 +457,8 @@ def export(job: Job) -> dict:
         fsutil.write_bytes(out / FILES[0], data)
         fsutil.write_text(out / FILES[1], json.dumps(native, indent=2))
         fsutil.write_text(out / FILES[2], json.dumps(tiled, indent=2))
+        from ..export import godot
+        fsutil.write_text(out / FILES[3], godot.tileset(record, FILES[0]))
         if _read(directory) != record or _snapshot(job, directory, record) != before:
             raise RuntimeError("Tileset inputs changed during export. Export again.")
         receipt.save(receipt_path, out, before, [out / name for name in FILES])

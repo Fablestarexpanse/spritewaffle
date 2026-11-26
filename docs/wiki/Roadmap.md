@@ -18,3 +18,10 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
    "used by" line, hide Style/Prompts on finished items.
 8. **Equipment:** N view of a fitted item drops fine trim (words route); fitting several items in
    one go (layers of clothing) is untested.
+
+## Added 2026-11-26
+
+- Seamless textures, corner and blob terrain transitions, and Godot export are done (see Workflows).
+- Next candidates: the audit P2 list (docs/AUDIT_GAMEDEV_2026-11-26.md); variants that share edges
+  (so mixed variants tile with each other); normal/height maps for textures; DiT-aware seamless
+  generation for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles, which needs approval to install).

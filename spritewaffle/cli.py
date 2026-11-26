@@ -477,8 +477,8 @@ def cmd_transition(a):
     from .core import transition
     names = tuple(x.strip() for x in a.names.split(",")) if a.names else None
     r = transition.make(_job(a.a), _job(a.b), a.name, a.job_id, names, a.tile_size, a.roughness, a.seed or 0,
-                        a.variant_a - 1, a.variant_b - 1)
-    print(f"tileset {r['character']}/{r['job_id']}: 16 tiles of {r['tile_size']} px, terrains {r['names'][0]} / {r['names'][1]}")
+                        a.variant_a - 1, a.variant_b - 1, a.kind, a.band)
+    print(f"tileset {r['character']}/{r['job_id']}: {r['tiles']} tiles of {r['tile_size']} px, terrains {r['names'][0]} / {r['names'][1]}")
 
 
 def cmd_manifest(a):
@@ -919,7 +919,9 @@ def build() -> argparse.ArgumentParser:
         (("--names",), {"help": "terrain names, e.g. grass,dirt (default: the job names)"}),
         (("--name",), {"help": "tileset name (default: <a>_<b>)"}), (("--job-id",), {"help": "default: transition"}),
         (("--tile-size",), {"type": int}), (("--roughness",), {"type": float, "default": 0.5, "help": "0 straight .. 1 ragged border"}),
-        SEED, (("--variant-a",), {"type": int, "default": 1}), (("--variant-b",), {"type": int, "default": 1}))
+        SEED, (("--variant-a",), {"type": int, "default": 1}), (("--variant-b",), {"type": int, "default": 1}),
+        (("--kind",), {"choices": ("corner", "blob"), "default": "corner", "help": "corner: 16 tiles; blob: 47 + plain (48)"}),
+        (("--band",), {"type": float, "help": "darker lip on the lower terrain, px (default 1 for pixel art; 0 = none)"}))
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),
         (("--rebuild",), {"action": "store_true", "help": "rewrite manifests that already exist"}))

@@ -414,3 +414,40 @@ MCP: `transition(a, b, names, tile_size, roughness, seed, ...)`. Both textures n
 Limits: the border wobble repeats every tile, so a long straight border shows a regular pattern
 (change the seed for another shape). Pixel art can leave single-pixel specks along the border.
 Only corner sets (16 tiles) for now; no blob-47 / edge sets yet.
+
+#### Blob sets, edge lip, palette
+
+- **Set:** *Corner (16 tiles)*, painted in SpriteWaffle's map preview, Tiled and Godot; or *Blob
+  (47 + plain)*, the 8-neighbour set with rounded inner corners (RPG Maker / Godot 3×3 style). Blob
+  tiles are built from a 3×3 lattice per tile (corners, edge middles, centre; a corner counts only
+  when both its edges are set), so neighbours always agree. A blob tileset is painted in **Tiled**
+  (mixed Wang set) or **Godot** (Match Corners and Sides). SpriteWaffle's corner map preview says
+  so instead of opening. Tiled can't tell the isolated "island" tile from plain ground (its Wang ids
+  have no centre), so the island is only in the Godot export; a single isolated cell won't resolve
+  in Tiled.
+- **Edge lip:** a darker band on the lower terrain along the border (default 1 px for pixel art,
+  `tile/32` for painted; 0 turns it off), so the upper terrain reads as sitting on top.
+- **Palette:** pixel-art textures snap to the project's master palette (Project menu) when one is
+  set, by perceptual (OKLab) distance, so every tile and transition shares one set of colours.
+  Lone "orphan" pixels are cleaned up, checking neighbours across the wrap so the tile still tiles.
+
+## Engines
+
+**Godot 4.** Every character export now also writes `<name>.tres` (a SpriteFrames with each frame
+cut from the atlas pages, trim restored, per-frame durations, loop flags) and `<name>.tscn` (an
+AnimatedSprite2D with the pivot on the node origin, nearest filtering for pixel art). Every tileset
+export writes `tileset.tres` (a TileSet with the atlas, full-tile collision and the terrain set).
+Paths inside are relative, so copy the export folder anywhere in the Godot project. Verified with
+Godot 4.6: the knight's SpriteFrames loads with 64×64 frames and the right fps and loops, and a blob
+TileSet paints terrain with `set_cells_terrain_connect`. Paint the base terrain one cell beyond
+the area you care about; Godot leaves the outermost ring of a painted area empty when it has no
+painted neighbours to match. Mirrored animations the atlas leaves out (*engine flips W/NW/SW*)
+reuse their source frames and are listed in the scene's `flip_h` metadata.
+
+**Unity** (tiles and pixel art): Texture Type Sprite, Sprite Mode Multiple (grid by cell size),
+**Pixels Per Unit = tile size** (use the same PPU for characters so sizes match), Filter Mode
+**Point**, Compression **None**, mip maps off. Pack tiles into a Sprite Atlas with **padding ≥ 2**
+and rotation and tight packing off. Use a Pixel Perfect Camera (plus the Cinemachine Pixel Perfect
+extension if you use Cinemachine) with anti-aliasing off. Rule Tile (2D Tilemap Extras) handles
+corner and blob sets, and a Rule Override Tile reuses one rule set across terrains with the same
+layout.

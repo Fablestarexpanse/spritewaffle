@@ -167,11 +167,31 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return 8
 
     # --- static + files -------------------------------------------------------------------
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    class _Revalidated(StaticFiles):
+        """The app's own JS/CSS: always revalidated (ETag), so an update is picked up on reload.
+        Measured 2026-11-26: without a Cache-Control header the browser kept running the old
+        tileset_terrain.js after the file changed and the server restarted."""
+        async def get_response(self, path, scope):
+            response = await super().get_response(path, scope)
+            response.headers["Cache-Control"] = "no-cache"
+            return response
+
+    app.mount("/static", _Revalidated(directory=STATIC), name="static")
 
     @app.get("/")
     def index():
-        return FileResponse(STATIC / "index.html")
+        """index.html with each /static/ script and stylesheet URL carrying its file's mtime, so a
+        browser that cached an older copy loads the new one after an update."""
+        import re
+
+        from fastapi.responses import HTMLResponse
+        html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+        def stamp(m):
+            f = STATIC / m.group(2)
+            return f'{m.group(1)}/static/{m.group(2)}?v={f.stat().st_mtime_ns if f.exists() else 0}"'
+        html = re.sub(r'((?:src|href)=")/static/([^"?]+)"', stamp, html)
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
     @app.get("/files/{path:path}")
     def files(path: str, download: bool = False):
@@ -469,7 +489,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             names = body.get("names")
             return transition.make(job_or_404(char, jid), job_or_404(oc, oj), body.get("name") or None, body.get("job_id") or None,
                                    tuple(names) if names else None, body.get("tile_size"), float(body.get("roughness", 0.5)),
-                                   int(body.get("seed", 0)), int(body.get("variant_a", 0)), int(body.get("variant_b", 0)))
+                                   int(body.get("seed", 0)), int(body.get("variant_a", 0)), int(body.get("variant_b", 0)),
+                                   str(body.get("kind") or "corner"), body.get("band"))
         except (ValueError, RuntimeError, FileNotFoundError, TypeError) as e:
             bad(e)
 

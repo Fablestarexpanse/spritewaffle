@@ -94,6 +94,9 @@ function texTransitionDialog(j) {
       <label class="field"><span>Border shape (seed)</span><input id="trSeed" type="number" value="0"></label>
       <label class="field"><span>Variant of ${esc(j.character)}</span><input id="trVa" type="number" min="1" value="1"></label>
       <label class="field"><span>Variant of the other</span><input id="trVb" type="number" min="1" value="1"></label>
+      <label class="field" title="Corner: 16 tiles, painted in SpriteWaffle's map preview, Tiled and Godot. Blob: 47 + plain tiles with rounded inner corners, painted in Tiled or Godot"><span>Set</span>
+        <select id="trKind"><option value="corner">Corner (16 tiles)</option><option value="blob">Blob (47 + plain)</option></select></label>
+      <label class="field" title="A darker lip on the lower terrain along the border"><span>Edge lip (px)</span><input id="trBand" type="number" min="0" max="16" step="0.5" placeholder="auto"></label>
     </div>
     <div class="row"><button class="primary" id="trGo">Make transition tileset</button></div>`
     : `<p class="warn">Approve a second seamless texture first (e.g. dirt next to grass), then come back.</p>`}`;
@@ -104,7 +107,8 @@ function texTransitionDialog(j) {
     try {
       const r = await api(jobPath() + "/texture/transition", {other: $("#trOther").value, names: [$("#trNameA").value.trim(), $("#trNameB").value.trim()],
         tile_size: +$("#trSize").value, roughness: +$("#trRough").value, seed: +$("#trSeed").value,
-        variant_a: +$("#trVa").value - 1, variant_b: +$("#trVb").value - 1});
+        variant_a: +$("#trVa").value - 1, variant_b: +$("#trVb").value - 1, kind: $("#trKind").value,
+        ...($("#trBand").value !== "" ? {band: +$("#trBand").value} : {})});
       d.close(); toast(`Transition tileset made: ${r.names.join(" / ")}`);
       location.hash = `${r.character}/${r.job_id}/tileset`;
     } finally { if ($("#trGo")) $("#trGo").disabled = false; }

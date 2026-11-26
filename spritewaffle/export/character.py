@@ -341,10 +341,13 @@ def _write_bundle(job_root: Path, out_dir: Path, character: str, fps_for, frame_
             "skipped": skipped, **({"map_pages": map_pages} if map_pages else {})}
     js = out_dir / f"{character}_atlas.json"
     js.write_text(json.dumps(meta, indent=2))
+    from . import godot                                          # Godot 4: SpriteFrames .tres + scene
+    godot_files = godot.write(out_dir, meta, pixel=mode == "indexed")
     result = {"aseprite": str(ase_path), "atlas": str(page_files[0]), "pages": [str(p) for p in page_files],
             "engine_json": [str(p) for p in tp_files], "json": str(js), "mode": mode,
+            "godot": [str(p) for p in godot_files],
             "animations": [a["name"] for a in meta_anims], "colours": len(pal), "skipped": skipped,
             **({"map_pages": map_pages} if map_pages else {})}
-    files = [ase_path, js, *page_files, *tp_files, *sorted(effect_outputs)]
+    files = [ase_path, js, *page_files, *tp_files, *godot_files, *sorted(effect_outputs)]
     files.extend(out_dir / page for pages in map_pages.values() for page in pages)
     return result, files
