@@ -51,6 +51,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
             <label>Map name <input id="terrainMapName" required maxlength="80"></label>
             <button type="submit">Save map</button>
             <button type="button" id="terrainMapExport" disabled>Prepare map ZIP</button>
+            <label title="Cells no tile matches are left empty instead of stopping the export"><input type="checkbox" id="terrainMapEmpty"> allow empty cells</label>
             <a id="terrainMapDownload" hidden>Download map ZIP</a>
           </form>
         </fieldset>
@@ -405,11 +406,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   };
   find("#terrainMapExport").onclick = () => mapAction(async () => {
     const exported = await request("/maps/" + encodeURIComponent(savedMap.id) + "/export",
-      {revision: savedMap.revision, tileset_revision: state.revision});
+      {revision: savedMap.revision, tileset_revision: state.revision, allow_empty: find("#terrainMapEmpty").checked});
     const download = find("#terrainMapDownload");
     download.href = exported.download;
     download.hidden = false;
-    find("#terrainMapStatus").textContent = "Map package ready";
+    find("#terrainMapStatus").textContent = exported.empty_cells
+      ? `Map package ready · ${exported.empty_cells} empty cell${exported.empty_cells === 1 ? "" : "s"}` : "Map package ready";
   });
   canvas.onclick = event => {
     const box = canvas.getBoundingClientRect();

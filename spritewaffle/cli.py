@@ -146,7 +146,7 @@ def cmd_tilemap(a):
                                   overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
                                   objects=draft.get("objects"))
     else:
-        result = tilemap.export(job, a.map_id)
+        result = tilemap.export(job, a.map_id, allow_empty=a.allow_empty)
     _print(result)
 
 
@@ -803,7 +803,8 @@ def build() -> argparse.ArgumentParser:
         (("--revision",), {"help": "required revision when updating a saved map"}),
         (("--template-id",), {"help": "ID of the object template to instantiate"}),
         (("--cell",), {"type": int, "help": "zero-based cell for the new object"}),
-        (("--state",), {"help": "optional active state for the new object"}))
+        (("--state",), {"help": "optional active state for the new object"}),
+        (("--allow-empty",), {"action": "store_true", "help": "export: leave unresolved cells empty instead of refusing"}))
 
     # setup
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",

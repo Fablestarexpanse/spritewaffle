@@ -57,6 +57,11 @@ break the Pixel Perfect Camera. Pivot **Custom** at the JSON's `pivot_norm` (for
 `(0.5, 0.0156)`), Pivot Space **Canvas**. Each tag becomes a clip; one-shot actions (attack,
 jump, …) are tagged to play once. (Unity behaviour of the play-once tags is not yet checked in an editor.)
 
+Frame timing: `.aseprite` stores whole milliseconds per frame, so 12 fps is 83 ms a frame
+(12.05 fps), about 0.4 % fast against the JSON's exact fps over a long loop. Engines reading the
+JSON or the TexturePacker `duration` get the same 83 ms; the drift only matters if you sync
+animation to music by the nominal fps.
+
 ### Your own character (image or character sheet)
 
 - **One image:** Anchor tab → *import an existing image* (or `spritewaffle anchor --job <job> --image <path>`).
@@ -205,6 +210,11 @@ spritewaffle tileset export --job meadow/v1
 to remove the rectangle. The MCP `tileset` tool offers the same operations. The HTTP
 base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision` (optional `shape`), `properties`, `terrain`, `animation`, `preview`,
 and `export` POST routes.
+
+The `.tsj` and map `.tmj` name the Tiled release they follow (`tiledversion` 1.10.2), and the terrain
+set shows a plain tile of its first terrain as its icon. **Allow empty cells** (map export,
+`tilemap export --allow-empty`, HTTP/MCP `allow_empty`) leaves cells no tile matches empty instead of
+refusing the export, and lists them under `empty_cells` in `map.json`.
 
 #### Terrain transitions
 

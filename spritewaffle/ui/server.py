@@ -625,7 +625,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         j = job_or_404(char, jid)
         try:
             options = body or {}
-            result = tilemap.export(j, map_id, options.get("revision"), options.get("tileset_revision"))
+            result = tilemap.export(j, map_id, options.get("revision"), options.get("tileset_revision"),
+                                    allow_empty=bool(options.get("allow_empty")))
             return {**result, "download": url(j.root / result["file"]) + "&download=1"}
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)

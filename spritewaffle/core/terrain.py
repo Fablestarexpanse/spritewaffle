@@ -100,6 +100,8 @@ def tiled_wangset(rules: dict) -> dict:
             continue
         nw, ne, se, sw = (colors.get(name, 0) for name in rules["tiles"][key])
         wangtiles.append({"tileid": int(key), "wangid": [0, ne, 0, se, 0, sw, 0, nw]})
-    return {"name": "Terrain", "type": "mixed" if mixed else "corner", "tile": -1,
-            "colors": [{"name": name, "color": swatch, "probability": 1, "tile": matches.get((name,) * (8 if mixed else 4), -1)}
-                       for name, swatch in zip(colors, SWATCHES)], "wangtiles": wangtiles}
+    icons = [matches.get((name,) * (8 if mixed else 4), -1) for name in colors]
+    return {"name": "Terrain", "type": "mixed" if mixed else "corner",
+            "tile": next((t for t in icons if t >= 0), -1),           # the set's icon in Tiled's terrain panel
+            "colors": [{"name": name, "color": swatch, "probability": 1, "tile": icon}
+                       for name, swatch, icon in zip(colors, SWATCHES, icons)], "wangtiles": wangtiles}

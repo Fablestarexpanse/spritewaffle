@@ -443,6 +443,9 @@ def inspect(job: Job) -> dict:
             "export": state, "files": files}
 
 
+TILED_VERSION = "1.10.2"                       # the Tiled release whose JSON format we write
+
+
 def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
     grid = record["grid"]
     ids, blank = set(record["solid_tiles"]), set(record["empty_tiles"])
@@ -480,7 +483,7 @@ def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
             native["tiles"][tile]["animation"] = frames
             entry["animation"] = [{"tileid": frame["tile"], "duration": frame["duration_ms"]} for frame in frames]
         tiled_tiles.append(entry)
-    tiled = {"type": "tileset", "version": "1.10", "name": name, "image": "tiles.png",
+    tiled = {"type": "tileset", "version": "1.10", "tiledversion": TILED_VERSION, "name": name, "image": "tiles.png",
              "imagewidth": grid["width"], "imageheight": grid["height"], "columns": grid["columns"],
              "tilecount": len(rects), "tilewidth": w, "tileheight": h, "margin": grid["margin"],
              "spacing": grid["spacing"], "tiles": tiled_tiles}

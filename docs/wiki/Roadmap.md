@@ -1,4 +1,6 @@
-# Roadmap (open items, 2026-11-21)
+# Roadmap (open items, updated 2026-11-26)
+
+The one list of open work ([docs/UPGRADE_ROADMAP.md](../UPGRADE_ROADMAP.md) is a record of the studio upgrade).
 
 Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Suggested order:
 
@@ -19,9 +21,23 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
 8. **Equipment:** N view of a fitted item drops fine trim (words route); fitting several items in
    one go (layers of clothing) is untested.
 
-## Added 2026-11-26
+## Tiles, textures and engines (2026-11-26)
 
-- Seamless textures, corner and blob terrain transitions, and Godot export are done (see Workflows).
-- Next candidates: the audit P2 list (docs/AUDIT_GAMEDEV_2026-11-26.md); variants that share edges
-  (so mixed variants tile with each other); normal/height maps for textures; DiT-aware seamless
-  generation for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles, which needs approval to install).
+Done: seamless textures, corner and blob transitions, collision shapes and tile properties, Godot
+export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-26.md). Open:
+
+1. **Texture variants that share edges**, so mixed variants tile with each other; then Tiled
+   `probability` per variant (pointless until then: every tile is 1, Tiled's default).
+2. **Edge-only terrain sets**, more than one layer per map, maps larger than 32 × 32.
+3. **Normal / height maps** for textures that tile with the colour map.
+4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
+   needs Ronan's approval to install).
+5. **Target engine** setting picking an export preset (Godot files are always written now).
+6. **Engine checks not yet run:** Unity import of one-shot tags and pivots from the `.aseprite` /
+   TexturePacker files; Tiled opening a shaped-collision export; LDtk map export.
+
+## Studio (from the upgrade roadmap)
+
+- Saved layouts and resizable panels.
+- Desktop shortcut and installer integration.
+- Multi-image generation and family palette rules.

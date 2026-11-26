@@ -1,5 +1,8 @@
 # Studio upgrade roadmap
 
+> **Record only.** This is what the 2026-11-21 studio upgrade delivered. Open work is tracked in one
+> place, the [wiki roadmap](wiki/Roadmap.md); the items this page left open were moved there.
+
 Baseline: `f694ddf`, 2026-11-21. The [existing wiki roadmap](wiki/Roadmap.md) tracks generation-specific experiments and defects. This document tracks the broader studio work.
 
 SpriteWaffle creates, edits, validates, and exports assets. Preview tools help creators inspect artwork, timing, layout, and metadata. Use game-engine fixtures to verify imported assets and test movement, interactions, and runtime collision.

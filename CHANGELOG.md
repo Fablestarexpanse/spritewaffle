@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Map export can leave unresolved cells empty (UI checkbox, `--allow-empty`, HTTP/MCP `allow_empty`). Tiled files carry `tiledversion` and the terrain set has an icon tile. One open roadmap (wiki); `.aseprite` ms rounding documented.
 - New task-first wiki page, [Guide: what do you want to make?](docs/wiki/Guide.md): one section per job (character, own art, animal, items, effects, seamless ground, transitions, collision, modules, engine import) using only app buttons, plus a glossary.
 - Tileset collision shapes: half tiles, 45° and 2:1 slopes, custom polygons and one-way platforms per tile, plus typed per-tile properties. Exported to Tiled (polygon objects, tile properties), Godot (collision polygons with one_way, custom data layers; checked in Godot 4.6), tileset.json and tile modules. UI, CLI (`--shape`, `--points`, `--one-way`, `tileset properties`), HTTP and MCP.
 - Character atlas options: power-of-two pages and 0-4 px edge extrusion (UI, CLI `--pot` / `--extrude`, HTTP, MCP). TexturePacker files gain per-frame `duration` and `meta.animations` (fps, loop, `flip_x_of`), so flipped W/NW/SW animations no longer vanish from them. RGBA characters omit the colour list from the atlas JSON (hare: 5.62 MB -> 0.09 MB). Unity guide: one project PPU. Docs say which export folder is the game bundle.

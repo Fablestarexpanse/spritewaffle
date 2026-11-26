@@ -44,6 +44,8 @@ points come from the code.
 
 ## P3: polish
 
+**Status 2026-11-26:** #11 test count fixed, UPGRADE_ROADMAP marked as a record (one open list: wiki Roadmap). #12 `tiledversion` and the Wang set icon done; per-tile `probability` waits for variants that share edges. #13 documented. #15 done (allow empty cells). #14 still needs a Unity editor run.
+
 11. Doc drift: AGENTS.md says ~220 tests / ~1 min (now 340 / ~100 s). There are two roadmaps
     (docs/UPGRADE_ROADMAP.md and wiki Roadmap.md).
 12. Tiled export: no `tiledversion`, no tile `probability`, and wangset `"tile": -1` (blank terrain icons).

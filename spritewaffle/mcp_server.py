@@ -469,11 +469,13 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 revision: str | None = None, tileset_revision: str | None = None,
                 overrides: dict | None = None, override_atlas: str | None = None,
                 objects: list[dict] | None = None, template_id: str | None = None,
-                template: dict | None = None, placement: dict | None = None) -> dict | list[dict]:
+                template: dict | None = None, placement: dict | None = None,
+                allow_empty: bool = False) -> dict | list[dict]:
         """Manage named terrain maps and reusable object templates in a tileset job.
 
         Save takes a name and a rectangular lattice of terrain names or null. Updates need
-        the map ID and loaded revision. Export writes a portable ZIP to the job.
+        the map ID and loaded revision. Export writes a portable ZIP to the job; it refuses
+        unresolved cells unless allow_empty is true (they are then left empty).
         Overrides map row-major cell IDs to atlas tile IDs or null. An empty object clears
         overrides. Pass the loaded override_atlas to retain its source binding.
         Objects have an id, name, kind, cell, state, and list of named atlas states.
@@ -494,7 +496,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             return maps.save(job, name, vertices, map_id, revision, tileset_revision,
                              overrides=overrides, override_atlas=override_atlas, objects=objects)
         if operation == "export":
-            return maps.export(job, map_id, revision, tileset_revision)
+            return maps.export(job, map_id, revision, tileset_revision, allow_empty=allow_empty)
         if operation == "templates":
             return object_templates.list_templates(job)
         if operation == "save-template":

@@ -106,7 +106,8 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
 def _tiled_map(name: str, preview: dict, grid: dict) -> dict:
     width, height = preview["width"], preview["height"]
     data = [0 if tile is None else tile + 1 for row in preview["tiles"] for tile in row]
-    return {"type": "map", "version": "1.10", "orientation": "orthogonal", "renderorder": "right-down",
+    return {"type": "map", "version": "1.10", "tiledversion": tileset.TILED_VERSION,
+            "orientation": "orthogonal", "renderorder": "right-down",
             "width": width, "height": height, "tilewidth": grid["tile_width"], "tileheight": grid["tile_height"],
             "infinite": False, "nextlayerid": 2, "nextobjectid": 1,
             "tilesets": [{"firstgid": 1, "source": "tileset.tsj"}],
@@ -114,7 +115,10 @@ def _tiled_map(name: str, preview: dict, grid: dict) -> dict:
                         "x": 0, "y": 0, "width": width, "height": height, "data": data}]}
 
 
-def export(job: Job, map_id: str, revision: str | None = None, tileset_revision: str | None = None) -> dict:
+def export(job: Job, map_id: str, revision: str | None = None, tileset_revision: str | None = None,
+           allow_empty: bool = False) -> dict:
+    """Write the map ZIP. Unresolved cells refuse the export unless allow_empty: then they are
+    left empty (Tiled gid 0) and listed under "empty_cells" in map.json."""
     with tileset._locked_record(job) as (directory, record):
         saved = _get(_read(directory), map_id)
         if revision is not None and revision != tileset._revision(saved):
@@ -129,13 +133,15 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         outdated = next((entry for entry in objects if entry["atlas"] != atlas), None)
         if outdated:
             raise ValueError(f"{outdated['name']} uses a previous atlas. Update its state tiles before exporting.")
-        if missing := resolved["missing"]:
+        if (missing := resolved["missing"]) and not allow_empty:
             x, y = missing[0]
             raise ValueError(f"The map has {len(missing)} unresolved cells, starting at ({x + 1}, {y + 1}). "
                              "Update its tile placement or terrain before exporting.")
         _, image = tileset._export_image(directory, record)
         native_tiles, tiled_tiles = tileset._export_metadata(record, job.root.parent.name)
         native = {"schema_version": 1, "name": saved["name"], "tileset": "tileset.json", "vertices": corners, **resolved}
+        if missing:
+            native["empty_cells"] = missing
         if "overrides" in saved:
             native["overrides"] = saved["overrides"]
         tiled = _tiled_map(saved["name"], resolved, record["grid"])
@@ -156,4 +162,5 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
             raise ValueError("Map exports must stay inside the tileset job.")
         output.parent.mkdir(parents=True, exist_ok=True)
         fsutil.write_bytes(output, buffer.getvalue())
-    return {"id": map_id, "name": saved["name"], "file": output.relative_to(job.root).as_posix()}
+    return {"id": map_id, "name": saved["name"], "file": output.relative_to(job.root).as_posix(),
+            "empty_cells": len(missing)}

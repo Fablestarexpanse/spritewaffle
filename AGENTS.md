@@ -11,7 +11,7 @@ into game-ready sprites. The owner is Ronan. Start with the wiki: [docs/wiki/Hom
 2. Read [docs/wiki/Development.md](docs/wiki/Development.md) (conventions, how to add things) and
    [docs/wiki/Prompting-Lessons.md](docs/wiki/Prompting-Lessons.md) before editing prompts.
 3. Run the tests first so you know the baseline: `.venv\Scripts\python -m pytest -q`
-   (about 220 tests, about 1 min, no GPU). Check the exit code, not piped output.
+   (about 365 tests, about 100 s, no GPU). Check the exit code, not piped output.
 
 ## Hard rules
 
