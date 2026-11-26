@@ -106,3 +106,21 @@ def test_item_export_writes_front_and_back(tmp_path):
     h = r["views"]["front"]["size"][1]
     assert 0.6 * GameProfile(name="p").sprite_height_px <= h <= 1.4 * GameProfile(name="p").sprite_height_px
     assert j.read_meta()["stages"]["export:item"]["status"] == "done"
+
+
+def test_item_fitted_on_a_base_body_gets_facings_from_the_base(tmp_path):
+    """2026-11-26: the worn variant of a base body inherited asset_type base_body, and facings
+    refused it ("get their facings from the turnaround sheet") before checking it was a variant."""
+    j = _item(tmp_path)
+    c = FakeComfy()
+    item.facings(j, GameProfile(name="p"), client=c)
+    j.set_stage("facings", "approved")
+    b = _base(tmp_path)
+    b.update_inputs(asset_type="base_body")
+    b.set_stage("facings", "approved")
+    v = item.fit(j, b, client=c)
+    assert v.read_meta()["inputs"]["asset_type"] == "base_body"
+    variant.anchor(v, GameProfile(name="p"), client=c)
+    v.set_stage("anchor", "approved")
+    generate.facings(v, GameProfile(name="p"), client=c)
+    assert all((v.root / "02_facings" / f"{f}.png").exists() for f in builder.CARDINALS + builder.DIAGONALS)

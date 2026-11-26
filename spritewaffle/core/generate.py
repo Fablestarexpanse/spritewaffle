@@ -309,15 +309,16 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
             max_color: float = 0.35, height_tol: float = 0.12) -> dict:
     """Staged facings (rule 4): cardinals from the anchor, then diagonals from anchor + cardinals,
     then mirror any facing that drifted when its partner did not (code, not prompts)."""
-    if job.read_meta()["inputs"].get("asset_type") in ("animal", "base_body") and not only:
+    inputs = job.read_meta()["inputs"]
+    if inputs.get("base_job"):          # a variant: every facing edited from the base's (checked first:
+        from . import variant           # a base body or animal wearing an item has no sheet of its own)
+        return variant.facings(job, profile, client, only=only, seed=seed)
+    if inputs.get("asset_type") in ("animal", "base_body") and not only:
         raise ValueError("animals and base bodies get their facings from the turnaround sheet: re-roll the anchor to draw a new "
                          "sheet (all views at once), or re-roll single facings with only=...")
-    if job.read_meta()["inputs"].get("asset_type") == "item":   # equipment: front + back only
+    if inputs.get("asset_type") == "item":   # equipment: front + back only
         from . import item
         return item.facings(job, profile, client, seed=seed)
-    if job.read_meta()["inputs"].get("base_job"):          # a variant: every facing from the base's
-        from . import variant
-        return variant.facings(job, profile, client, only=only, seed=seed)
     styles.use(styles.of_job(job))
     job.require_approved("anchor")
     client = client or ComfyClient()

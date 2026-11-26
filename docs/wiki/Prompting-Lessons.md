@@ -55,3 +55,5 @@ Read this before changing a prompt in `prompts/builder.py`.
 
 H3 may draw a "green" effect on black, or a green card on black. The background is detected
 (black / green / both) before keying.
+
+- **H3 image edit fills enclosed gaps** (between arms and body, between legs) with speckled green or with solid black ringed by a thin green line, measured 2026-11-26 on a leather vest fitted onto a base body. The key cleans both in code (pixel/chroma._clean_holes); a dark fill that touches the drawn outline stays and reads as shading. Re-rolling changes which of the two you get, not whether.

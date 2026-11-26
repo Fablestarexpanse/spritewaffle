@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- An item fitted on a base body (or animal) now gets its facings: they were refused as 'from the turnaround sheet' before the variant check.
+- Green-screen keying cleans enclosed gaps in passes: speckled green between arms and legs, black fills ringed by green, and the specks left behind (H3 image edit returns those for item fits). Clean sprites are unchanged.
 - Texture variants can share edges ("Variants fit together"; CLI `--shared-edges on`, HTTP/MCP `shared_edges`): each takes variant 1's colour-matched border, joined along least-visible cuts, with one palette for pixel art, so any variant fits next to any other. Mixed preview and a side-by-side score in the UI.
 - Queue: a worker that loses the lock (the web UI takes it over) stops claiming tasks and takes the queue back when the holder exits; the MCP server's worker waits in standby instead of giving up. Before, an older MCP worker kept running next to the UI's and failed tasks its code didn't know.
 - Checked in Unity 6000.6 (Aseprite Importer 6.0.0): one-shot animations import as non-looping clips with 83 ms frames, and the documented custom pivot puts every frame on the exported foot point. The Unity guide says the default pivot is 1 px low.

@@ -20,12 +20,82 @@ def background_color(rgb: np.ndarray, max_dist: float = 90) -> np.ndarray:
     return med if np.abs(med - KEY).max() <= max_dist else KEY
 
 
+def _greenish(rgb: np.ndarray) -> np.ndarray:
+    r, g, b = (rgb[..., i].astype(int) for i in range(3))
+    return (g > r + 60) & (g > b + 60)
+
+
+def _clean_holes(rgb: np.ndarray, bg: np.ndarray, dist: np.ndarray, keyed: np.ndarray, loose: np.ndarray,
+                 strict_tol: float, outer: np.ndarray, passes: int = 4) -> np.ndarray:
+    """Enclosed background the strict tolerance misses, cleaned in passes until nothing changes.
+
+    Measured 2026-11-26 on H3 image-edit output (an item fitted on a base body): gaps between the
+    arms and body and between the legs came back as green full of dark speckle, or as solid black
+    ringed by a thin green line, and the strict enclosed key left both opaque. Each pass:
+    1. an enclosed near-green region whose MEDIAN colour is background (speckled green) is keyed;
+    2. a near-black region at least 80 % ringed by green or keyed pixels is a filled gap (the
+       sprite's own outline borders the background on one side only, so it stays);
+    3. tiny opaque islands cut off from everything else are removed;
+    4. dark specks mostly surrounded by keyed enclosed background are removed.
+    Keying one region can expose the next (specks left inside a keyed gap), hence the passes."""
+    h, w = keyed.shape
+    k3 = np.ones((3, 3), np.uint8)
+    green = _greenish(rgb)
+    dark = rgb.max(-1) < 48
+    min_hole = max(12, h * w // 20000)
+    max_speck = max(16, h * w // 10000)
+    start = keyed.copy()
+    def regions(mask: np.ndarray, connectivity: int):
+        """(slice, component mask inside it) for every component of at least min_hole pixels."""
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=connectivity)
+        for i in np.where(stats[:, cv2.CC_STAT_AREA] >= min_hole)[0]:
+            if i == 0:
+                continue
+            x, y, bw, bh = stats[i, :4]
+            sl = (slice(max(0, y - 3), min(h, y + bh + 3)), slice(max(0, x - 3), min(w, x + bw + 3)))
+            yield sl, lab[sl] == i
+
+    for _ in range(passes):
+        before = int(keyed.sum())
+        # 1. speckled green holes
+        for sl, m in regions(loose & ~keyed, 8):
+            if np.median(dist[sl][m]) <= strict_tol + 15:
+                # with the dark specks inside it, also those touching its edge (closing, 2 px)
+                near = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, k3, iterations=2).astype(bool)
+                keyed[sl] |= m | (near & (dark[sl] | loose[sl]))
+        # 2. black fills ringed by green
+        for sl, m in regions(dark & ~keyed, 4):
+            ring = cv2.dilate(m.astype(np.uint8), k3, iterations=2).astype(bool) & ~m
+            if ring.any() and (green[sl][ring] | keyed[sl][ring]).mean() >= 0.8:
+                keyed[sl] |= m
+        # 3. small islands, plus the green rim pixels left around a keyed gap
+        opaque = (~keyed).astype(np.uint8)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(opaque, connectivity=8)
+        if n > 2:
+            main = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+            small = [i for i in range(1, n) if i != main and stats[i, cv2.CC_STAT_AREA] <= max_speck]
+            if small:
+                keyed |= np.isin(lab, small)
+        # 4. dark specks mostly surrounded (5 of 8 neighbours) by keyed ENCLOSED background; outline
+        #    pixels border a gap on one side only, and the outer background is left out
+        inner = (keyed & ~outer).astype(np.float32)
+        around = cv2.filter2D(inner, -1, np.ones((3, 3), np.float32), borderType=cv2.BORDER_CONSTANT) - inner
+        keyed |= dark & ~keyed & (around >= 5)
+        added = keyed & ~start                      # only gaps keyed here: the outer edge keeps its despilled fringe
+        rim = green & ~keyed & cv2.dilate(added.astype(np.uint8), k3, iterations=2).astype(bool)
+        keyed |= rim
+        if int(keyed.sum()) == before:
+            break
+    return keyed
+
+
 def key(rgb: np.ndarray, loose_tol: float = 70, strict_tol: float = 30, despill_px: int = 2,
-        despill: str = "edge") -> np.ndarray:
+        despill: str = "edge", clean_holes: bool = True) -> np.ndarray:
     """RGB uint8 (H,W,3) -> RGBA uint8 with hard alpha and despilled edges.
 
     despill='all' clamps green on every opaque pixel (video models tint dark outlines green deep
-    inside the sprite); it also greys out deliberately green parts, so 'edge' is the default."""
+    inside the sprite); it also greys out deliberately green parts, so 'edge' is the default.
+    clean_holes: the multi-pass cleanup of enclosed gaps (_clean_holes)."""
     rgb = np.ascontiguousarray(rgb[..., :3])
     bg = background_color(rgb)
     dist = np.abs(rgb.astype(float) - bg).max(-1)
@@ -35,6 +105,8 @@ def key(rgb: np.ndarray, loose_tol: float = 70, strict_tol: float = 30, despill_
     border_labels = border_labels[border_labels > 0]
     keyed = np.isin(lab, border_labels) | (dist <= strict_tol)
 
+    if clean_holes:
+        keyed = _clean_holes(rgb, bg, dist, keyed, loose.astype(bool), strict_tol, np.isin(lab, border_labels))
     out = np.dstack([rgb, np.where(keyed, 0, 255).astype(np.uint8)])
     if despill_px > 0:
         k = np.ones((3, 3), np.uint8)
