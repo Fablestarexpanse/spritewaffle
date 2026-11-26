@@ -47,6 +47,15 @@ Each asset lives in a job. Use **New asset** and choose its type.
   in the JSON. An action too wide for the cell is shifted just enough to fit; its QA report says
   so and its pivot records where the feet are (a bigger profile cell avoids it).
 
+### Showcase GIF
+
+**Export → Make showcase GIF** (`spritewaffle showcase`, MCP `showcase`) writes
+`06_export/showcase/<name>_showcase.gif` to show a character to people: a turnaround of the game
+sprite through every direction, each action with all directions playing in a compass grid (idle,
+walk, run, jump, attack first), then an end card. It carries the SpriteWaffle branding: the
+brand-purple header with the app icon, the character's name and what it wears, a "Made with
+SpriteWaffle" wordmark, the icon in each grid's centre, and the horizontal logo on the end card.
+
 ### Unity import
 
 With the 2D Aseprite Importer package, select the `.aseprite` and set:

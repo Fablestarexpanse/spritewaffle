@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Showcase GIF is branded: brand-purple header with the app icon, the character and what it wears, "Made with SpriteWaffle" wordmark, the icon in each compass grid's centre, and a horizontal-logo end card. Turnaround shows the game sprite (not the source painting), actions play idle -> walk -> run -> jump -> attack.
 - Re-rendering or re-processing a direction also re-mirrors the directions mirrored from it (NE -> NW), so they don't stay flips of the old clip or block the export as stale.
 - The Animations tab shows clips still waiting in the queue as Queued cards (status now lists queued tasks).
 - Fitted items: back views name the item without its front details in the caption, so front lacing or buckles stop appearing on the back (3 of 3 plain backs, was 1 of 1 wrong).

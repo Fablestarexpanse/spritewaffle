@@ -1,6 +1,12 @@
 """Showcase GIF for showing a character to people: a turnaround through its facings, then every
-saved action with all its facings playing at once in a compass grid. One scale and one foot line
-throughout; pixel art scaled with nearest neighbour, other styles smoothly.
+saved action with all its facings playing at once in a compass grid, then a SpriteWaffle end card.
+One scale and one foot line throughout; pixel art scaled with nearest neighbour, other styles smoothly.
+
+Branded 2026-11-26 (Ronan: "make sure it's branded properly and cleanly"): the app's own colours
+(docs/branding: deep purple, purple, gold, cream are fixed), the app icon in the header and in the
+centre of every compass grid, a "Made with SpriteWaffle" wordmark, and the horizontal logo on the
+end card. The turnaround shows the game sprite (first frame of an animation, idle first) when the
+job has animations, so it matches the clips instead of the full-size source painting.
 """
 from __future__ import annotations
 
@@ -14,18 +20,48 @@ from ..pixel import chroma
 
 TURN = ("S", "SE", "E", "NE", "N", "NW", "W", "SW")
 COMPASS = ("NW", "N", "NE", "W", None, "E", "SW", "S", "SE")
-BG = (21, 22, 34)
-CELL_BG = (31, 33, 48)
-TEXT = (235, 235, 240)
-MUTED = (150, 154, 170)
-ACCENT = (242, 179, 61)
+BG = (19, 13, 30)              # app --bg
+CELL_BG = (29, 20, 41)         # app --panel
+LINE = (73, 57, 86)            # app --line
+TEXT = (255, 241, 208)         # brand cream
+MUTED = (193, 178, 204)        # app --muted
+ACCENT = (255, 203, 66)        # brand gold
+BRAND_DEEP = (40, 11, 57)
+BRAND_PURPLE = (84, 32, 115)
+BRAND = Path(__file__).resolve().parent.parent / "ui" / "static" / "brand"
+FONTS = {True: ("segoeuib.ttf", "seguisb.ttf", "DejaVuSans-Bold.ttf", "Arial Bold.ttf", "arialbd.ttf"),
+         False: ("segoeui.ttf", "DejaVuSans.ttf", "Arial.ttf", "arial.ttf")}
 
 
-def _font(size: int):
+def _font(size: int, bold: bool = False):
+    """A clean system sans (the app uses system-ui), else Pillow's built-in font."""
+    for name in FONTS[bold]:
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
     try:
         return ImageFont.load_default(size=size)
     except TypeError:                                   # very old Pillow
         return ImageFont.load_default()
+
+
+def _brand_image(name: str, height: int) -> Image.Image | None:
+    try:
+        im = Image.open(BRAND / name).convert("RGBA")
+    except OSError:
+        return None
+    return im.resize((max(1, round(im.width * height / im.height)), height), Image.LANCZOS)
+
+
+def _wordmark(d: ImageDraw.ImageDraw, right: int, baseline: int, size: int) -> None:
+    """'Made with SpriteWaffle', right-aligned: Sprite in cream, Waffle in gold (the app's wordmark)."""
+    f, fb = _font(size), _font(size, bold=True)
+    parts = [("Made with ", MUTED, f), ("Sprite", TEXT, fb), ("Waffle", ACCENT, fb)]
+    x = right - sum(d.textlength(t, font=ft) for t, _, ft in parts)
+    for t, col, ft in parts:
+        d.text((x, baseline), t, fill=col, font=ft, anchor="ls")
+        x += d.textlength(t, font=ft)
 
 
 def _trim(rgba: np.ndarray) -> np.ndarray:
@@ -39,7 +75,8 @@ def _load_anim(sd: Path) -> list[np.ndarray]:
 
 
 def collect(job_root: Path, frame_set: str = "12f") -> dict:
-    """What the job has: facing stills (sprite cut from its canvas) and pixelized animations."""
+    """What the job has: facing stills (sprite cut from its canvas) and pixelized animations.
+    "sprites": per facing, the game sprite for the turnaround (idle frame 0, else the first action's)."""
     stills = {}
     for f in TURN:
         p = job_root / "02_facings" / f"{f}.png"
@@ -51,7 +88,11 @@ def collect(job_root: Path, frame_set: str = "12f") -> dict:
         frames = _load_anim(sd)
         if frames:
             anims.setdefault(action, {})[facing] = {"frames": frames}
-    return {"stills": stills, "anims": anims}
+    sprites = {}
+    for action in (["idle"] if "idle" in anims else []) + sorted(a for a in anims if a != "idle"):
+        for f, v in anims[action].items():
+            sprites.setdefault(f, _trim(v["frames"][0]))
+    return {"stills": stills, "anims": anims, "sprites": sprites}
 
 
 def _scaler(smooth: bool):
@@ -71,50 +112,72 @@ def _paste(canvas: Image.Image, sprite: np.ndarray, box: tuple[int, int, int, in
 
 
 def build(job_root: Path, out: Path, title: str, smooth: bool, size: int = 512, frame_set: str = "12f",
-          fps: int = 12, turn_hold_ms: int = 350, loops: int = 2) -> dict:
+          fps: int = 12, turn_hold_ms: int = 350, loops: int = 2, subtitle: str = "",
+          end_card_ms: int = 1600) -> dict:
     """Write the showcase GIF. Returns a summary (sections, frame count, duration)."""
     data = collect(Path(job_root), frame_set)
     stills, anims = data["stills"], data["anims"]
     if not stills and not anims:
         raise RuntimeError("nothing to show yet: no facings and no animations")
-    head = 44                                            # title bar
+    k = size / 512                                       # layout drawn for 512 px, scaled
+    head, foot = round(48 * k), round(30 * k)            # title bar, footer
     frames: list[Image.Image] = []
     durations: list[int] = []
     sections = []
+    icon = _brand_image("app-icon-128.png", round(30 * k))
+    centre_icon = _brand_image("app-icon-128.png", round(44 * k))
 
     def base(caption: str, sub: str = "") -> Image.Image:
         c = Image.new("RGBA", (size, size), BG + (255,))
         d = ImageDraw.Draw(c)
-        d.text((14, 10), title, fill=TEXT, font=_font(20))
-        d.text((size - 14, 14), caption, fill=ACCENT, font=_font(16), anchor="ra")
+        d.rectangle((0, 0, size, head - 1), fill=BRAND_DEEP)
+        d.line((0, head - 1, size, head - 1), fill=BRAND_PURPLE, width=max(1, round(2 * k)))
+        x = round(10 * k)
+        if icon is not None:
+            c.alpha_composite(icon, (x, (head - icon.height) // 2))
+            x += icon.width + round(8 * k)
+        d.text((x, head // 2), title, fill=TEXT, font=_font(round(20 * k), bold=True), anchor="lm")
+        if subtitle:
+            tx = x + d.textlength(title, font=_font(round(20 * k), bold=True)) + round(8 * k)
+            d.text((tx, head // 2 + round(1 * k)), f"· {subtitle}", fill=MUTED, font=_font(round(14 * k)), anchor="lm")
+        d.text((size - round(12 * k), head // 2), caption, fill=ACCENT, font=_font(round(16 * k), bold=True), anchor="rm")
+        base_y = size - round(10 * k)
         if sub:
-            d.text((size // 2, size - 12), sub, fill=MUTED, font=_font(14), anchor="ms")
+            d.text((round(12 * k), base_y), sub, fill=MUTED, font=_font(round(13 * k)), anchor="ls")
+        _wordmark(d, size - round(12 * k), base_y, round(13 * k))
         return c
 
-    # 1. turnaround: facing stills, large, one scale, one foot line
-    if stills:
-        tallest = max(s.shape[0] for s in stills.values())
-        widest = max(s.shape[1] for s in stills.values())
-        area = (20, head + 6, size - 20, size - 30)
+    # 1. turnaround: the game sprite per facing when there are animations (so it matches the clips),
+    #    else the facing stills; large, one scale, one foot line
+    turn = data["sprites"] or stills
+    if turn:
+        tallest = max(s.shape[0] for s in turn.values())
+        widest = max(s.shape[1] for s in turn.values())
+        area = (20, head + round(10 * k), size - 20, size - foot - round(8 * k))
         scale = min((area[3] - area[1]) / tallest, (area[2] - area[0]) / widest)
         if not smooth and scale >= 1:
-            scale = int(scale)                           # crisp pixel art: whole-number zoom
-        order = [f for f in TURN if f in stills]
+            # crisp pixel art: whole-number zoom to about two thirds of the height (a 48 px sprite
+            # filling the frame at 8x read as blocks; a fixed 4x left it lost in the frame)
+            scale = max(1, min(int(scale), int(0.68 * (area[3] - area[1]) / tallest))) if data["sprites"] else int(scale)
+        order = [f for f in TURN if f in turn]
+        foot_y = min(area[3], (area[1] + area[3]) // 2 + round(tallest * scale / 2))   # centred, one foot line
         for rnd in range(2):
             for f in order:
                 c = base("turnaround", f"facing {f}")
-                _paste(c, stills[f], area, scale, smooth, foot_y=area[3])
+                _paste(c, turn[f], area, scale, smooth, foot_y=foot_y)
                 frames.append(c)
                 durations.append(turn_hold_ms)
         sections.append({"section": "turnaround", "facings": order})
 
-    # 2. every action: all facings play together in a compass grid
-    for action in sorted(anims):
+    # 2. every action: all facings play together in a compass grid, in showcase order (calm to
+    #    action: alphabetical opened on "attack")
+    first = ("idle", "walk", "run", "jump", "attack")
+    for action in sorted(anims, key=lambda a: (first.index(a) if a in first else len(first), a)):
         by_f = anims[action]
         n = max(len(v["frames"]) for v in by_f.values())
         cell = (size - 16) // 3
-        grid_top = head + 2
-        cell_h = (size - grid_top - 22) // 3
+        grid_top = head + round(4 * k)
+        cell_h = (size - grid_top - foot) // 3
         trimmed = [_trim(fr) for v in by_f.values() for fr in v["frames"]]
         tallest = max(t.shape[0] for t in trimmed)
         widest = max(t.shape[1] for t in trimmed)
@@ -126,28 +189,54 @@ def build(job_root: Path, out: Path, title: str, smooth: bool, size: int = 512, 
             for i in range(n):
                 c = base(action, f"{len(by_f)} facing{'s' if len(by_f) != 1 else ''} · {n} frames")
                 d = ImageDraw.Draw(c)
-                for k, f in enumerate(COMPASS):
-                    r, q = divmod(k, 3)
+                for slot, f in enumerate(COMPASS):
+                    r, q = divmod(slot, 3)
                     x0, y0 = 8 + q * cell, grid_top + r * cell_h
                     box = (x0 + 3, y0 + 3, x0 + cell - 3, y0 + cell_h - 3)
-                    d.rounded_rectangle(box, 6, fill=CELL_BG)
-                    if f is None:
-                        d.text(((box[0] + box[2]) // 2, (box[1] + box[3]) // 2), action, fill=MUTED,
-                               font=_font(14), anchor="mm")
+                    if f is None:                        # centre: the app icon and the action name
+                        d.rounded_rectangle(box, round(8 * k), fill=BRAND_DEEP, outline=BRAND_PURPLE, width=max(1, round(k)))
+                        mid = (box[0] + box[2]) // 2
+                        if centre_icon is not None:
+                            c.alpha_composite(centre_icon, (mid - centre_icon.width // 2, (box[1] + box[3]) // 2 - centre_icon.height + round(6 * k)))
+                        d.text((mid, (box[1] + box[3]) // 2 + round(20 * k)), action, fill=ACCENT,
+                               font=_font(round(15 * k), bold=True), anchor="mm")
                         continue
-                    d.text((box[0] + 6, box[1] + 4), f, fill=MUTED, font=_font(12))
+                    d.rounded_rectangle(box, round(8 * k), fill=CELL_BG, outline=LINE, width=1)
+                    d.text((box[0] + round(7 * k), box[1] + round(5 * k)), f, fill=MUTED, font=_font(round(12 * k), bold=True))
                     if f in by_f:
                         fr = by_f[f]["frames"]
                         sprite = fr[i % len(fr)][crop_box[1]:crop_box[3], crop_box[0]:crop_box[2]]
                         _paste(c, sprite, box, scale, smooth, foot_y=box[3] - 6)
-                    elif f in stills:                    # facing without this action: show it standing, dimmed
-                        st = stills[f].copy()
+                    elif f in data["sprites"] or f in stills:   # facing without this action: standing, dimmed
+                        st = (data["sprites"].get(f) if f in data["sprites"] else stills[f]).copy()
                         st[..., 3] = (st[..., 3] * 0.35).astype(np.uint8)
                         s2 = tallest * scale / st.shape[0]          # same drawn height as the animation
                         _paste(c, st, box, s2, smooth, foot_y=box[3] - 6)
                 frames.append(c)
                 durations.append(round(1000 / fps))
         sections.append({"section": action, "facings": [f for f in TURN if f in by_f], "frames": n})
+
+    # 3. end card: the horizontal logo, the character, the wordmark
+    if end_card_ms:
+        c = Image.new("RGBA", (size, size), BRAND_DEEP + (255,))
+        d = ImageDraw.Draw(c)
+        logo = _brand_image("horizontal-logo.png", round(130 * k))
+        if logo is not None and logo.width > size - 40:
+            logo = logo.resize((size - 40, round(logo.height * (size - 40) / logo.width)), Image.LANCZOS)
+        y = round(140 * k)
+        if logo is not None:
+            c.alpha_composite(logo, ((size - logo.width) // 2, y))
+            y += logo.height + round(26 * k)
+        d.text((size // 2, y), title, fill=TEXT, font=_font(round(22 * k), bold=True), anchor="mt")
+        if subtitle:
+            d.text((size // 2, y + round(30 * k)), subtitle, fill=MUTED, font=_font(round(15 * k)), anchor="mt")
+        n_act = len(anims)
+        if n_act:
+            d.text((size // 2, size - round(40 * k)), f"{n_act} animation{'s' if n_act != 1 else ''} · "
+                   f"{len(data['sprites']) or len(stills)} directions", fill=ACCENT, font=_font(round(14 * k), bold=True), anchor="ms")
+        frames.append(c)
+        durations.append(end_card_ms)
+        sections.append({"section": "end card"})
 
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -167,9 +256,16 @@ def for_job(job, profile, size: int = 512, frame_set: str = "12f") -> dict:
     meta = job.read_meta()
     smooth = styles.get(styles.of_job(job))["post"] != "pixel"
     title = meta["character"].replace("_", " ").title()
+    inputs = meta.get("inputs") or {}
+    subtitle = ""                                            # what makes this job differ from its base
+    if inputs.get("item_job"):
+        subtitle = "wearing " + Path(str(inputs["item_job"])).parent.name.replace("_", " ")
+    elif inputs.get("base_job") and inputs.get("edit"):
+        subtitle = str(inputs["edit"])[:40]
     walk_fps = profile.fps("walk")
     out = job.stage_dir("06_export") / "showcase" / f"{meta['character']}_showcase.gif"
-    summary = build(job.root, out, title, smooth=smooth, size=size, frame_set=frame_set, fps=walk_fps)
+    summary = build(job.root, out, title, smooth=smooth, size=size, frame_set=frame_set, fps=walk_fps,
+                    subtitle=subtitle)
     job.set_stage("export:showcase", "done", frames=summary["frames"], seconds=summary["seconds"])
     return summary
 
