@@ -255,10 +255,13 @@ def item_reference(target: str, character: str, item: str, how: str, back_item: 
             if t.lower().startswith(art):
                 return t[len(art):]
         return t
-    c, i = bare(character), bare(item)
+    back = target in BACK
+    # back views name the item without its front details: measured 2026-11-26 (leather vest "with a
+    # laced front ... brass buckle"), the full caption put the lacing and buckle on a back view even
+    # with the item's back as <Picture 2>; the caption without them gave a plain back
+    c, i = bare(character), bare(back_item) if back and back_item else bare(item)
     use = how.strip().rstrip(".") or "wearing this"
     use = use.replace("this", "<Subject 2>", 1) if "this" in use else f"{use} <Subject 2>"
-    back = target in BACK
     if back and back_ref:
         seen = ("<Picture 2> shows the back of <Subject 2>; seen from behind it looks exactly like that back, "
                 "and its front details are hidden. ")

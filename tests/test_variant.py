@@ -144,3 +144,14 @@ def test_item_reference_caption_uses_the_subject_format():
     assert p.startswith("The small knight in <Picture 1> is <Subject 1>. The short sword")
     assert "holding <Subject 2> in the right hand" in p and builder.VIEW["E"] in p and builder.FRAMING in p
     assert "Seen from behind" not in p
+
+
+def test_back_views_name_the_item_without_its_front_details():
+    """2026-11-26: the full caption ('vest with a laced front ... brass buckle') put the lacing and
+    buckle on the NE back view (1 of 1); naming just the item gave plain backs (3 of 3)."""
+    full = "a brown leather armor vest with a laced front and a brass buckle"
+    core = variant.item_core(full)
+    back = builder.item_reference("NE", "human", full, "wearing this", back_item=core, back_ref=True)
+    front = builder.item_reference("SE", "human", full, "wearing this", back_item=core)
+    assert "The brown leather armor vest in <Picture 2>" in back and "laced front" not in back
+    assert "laced front" in front
