@@ -49,3 +49,14 @@ def test_prompt_paths_are_checked_and_http_round_trips(tmp_path):
         saved = client.post(route, json={"file": "02_facings/NE.png", "prompt": "new words"}).raise_for_status().json()
         assert saved["custom"] == "new words"
         assert client.get(route, params={"file": "../x.png"}).status_code == 400
+
+
+def test_rerolling_one_variant_view_keeps_the_others_in_the_report(tmp_path):
+    """2026-11-26: re-rolling N rewrote facings_report.json with N only, so the review grid lost
+    every other view's drift and warnings."""
+    import json
+    v, c = _variant(tmp_path)
+    generate.facings(v, GameProfile(name="p"), client=c, only=["N"])
+    rep = json.loads((v.root / "02_facings" / "facings_report.json").read_text())
+    assert set(rep["facings"]) == {"N", "NE", "E", "SE", "SW", "W", "NW"} == set(rep["changed"])
+    assert v.read_meta()["stages"]["facings"]["rendered"] == ["N"]

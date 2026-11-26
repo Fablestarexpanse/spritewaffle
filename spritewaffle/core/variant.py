@@ -194,7 +194,11 @@ def facings(job: Job, profile: GameProfile, client: ComfyClient | None = None, o
     a = generate._rgba(a_path)
     report = {"variant_of": str(base.root), "edit": edit, "facings": {}, "mirrored": {}, "warnings": [],
               "diagonals": "from base"}
-    for f in done:
+    # every view on disk, not just the ones drawn now: re-rolling one view used to drop the other
+    # views' drift and warnings from the report (seen 2026-11-26 re-rolling N of a fitted vest)
+    present = [f for f in builder.CARDINALS + builder.DIAGONALS
+               if f != "S" and (out / f"{f}.png").exists() and (base.root / "02_facings" / f"{f}.png").exists()]
+    for f in present:
         report["facings"][f] = generate.drift(a, generate._rgba(out / f"{f}.png"))
         t = round(generate.turned_from(generate._rgba(out / f"{f}.png"), generate._rgba(base.root / "02_facings" / f"{f}.png")), 1)
         report.setdefault("changed", {})[f] = t

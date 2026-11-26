@@ -1477,7 +1477,7 @@ function paneAnchor(j, st) {
       ${j.fits.length ? `Worn by: ${j.fits.map(f => `<a href="#${esc(f.character)}/${esc(f.job_id)}">${esc(f.character)} / ${esc(f.job_id)}</a>`).join(", ")}.` : ""}</p>` : ""}
     ${j.variant ? `<p class="muted" style="margin-top:0">${j.variant.item ? `<a href="${esc(j.variant.item)}" data-view="Item"><img class="pix" src="${esc(j.variant.item)}" style="width:48px;vertical-align:middle;border-radius:4px" alt="item"></a> ` : ""}Variant of <a href="#${esc(j.character)}/${esc(j.variant.base)}">${esc(j.character)} / ${esc(j.variant.base)}</a>: <b>${esc(j.variant.edit)}</b>.
       Re-roll draws the base anchor with this change again; Facings redraws each base facing with it.
-      <button id="vReroll">Re-roll variant anchor</button></p>` : ""}
+      <button id="vReroll">Re-roll variant anchor</button>${promptButton(j, "01_anchor/anchor.png", "Variant anchor", "anchor")}</p>` : ""}
     <div class="anchor-layout">
       <div>${j.anchor ? `<a class="anchor-preview" href="${esc(j.anchor_full)}" data-view="Anchor" aria-label="Enlarge anchor">${img(j.anchor, "anchor")}</a>` : `<div class="anchor-preview"><div class="ph">No starting image yet</div></div>`}
         ${st("anchor") === "approved"
@@ -1527,6 +1527,8 @@ function paneAnchor(j, st) {
       </div>
     </div></section>`;
   if ($("#vReroll")) $("#vReroll").onclick = () => run("anchor", {}, "Variant anchor queued");
+  $$("[data-prompt-file]").forEach(b => b.onclick = () => showPromptEditor(b.dataset.promptFile, b.dataset.promptLabel,
+    () => run("anchor", {}, "Variant anchor re-roll queued with your prompt")));
   const select = $("#styleRef"), generate = $("#genAnchor"), preview = $("#anchorReferencePreview");
   const key = `${j.character}/${j.job_id}`, prefix = "project:";
   const savedHero = j.inputs.style_ref?.replaceAll("\\", "/").replace(/\/$/, "");
