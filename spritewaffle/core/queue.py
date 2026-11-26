@@ -278,7 +278,31 @@ class Queue:
         for st in post:
             tasks.append(self.submit(job, st, dict(base), profile, after=prev))
             prev = [tasks[-1]["id"]]
+        # views mirrored from this one follow it: re-rendering NE left NW a flip of the old clip
+        # (seen 2026-11-26, a walk that turned mid-clip), and the export then refused NW as stale
+        for f in self._mirrored_from(job, facing, action):
+            if f == facing:
+                continue
+            for st in ("mirror", "qa", "export"):
+                args = {"facing": f, "action": action, **({"source": facing} if st == "mirror" else {})}
+                tasks.append(self.submit(job, st, args, profile, after=prev))
+                prev = [tasks[-1]["id"]]
         return tasks
+
+    @staticmethod
+    def _mirrored_from(job, facing: str, action: str) -> list[str]:
+        """Facings whose current pixel art for this action is a mirror of `facing`."""
+        try:
+            from . import processing
+            asset = Job.open(job)
+            out = []
+            for f in ("W", "NW", "SW", "E", "NE", "SE"):
+                rep = processing.pixel_report(asset, f, action) or {}
+                if rep.get("method") == "mirror" and rep.get("source") == facing:
+                    out.append(f)
+            return out
+        except (FileNotFoundError, ValueError, KeyError, OSError):
+            return []
 
     def submit_animate(self, job, facings: list[str], actions: list[str], profile: str | None = None,
                        mirror: bool = True, **action_args) -> list[dict]:

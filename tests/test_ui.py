@@ -209,3 +209,17 @@ def test_downloads_listed_and_archive(client):
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
     assert c.post("/api/jobs/hero/j1/archive").status_code == 200
     assert c.get("/api/jobs").json() == [] and (base / "_archive" / "hero" / "j1" / "job.json").exists()
+
+
+def test_status_lists_queued_tasks_for_the_panes(tmp_path):
+    """The Animations tab shows queued clips as 'Queued' cards: status carries the queued tasks."""
+    from fastapi.testclient import TestClient
+
+    from spritewaffle.core.job import Job
+    from spritewaffle.core.queue import Queue
+    from spritewaffle.ui.server import create_app
+    j = Job.create("hero", "h1", base=tmp_path)
+    Queue(tmp_path).submit(j.root, "action", {"facing": "E", "action": "walk"})
+    with TestClient(create_app(tmp_path, worker=False)) as c:
+        q = c.get("/api/status").json()["queued"]
+    assert [(t["job"], t["stage"], t["facing"], t["action"]) for t in q] == [("hero/h1", "action", "E", "walk")]

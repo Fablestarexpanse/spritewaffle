@@ -221,8 +221,10 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return {"id": t["id"], "job": "/".join(parts), "stage": t["stage"], "facing": a.get("facing"),
                     "action": a.get("action"), "started": t.get("started"), "attempt": t.get("attempt", 1)}
         running = [short(t) for t in tasks if t["status"] == "running"]
+        queued = [short(t) for t in tasks if t["status"] == "queued"][:300]   # panes show what is lined up
         return {"version": __version__, "comfy": {"ok": c["ok"], "detail": c["detail"]},
                 "worker": bool(w and w._thread and w._thread.is_alive()), "queue": counts, "running": running,
+                "queued": queued,
                 "now": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "jobs": str(base), "profiles": list_profiles(), "actions": sorted(builder.ACTIONS),
                 "asset_types": sorted([*builder.ASSET_TYPES, tileset.TYPE, "texture"]),

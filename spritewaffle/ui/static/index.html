@@ -1718,6 +1718,12 @@ function paneAnimations(j, st) {
   const ready = st("facings") === "approved";
   const byAction = {};
   j.actions.forEach(a => (byAction[a.action] ??= {})[a.facing] = a);
+  // clips still waiting in the queue have no folder yet: show them as "Queued" (2026-11-26: a batch
+  // of 8 walk facings showed only the one rendering, the other 7 were invisible)
+  const here = `${j.character}/${j.job_id}`, waiting = {};
+  [...(status.running || []), ...(status.queued || [])].filter(t => t.job === here && t.action && t.facing
+    && ["action", "mirror", "transfer"].includes(t.stage)).forEach(t => (waiting[t.action] ??= {})[t.facing] = t);
+  Object.keys(waiting).forEach(action => byAction[action] ??= {});
   const directions = COMPASS.filter(f => f && (j.directions !== 4 || ["S", "E", "N", "W"].includes(f)));
   const available = new Set(j.facings.filter(f => f.image && directions.includes(f.facing)).map(f => f.facing));
   const selected = [...form.facings].filter(f => available.has(f));
@@ -1754,9 +1760,12 @@ function paneAnimations(j, st) {
       </div>
     </div></details></section>`;
   const clips = Object.keys(byAction).sort().map(action => `<section>
-      <h2>${esc(action)} <span class="muted">${directions.filter(f => byAction[action][f]).length} of ${directions.length} configured facings</span></h2>
-      <div class="animrow">${COMPASS.filter(f => f && byAction[action][f]).map(f => {
+      <h2>${esc(action)} <span class="muted">${directions.filter(f => byAction[action][f]).length} of ${directions.length} configured facings${
+        Object.keys(waiting[action] || {}).filter(f => !byAction[action][f]).length ? ` · ${Object.keys(waiting[action]).filter(f => !byAction[action][f]).length} queued` : ""}</span></h2>
+      <div class="animrow">${COMPASS.filter(f => f && (byAction[action][f] || waiting[action]?.[f])).map(f => {
         const a = byAction[action][f];
+        if (!a) return `<div class="card anim"><span class="ph">${waiting[action][f].stage === "mirror" ? "Queued (mirror)" : "Queued"}</span>
+          <span class="row" style="margin:0"><b>${f}</b></span></div>`;
         const set = Object.values(a.sets).find(entry => entry.has_frames) || a.sets["12f"];
         const qa = set.qa, mode = a.report?.mode_used || "", key = esc(f + "|" + action), label = esc(action + " · " + f);
         const preview = set.preview || set.frames?.[0];

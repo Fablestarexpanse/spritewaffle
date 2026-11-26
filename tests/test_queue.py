@@ -192,3 +192,18 @@ def test_worker_steps_aside_when_another_takes_the_lock_and_resumes_after(env):
     w.stop()
     assert q.get(t["id"])["status"] == "done"
     assert not (q.dir / "worker.lock").exists()
+
+
+def test_rerendering_a_view_also_refreshes_its_mirrors(env):
+    """2026-11-26: re-rendering NE (a walk that turned mid-clip) left NW a flip of the old clip."""
+    import json
+    base, job, q = env
+    d = job.root / "04_pixel" / "NW" / "walk"
+    d.mkdir(parents=True)
+    (d / "pixel_report.json").write_text(json.dumps({"method": "mirror", "source": "NE"}))
+    tasks = q.submit_action_pipeline(job.root, "NE", "walk")
+    chain = [(t["stage"], t["args"]["facing"]) for t in tasks]
+    assert chain == [("action", "NE"), ("select", "NE"), ("pixelize", "NE"), ("qa", "NE"), ("export", "NE"),
+                     ("mirror", "NW"), ("qa", "NW"), ("export", "NW")]
+    assert tasks[5]["args"]["source"] == "NE" and tasks[5]["after"] == [tasks[4]["id"]]
+    assert [t["stage"] for t in q.submit_action_pipeline(job.root, "S", "walk")] == ["action", "select", "pixelize", "qa", "export"]

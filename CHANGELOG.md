@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Re-rendering or re-processing a direction also re-mirrors the directions mirrored from it (NE -> NW), so they don't stay flips of the old clip or block the export as stale.
+- The Animations tab shows clips still waiting in the queue as Queued cards (status now lists queued tasks).
 - Fitted items: back views name the item without its front details in the caption, so front lacing or buckles stop appearing on the back (3 of 3 plain backs, was 1 of 1 wrong).
 - Re-rolling one view of a variant no longer drops the other views' drift and warnings from the facings report. The variant anchor gets **Edit prompt…** too.
 - **Edit prompt…** beside each facing's Re-roll: see the exact prompt a view was made with, edit it, save and re-roll just that view (CLI `prompt`, HTTP `/prompt`, MCP `prompt`). The edit is stored per file and applied where every still is generated; provenance marks it.
