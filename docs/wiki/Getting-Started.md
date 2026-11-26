@@ -29,6 +29,8 @@ particular machine. Paths come from `SPRITEWAFFLE_HOME` / `SPRITEWAFFLE_JOBS`, o
 **Queue** in the header shows what's running. If a task fails, open **Queue → Failed** to see the
 error and retry. Every re-roll keeps the previous take in **Earlier takes**.
 
+Next: [Guide: what do you want to make?](Guide.md) walks through every other kind of asset.
+
 ## Without the UI
 
 Run `spritewaffle --help` for CLI commands or `spritewaffle mcp` to start the stdio agent server.

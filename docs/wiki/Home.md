@@ -6,6 +6,7 @@ maps, and export game-ready packages. Optional generation runs through local Com
 | Page | What's in it |
 |---|---|
 | [Getting started](Getting-Started.md) | Install, first character end to end |
+| [Guide: what do you want to make?](Guide.md) | Task by task in the app: characters, items, effects, seamless ground, transitions, collision, getting it into Godot / Unity / Tiled, and the words you'll see |
 | [Studio guide](Studio-Guide.md) | Installation, workspace, project defaults, timeline, pixel editing, storage, and troubleshooting |
 | [Workflows](Workflows.md) | Characters, equipment, effects, sprite stacks, tilesets, terrain maps, and reusable objects |
 | [CLI and MCP](Interfaces.md) | Command lookup, tool inventory, and shared studio operations |

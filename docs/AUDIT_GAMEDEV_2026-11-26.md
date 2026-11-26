@@ -22,7 +22,7 @@ points come from the code.
 
 ## P2: painful
 
-**Status 2026-11-26:** #4 guide fixed (one project PPU). #5 done (no colour list in RGBA mode). #6 done (durations, fps/loop/flip_x_of in meta). #8 done as options (POT, extrude); Unity pivot convention still unverified in an editor. #10 documented (ship `06_export/character`, 21 MB of the hare's 183 MB); per-action previews still always written. #7 done (shapes, one-way, typed properties; Godot 4.6 checked). Open: #9 task-first docs.
+**Status 2026-11-26:** #4 guide fixed (one project PPU). #5 done (no colour list in RGBA mode). #6 done (durations, fps/loop/flip_x_of in meta). #8 done as options (POT, extrude); Unity pivot convention still unverified in an editor. #10 documented (ship `06_export/character`, 21 MB of the hare's 183 MB); per-action previews still always written. #7 done (shapes, one-way, typed properties; Godot 4.6 checked). #9: task-first [Guide](wiki/Guide.md) added (UI steps only, reference kept separate, glossary for job/anchor/stale/freshness); Studio-Guide left as the reference.
 
 4. **Unity PPU guide = each profile's cell size**, so every asset gets a different texel density
    (cat 96, goblin 64, hare 384, tiles 16). This breaks Pixel Perfect Camera. → One project PPU.
