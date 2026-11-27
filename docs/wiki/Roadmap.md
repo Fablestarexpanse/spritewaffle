@@ -33,7 +33,9 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
    generation and maps up to 64 × 64).
 3. ~~Normal / height maps~~: done 2026-11-26 (estimated from colour; Lighting maps setting).
 4. **DiT-aware seamless generation** for H3: Universal-Seamless-Tiles installed 2026-11-26 (approved;
-   pinned c10836d). Loads after the next ComfyUI restart; then measure against the code-side seaming.
+   pinned c10836d, loaded). Its circular-VAE node fails on H3's VAE (can't be copied; in-place would leak
+   into other generations), so only the model node (latent roll) is usable; measuring it is blocked on a
+   ComfyUI restart (it hung, 2026-11-26).
 5. **Target engine** setting picking an export preset (Godot files are always written now). Waiting on a
    measured need: which settings a Unity or GameMaker project wants different (pot, extrude, mirror?).
 6. **Engine checks:** done 2026-11-26 (Tiled read shaped collision; LDtk 1.5.3 opened the new map.ldtk).
