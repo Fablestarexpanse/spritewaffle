@@ -161,7 +161,7 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         files = [("map.json", native), ("map.tmj", tiled), ("tileset.json", native_tiles), ("tileset.tsj", tiled_tiles)]
         ldtk_skipped = ldtk.supported(record["grid"])
         if ldtk_skipped is None:          # LDtk 1.5: same map, tiles + collision grid (export/ldtk.py)
-            files.append(("map.ldtk", ldtk.project(saved["name"], resolved, native_tiles["tiles"], record["grid"])))
+            files.append(("map.ldtk", ldtk.project(saved["name"], resolved, native_tiles["tiles"], record["grid"], objects)))
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as package:
             for filename, data in files:

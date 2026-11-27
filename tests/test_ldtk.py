@@ -62,3 +62,29 @@ def test_non_square_tiles_skip_ldtk_and_say_why(tmp_path):
     assert "square tiles" in out["ldtk_skipped"]
     with ZipFile(job.root / out["file"]) as z:
         assert "map.ldtk" not in z.namelist() and "map.tmj" in z.namelist()
+
+
+def test_map_objects_become_ldtk_entities(tmp_path):
+    job = square_meadow(tmp_path)
+    chest = {"id": "chest1", "name": "Old chest", "kind": "chest", "cell": 2, "state": "open",
+             "states": [{"name": "closed", "tile": 0}, {"name": "open", "tile": 1}]}
+    door = {"id": "door1", "name": "Door", "kind": "door", "cell": 0, "state": "closed",
+            "states": [{"name": "closed", "tile": 0}, {"name": "open", "tile": 2}]}
+    saved = tilemap.save(job, "Camp", [["Grass", "Grass", "Water", "Water"]] * 2, objects=[chest, door])
+    out = tilemap.export(job, saved["id"], allow_empty=True)
+    with ZipFile(job.root / out["file"]) as z:
+        project = json.loads(z.read("map.ldtk"))
+    assert [d["identifier"] for d in project["defs"]["layers"]] == ["Objects", "Collision", "Tiles"]
+    assert [e["identifier"] for e in project["defs"]["entities"]] == ["Chest", "Door"]
+    objects_layer = project["levels"][0]["layerInstances"][0]
+    assert objects_layer["__type"] == "Entities"
+    first, second = objects_layer["entityInstances"]
+    assert first["__identifier"] == "Chest" and first["__grid"] == [2, 0] and first["px"] == [16, 0]
+    assert first["__tile"] == {"tilesetUid": 1, "x": 8, "y": 0, "w": 8, "h": 8}          # state "open" = tile 1
+    fields = {f["__identifier"]: f["__value"] for f in first["fieldInstances"]}
+    assert fields["name"] == "Old chest" and fields["state"] == "open" and fields["solid"] is True
+    assert json.loads(fields["states"]) == chest["states"] and fields["spritewaffle_id"] == "chest1"
+    assert fields["spritewaffle_template"] is None
+    assert second["__identifier"] == "Door" and second["__grid"] == [0, 0]
+    uids = [project["defs"]["entities"][0]["uid"]] + [f["uid"] for e in project["defs"]["entities"] for f in e["fieldDefs"]]
+    assert len(set(uids)) == len(uids) and project["nextUid"] > max(uids + [e["uid"] for e in project["defs"]["entities"]])

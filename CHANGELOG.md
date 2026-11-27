@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- LDtk export includes map objects as entities (one per object kind, with name, state, states, solid and id fields), drawn with each object's current tile.
 - Maps up to **64 × 64** (was 32 × 32), with a **Size** control in the map panel; resizing keeps painted corners, placed tiles and objects that still fit and asks before dropping any. New maps in the panel were fixed at 8 × 6 before.
 - Textures can export **lighting maps**: a height and a normal map (OpenGL, green up) per tile and as sheets, seamless like the tile, estimated from the colour. Off by default.
 - Maps can **mix variants**: tiles with the same terrain corners are picked per cell by tile weight. Off by default; maps saved before keep their first-tile look.

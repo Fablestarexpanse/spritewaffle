@@ -4,7 +4,9 @@ Layout follows a project saved by LDtk 1.5.3 itself (its bundled samples): one l
 "Tiles" layer (each cell's tile from tiles.png) under a "Collision" IntGrid layer (1 = solid,
 2 = one-way). LDtk has no collision polygons, so each tile's exact polygon, one-way flag and
 properties go into the tileset's per-tile custom data as JSON, where a game reads them.
-Map objects stay in the Tiled map (map.tmj); LDtk entities are not written.
+Map objects become entities on an "Objects" layer: one entity definition per object kind, drawn
+with the tile of the object's current state, with fields name, state, states (JSON), solid and
+spritewaffle_id (+ spritewaffle_template). Field layout copied from LDtk 1.5.3's Entities sample.
 
 IDs are derived from the map name and size (uuid5), so the same map exports the same file.
 """
@@ -42,13 +44,71 @@ def _layer_def(identifier: str, kind: str, uid: int, size: int, tileset_uid: int
             "biomeFieldUid": None}
 
 
-def project(name: str, resolved: dict, tiles: list[dict], grid: dict) -> dict:
+_FIELDS = (("name", "String"), ("state", "String"), ("states", "String"), ("solid", "Bool"),
+           ("spritewaffle_id", "String"), ("spritewaffle_template", "String"))
+
+
+def _field_def(identifier: str, kind: str, uid: int) -> dict:
+    return {"identifier": identifier, "doc": None, "__type": kind, "uid": uid, "type": f"F_{kind}",
+            "isArray": False, "canBeNull": kind != "Bool", "arrayMinLength": None, "arrayMaxLength": None,
+            "editorDisplayMode": "Hidden", "editorDisplayScale": 1, "editorDisplayPos": "Above",
+            "editorLinkStyle": "CurvedArrow", "editorDisplayColor": None, "editorAlwaysShow": False,
+            "editorShowInWorld": True, "editorCutLongValues": True, "editorTextSuffix": None,
+            "editorTextPrefix": None, "useForSmartColor": False, "exportToToc": False, "searchable": False,
+            "min": None, "max": None, "regex": None, "acceptFileTypes": None,
+            "defaultOverride": {"id": "V_Bool", "params": [False]} if kind == "Bool" else None,
+            "textLanguageMode": None, "symmetricalRef": False, "autoChainRef": False,
+            "allowOutOfLevelRef": True, "allowedRefs": "OnlySame", "allowedRefsEntityUid": None,
+            "allowedRefTags": [], "tilesetUid": None}
+
+
+def _entities(objects: list[dict], by_id: dict, width: int, size: int, tileset_uid: int, name: str,
+              first_uid: int) -> tuple[list[dict], list[dict], int]:
+    """(entity definitions, entity instances, next uid) for SpriteWaffle map objects."""
+    defs, instances, uid = {}, [], first_uid
+    for entry in objects:
+        kind = "".join(c if c.isalnum() else "_" for c in entry["kind"]).strip("_") or "Object"
+        kind = kind[0].upper() + kind[1:] if not kind[0].isdigit() else "Object_" + kind
+        state = next(s for s in entry["states"] if s["name"] == entry["state"])
+        rect = by_id.get(state["tile"], {}).get("rect", [0, 0, size, size])
+        tile = {"tilesetUid": tileset_uid, "x": rect[0], "y": rect[1], "w": size, "h": size}
+        if kind not in defs:
+            fields = [_field_def(ident, typ, uid + 1 + i) for i, (ident, typ) in enumerate(_FIELDS)]
+            defs[kind] = {"identifier": kind, "uid": uid, "tags": [], "exportToToc": False, "allowOutOfBounds": False,
+                          "doc": None, "width": size, "height": size, "resizableX": False, "resizableY": False,
+                          "minWidth": None, "maxWidth": None, "minHeight": None, "maxHeight": None,
+                          "keepAspectRatio": False, "tileOpacity": 1, "fillOpacity": 0.08, "lineOpacity": 0,
+                          "hollow": False, "color": "#BE4A2F", "renderMode": "Tile", "showName": True,
+                          "tilesetId": tileset_uid, "tileRenderMode": "FitInside", "tileRect": tile,
+                          "uiTileRect": None, "nineSliceBorders": [], "maxCount": 0, "limitScope": "PerLevel",
+                          "limitBehavior": "MoveLastOne", "pivotX": 0, "pivotY": 0, "fieldDefs": fields}
+            uid += 1 + len(_FIELDS)
+        d = defs[kind]
+        values = {"name": entry["name"], "state": entry["state"],
+                  "states": json.dumps(entry["states"], ensure_ascii=False, separators=(",", ":")),
+                  "solid": bool(by_id.get(state["tile"], {}).get("solid")), "spritewaffle_id": entry["id"],
+                  "spritewaffle_template": entry.get("template_id")}
+        fields = []
+        for f in d["fieldDefs"]:
+            v = values[f["identifier"]]
+            real = [] if v is None else [{"id": "V_Bool", "params": [v]} if f["__type"] == "Bool" else {"id": "V_String", "params": [v]}]
+            fields.append({"__identifier": f["identifier"], "__type": f["__type"], "__value": v, "__tile": None,
+                           "defUid": f["uid"], "realEditorValues": real})
+        y, x = divmod(entry["cell"], width)
+        instances.append({"__identifier": kind, "__grid": [x, y], "__pivot": [0, 0], "__tags": [], "__tile": tile,
+                          "__smartColor": "#BE4A2F", "iid": _iid(name, "object", entry["id"]), "width": size,
+                          "height": size, "defUid": d["uid"], "px": [x * size, y * size], "fieldInstances": fields,
+                          "__worldX": x * size, "__worldY": y * size})
+    return list(defs.values()), instances, uid
+
+
+def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: list[dict] | None = None) -> dict:
     """resolved: the map preview (width, height, tiles rows of tile id or None). tiles: the native
-    tileset entries (id, rect, solid, collision, properties)."""
+    tileset entries (id, rect, solid, collision, properties). objects: the map's objects."""
     size = grid["tile_width"]
     width, height = resolved["width"], resolved["height"]
     by_id = {t["id"]: t for t in tiles}
-    tileset_uid, tiles_uid, collision_uid, level_uid = 1, 2, 3, 0
+    tileset_uid, tiles_uid, collision_uid, objects_uid, level_uid = 1, 2, 3, 4, 0
     ident = "".join(c if c.isalnum() else "_" for c in name).strip("_") or "Map"
     if ident[0].isdigit():
         ident = "Map_" + ident
@@ -76,6 +136,7 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict) -> dict:
             data["properties"] = t["properties"]
         if data:
             custom.append({"tileId": t["id"], "data": json.dumps(data, separators=(",", ":"))})
+    entity_defs, entities, next_uid = _entities(objects or [], by_id, width, size, tileset_uid, name, 10)
     values = [{"value": SOLID, "identifier": "solid", "color": "#E03C3C", "tile": None, "groupUid": 0},
               {"value": ONE_WAY, "identifier": "one_way", "color": "#3CA0E0", "tile": None, "groupUid": 0}]
     layer_inst = lambda ident_, kind, uid, extra: {   # noqa: E731
@@ -91,7 +152,7 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict) -> dict:
         "__header__": {"fileType": "LDtk Project JSON", "app": "LDtk", "doc": "https://ldtk.io/json",
                        "schema": "https://ldtk.io/files/JSON_SCHEMA.json", "appAuthor": "Sebastien 'deepnight' Benard",
                        "appVersion": JSON_VERSION, "url": "https://ldtk.io"},
-        "iid": _iid(name, width, height), "jsonVersion": JSON_VERSION, "appBuildId": 0, "nextUid": 4,
+        "iid": _iid(name, width, height), "jsonVersion": JSON_VERSION, "appBuildId": 0, "nextUid": max(next_uid, 10),
         "identifierStyle": "Capitalize", "toc": [], "worldLayout": "Free", "worldGridWidth": width * size,
         "worldGridHeight": height * size, "defaultLevelWidth": width * size, "defaultLevelHeight": height * size,
         "defaultPivotX": 0, "defaultPivotY": 0, "defaultGridSize": size, "defaultEntityWidth": size,
@@ -101,9 +162,10 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict) -> dict:
         "backupRelPath": None, "levelNamePattern": "Level_%idx", "tutorialDesc": None, "customCommands": [],
         "flags": [], "worlds": [], "dummyWorldIid": _iid(name, "world"),
         "defs": {
-            "layers": [_layer_def("Collision", "IntGrid", collision_uid, size, None, values),
-                       _layer_def("Tiles", "Tiles", tiles_uid, size, tileset_uid, [])],
-            "entities": [], "enums": [], "externalEnums": [], "levelFields": [],
+            "layers": ([_layer_def("Objects", "Entities", objects_uid, size, None, [])] if entities else [])
+                      + [_layer_def("Collision", "IntGrid", collision_uid, size, None, values),
+                         _layer_def("Tiles", "Tiles", tiles_uid, size, tileset_uid, [])],
+            "entities": entity_defs, "enums": [], "externalEnums": [], "levelFields": [],
             "tilesets": [{"__cWid": grid["columns"], "__cHei": grid["rows"], "identifier": "Tiles",
                           "uid": tileset_uid, "relPath": "tiles.png", "embedAtlas": None,
                           "pxWid": grid["width"], "pxHei": grid["height"], "tileGridSize": size,
@@ -115,6 +177,8 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict) -> dict:
                     "__bgColor": "#696A79", "bgColor": None, "useAutoIdentifier": False, "bgRelPath": None,
                     "bgPos": None, "bgPivotX": 0.5, "bgPivotY": 0.5, "__smartColor": "#ADADB5", "__bgPos": None,
                     "externalRelPath": None, "fieldInstances": [], "__neighbours": [],
-                    "layerInstances": [layer_inst("Collision", "IntGrid", collision_uid, {"intGridCsv": int_grid}),
-                                       layer_inst("Tiles", "Tiles", tiles_uid, {"gridTiles": grid_tiles})]}],
+                    "layerInstances": ([layer_inst("Objects", "Entities", objects_uid, {"entityInstances": entities})]
+                                       if entities else [])
+                    + [layer_inst("Collision", "IntGrid", collision_uid, {"intGridCsv": int_grid}),
+                       layer_inst("Tiles", "Tiles", tiles_uid, {"gridTiles": grid_tiles})]}],
     }

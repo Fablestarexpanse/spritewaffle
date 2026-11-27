@@ -298,8 +298,11 @@ imported and rendered the map and preserved the cells and tileset metadata when 
 For LDtk, open `map.ldtk` from the same folder (square tiles only; the export status says when it
 was left out). It has one level with a **Tiles** layer and a **Collision** IntGrid layer
 (1 = solid, 2 = one-way). LDtk has no collision polygons, so each tile's exact polygon, one-way
-flag and properties are stored as JSON in the tileset's per-tile custom data. Map objects stay
-in the Tiled map. LDtk 1.5.3 opened the export (2026-11-26).
+flag and properties are stored as JSON in the tileset's per-tile custom data. Map objects
+become entities on an **Objects** layer: one entity per object kind (Chest, Door, ...), drawn with
+the tile of its current state, with fields `name`, `state`, `states` (JSON list of state name and
+tile), `solid` and `spritewaffle_id`. LDtk 1.5.3 opened the export (2026-11-26); the entity
+version passes LDtk's 1.5.3 JSON schema.
 
 ```powershell
 spritewaffle tilemap save --job meadow/v1 --name "South meadow" --file vertices.json
