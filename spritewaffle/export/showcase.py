@@ -250,6 +250,22 @@ def build(job_root: Path, out: Path, title: str, smooth: bool, size: int = 512, 
     return summary
 
 
+def _subtitle(inputs: dict) -> str:
+    """What makes this job differ from its base. A fitted item names every item in the chain of base
+    jobs, innermost first ("wearing leather vest + blue cloak"); a plain variant shows its edit."""
+    if inputs.get("item_job"):
+        items, cur, seen = [], inputs, set()
+        while cur.get("item_job") and cur.get("base_job") not in seen:
+            items.insert(0, Path(str(cur["item_job"])).parent.name.replace("_", " "))
+            seen.add(cur.get("base_job"))
+            base = Path(str(cur.get("base_job") or "")) / "job.json"
+            cur = (json.loads(base.read_text(encoding="utf-8")).get("inputs") or {}) if base.is_file() else {}
+        return "wearing " + " + ".join(items)
+    if inputs.get("base_job") and inputs.get("edit"):
+        return str(inputs["edit"])[:40]
+    return ""
+
+
 def for_job(job, profile, size: int = 512, frame_set: str = "12f") -> dict:
     """Build <job>/06_export/showcase/<character>_showcase.gif with the job's title, style and fps."""
     from ..prompts import styles
@@ -257,11 +273,7 @@ def for_job(job, profile, size: int = 512, frame_set: str = "12f") -> dict:
     smooth = styles.get(styles.of_job(job))["post"] != "pixel"
     title = meta["character"].replace("_", " ").title()
     inputs = meta.get("inputs") or {}
-    subtitle = ""                                            # what makes this job differ from its base
-    if inputs.get("item_job"):
-        subtitle = "wearing " + Path(str(inputs["item_job"])).parent.name.replace("_", " ")
-    elif inputs.get("base_job") and inputs.get("edit"):
-        subtitle = str(inputs["edit"])[:40]
+    subtitle = _subtitle(inputs)
     walk_fps = profile.fps("walk")
     out = job.stage_dir("06_export") / "showcase" / f"{meta['character']}_showcase.gif"
     summary = build(job.root, out, title, smooth=smooth, size=size, frame_set=frame_set, fps=walk_fps,

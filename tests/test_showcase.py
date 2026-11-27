@@ -52,3 +52,17 @@ def test_showcase_is_branded(tmp_path):
     gold = (np.abs(last.astype(int) - showcase.ACCENT).max(1) <= 30).sum()
     assert gold > 500                                                                    # the logo on the end card
     assert showcase._brand_image("horizontal-logo.png", 50) is not None
+
+
+def test_subtitle_names_every_layered_item(tmp_path):
+    import json
+    from spritewaffle.export.showcase import _subtitle
+    body = tmp_path / "human" / "body1"
+    vest = tmp_path / "human" / "body1_vest"
+    for d, inputs in ((body, {}), (vest, {"base_job": str(body), "item_job": str(tmp_path / "leather_vest" / "v1")})):
+        d.mkdir(parents=True)
+        (d / "job.json").write_text(json.dumps({"inputs": inputs}), encoding="utf-8")
+    cloak = {"base_job": str(vest), "item_job": str(tmp_path / "blue_cloak" / "v1")}
+    assert _subtitle(cloak) == "wearing leather vest + blue cloak"
+    assert _subtitle({"base_job": str(body), "edit": "add a red scarf"}) == "add a red scarf"
+    assert _subtitle({}) == ""
