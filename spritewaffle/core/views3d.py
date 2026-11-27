@@ -140,7 +140,10 @@ def views(job: Job, count: int = 16, client: ComfyClient | None = None, seed: in
         render = mesh3d.view(pos, col, faces, y, elev, size=anchor.shape[0])
         tmp.mkdir(exist_ok=True)
         Image.fromarray(render).save(tmp / f"{y:g}_render.png")
-        prompt = builder.view_from_model(y, plan, desc, note)
+        # facing away: no description. Measured 2026-11-27 on human/body1_vest_cloak: its description
+        # (laced front, brass buckle, clasp, 'open at the front') put the front on every back view
+        # although the model's render showed the cloak from behind
+        prompt = builder.view_from_model(y, plan, desc if (y < 90 or y > 270) else "", note)
         r = client.run_template("facing_multiref", {"prompt": prompt, "ref_images": [tmp / f"{y:g}_render.png"],
                                                     "seed": generate._seed(seed)}, tmp / f"{y:g}")
         raw = tmp / f"{y:g}_raw.png"
