@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sprite stacks from a 3D model drop one-voxel strands at thin tips (fewer single-pixel prongs; tips and poles kept).
 - **Family palettes:** a variant (fitted item, edit) keeps its base character's colours exactly and only adds colours for what is new, so skin and clothes match across the family. New variants get it automatically; existing ones on **Rebuild from facings**.
 - **Style sets:** an anchor can follow 2-3 project references at once (Style reference, then **Also match**); it takes the style they share instead of one picture's. Also `anchor --style-set` and MCP `generate(project_reference_ids=...)`.
 - Motion library: four new mannequin driving clips (idle, run, front-facing attack, jump, in review), and every motion can carry a **recommended transfer** (optical flow for small moves, TARA for big ones), shown as "recommended" in Motion source.

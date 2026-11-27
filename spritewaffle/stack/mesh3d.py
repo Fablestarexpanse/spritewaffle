@@ -133,6 +133,30 @@ def voxelize(pos: np.ndarray, col: np.ndarray, faces: np.ndarray, height: int, s
     return occ, np.clip(colour, 0, 255).astype(np.uint8)
 
 
+def _in_plane(o: np.ndarray) -> np.ndarray:
+    """Occupied left/right/front/back neighbours of every voxel within its own slice."""
+    p = np.pad(o, ((0, 0), (1, 1), (1, 1))).astype(np.int8)
+    return p[:, :-2, 1:-1] + p[:, 2:, 1:-1] + p[:, 1:-1, :-2] + p[:, 1:-1, 2:]
+
+
+def trim_strands(occ: np.ndarray, passes: int = 2) -> tuple[np.ndarray, int]:
+    """Drop one-voxel-wide strands inside a slice (a voxel with at most one in-slice neighbour that is
+    with nothing directly above or below it): sampled branch tips that stacked into single-pixel
+    prongs. Measured 2026-11-27: pine 23 of 9780 voxels, prong pixels per rendered frame 8.5 -> 6.7
+    (the rest is rotation aliasing, which no voxel change removes); chest unchanged. Returns
+    (occupancy, voxels removed)."""
+    held = np.zeros_like(occ)                      # a voxel directly above or below: a pole or a tip, kept
+    held[:-1] |= occ[1:]
+    held[1:] |= occ[:-1]
+    o = occ.copy()
+    for _ in range(passes):
+        cut = o & (_in_plane(o) <= 1) & ~held
+        if not cut.any():
+            break
+        o &= ~cut
+    return o, int(occ.sum() - o.sum())
+
+
 def quantize(occ: np.ndarray, colour: np.ndarray, k: int, palette: list[str] | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Voxel colours to a pixel-art palette: the job/profile palette if given, else k colours fitted
     on the visible voxels. Returns (colour, palette rgb)."""

@@ -17,7 +17,8 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
    facings, mannequin conversion of added clips.
 4. ~~Effects: flat auras, slash~~: done 2026-11-26 (Lies flat on the ground, aura preset, slash reworded).
 5. **QA-fail auto re-roll** (optional, off by default; Ronan prefers human review).
-6. **Sprite stacks:** spikes at thin tips; colours follow the render unless a palette is set.
+6. ~~Sprite stacks: spikes at thin tips~~: 2026-11-27 one-voxel strands trimmed (pine prongs 8.5 -> 6.7 a frame;
+   the rest is rotation aliasing of any stack renderer). Colours follow the render unless a palette is set.
 7. **UI polish (audit P3):** done 2026-11-26 (imported-anchor placeholder, folded "used by" list,
    Style/Prompts hidden on finished items).
 8. ~~Equipment~~: done 2026-11-27. N view keeps trim, hood and length; clips of a layered fit name the

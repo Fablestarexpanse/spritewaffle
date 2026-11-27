@@ -57,3 +57,17 @@ def test_flat_card_stays_flat(tmp_path):
     P[:, 2] *= 0.002
     occ, _ = mesh3d.voxelize(P, C, F, height=12)
     assert occ.shape[1] <= 2
+
+
+def test_trim_strands_drops_one_voxel_prongs_but_keeps_bodies_and_columns():
+    """2026-11-27: one-voxel strands in a slice stacked into single-pixel prongs (pine)."""
+    occ = np.zeros((5, 9, 9), bool)
+    occ[:, 2:7, 2:7] = True                    # a solid block
+    occ[2, 4, 7:9] = True                      # a two-voxel strand sticking out of one slice
+    occ[:, 0, 0] = True                        # a thin pole: one voxel per slice, held from above and below
+    out, n = mesh3d.trim_strands(occ)
+    assert not out[2, 4, 7:9].any() and n >= 2
+    assert out[:, 2:7, 2:7].all()              # block untouched
+    assert out[1:4, 0, 0].all()                # the pole's middle stays (held by its neighbours)
+    same, none = mesh3d.trim_strands(occ[:, 2:7, 2:7])
+    assert none == 0 and same.all()

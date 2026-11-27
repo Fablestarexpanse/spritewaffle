@@ -103,11 +103,12 @@ def build(job: Job, profile: GameProfile, stack_height: int = 24, layer_px: int 
         if not glb.exists():
             raise FileNotFoundError("no 3D model yet: run the 3D model step first")
         occ, col = mesh3d.voxelize(*mesh3d.read_glb(glb), stack_height)
+        occ, trimmed = mesh3d.trim_strands(occ)
         from ..core import job_palette
         jp = job_palette.get(job)
         fixed = profile.palette if isinstance(profile.palette, list) else (jp["colours"] if jp else None)
         col, pal = mesh3d.quantize(occ, col, profile.palette_size, fixed)
-        return _export(job, carve.slices(occ, col), occ, pal, layer_px, steps, name, method)
+        return _export(job, carve.slices(occ, col), occ, pal, layer_px, steps, name, method) | {"strands_trimmed": trimmed}
     if method != "carve":
         raise ValueError("method must be '3d' or 'carve'")
     src = job.root / "02_ortho"
