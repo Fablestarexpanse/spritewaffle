@@ -465,6 +465,14 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
         first = d / "transition.png"
         _run(client, job, "transition_pose", {"prompt": builder.transition(action_name, facing, spec),
                                               "ref_images": [face], "seed": _seed(seed)}, first)
+    # a fitted top layer (cloak) hides what is under it; the clip is told, unless the human wrote the
+    # action text themselves (theirs wins, as everywhere)
+    outfit = ""
+    if spec.get("source") != "edited":
+        from . import variant
+        outfit = builder.outfit_line(*variant.layers(job))
+    if outfit:
+        report["outfit"] = outfit
     last = first if spec["cyclic"] else face
     frames = round(seconds * 24)
     raw = d / "raw.mp4"
@@ -476,7 +484,7 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
         report["end"] = "free (no last frame)"
     if mode == "fl2va":
         _run_video(client, job, "h3_action_fl2va",
-                   {"prompt": builder.action_video(action_name, facing, seconds, True, spec), "first_frame": first,
+                   {"prompt": builder.action_video(action_name, facing, seconds, True, spec, outfit), "first_frame": first,
                     "last_frame": last, "frames": frames, "seed": _seed(seed)}, raw)
         frozen, diff = analysis.is_frozen(_video_frames(raw))
         report["fl2va_frozen"] = {"frozen": frozen, "mean_diff": round(diff, 3)}
@@ -488,7 +496,7 @@ def action(job: Job, profile: GameProfile, facing: str, action_name: str, client
             report["fallback"] = "frozen FL2VA -> regenerated as I2V; ending picked from footage (loop search)"
     if mode == "i2v":
         _run_video(client, job, "h3_action_i2v",
-                   {"prompt": builder.action_video(action_name, facing, seconds, False, spec), "first_frame": first,
+                   {"prompt": builder.action_video(action_name, facing, seconds, False, spec, outfit), "first_frame": first,
                     "frames": frames, "seed": _seed(seed)}, raw)
     report["extract"] = stages.extract(job, raw, facing, action_name)
     report["mode_used"] = mode

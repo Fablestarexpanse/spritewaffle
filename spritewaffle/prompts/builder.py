@@ -366,9 +366,20 @@ def transition(action: str, facing_: str, spec: dict | None = None) -> str:
             "Same camera angle, scale and position in the frame as <Picture 1>. " + FRAMING)
 
 
-def action_video(action: str, facing_: str, seconds: float, last_frame: bool, spec: dict | None = None) -> str:
+def outfit_line(top: str, under: list[str]) -> str:
+    """Names what a fitted top layer hides, for video clips. Measured 2026-11-26 (cloak over vest, NE
+    run): with motion text only, H3 drew bare skin under the swinging cloak (0 of 2); naming the
+    clothes underneath fixed it (1 of 1)."""
+    if not top or not under:
+        return ""
+    names = under[0] if len(under) == 1 else ", ".join(under[:-1]) + " and " + under[-1]
+    return (f"Under the {top} the character keeps wearing {names}, unchanged wherever the {top.split()[-1]} "
+            "moves aside or does not cover them.")
+
+def action_video(action: str, facing_: str, seconds: float, last_frame: bool, spec: dict | None = None,
+                 outfit: str = "") -> str:
     """H3 video prompt (FL2VA when last_frame, else I2VA), structured per the H3 prompt guide;
-    body short and literal (rule 6)."""
+    body short and literal (rule 6). outfit: outfit_line() for a fitted top layer."""
     spec = spec or action_spec(action)
     if last_frame:
         head = ("How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with "
@@ -380,6 +391,7 @@ def action_video(action: str, facing_: str, seconds: float, last_frame: bool, sp
         end = ""
     body = (f"[Shot 1] 2D {styles.get()['noun']} game sprite with a locked camera: no zoom, no pan, the same camera height and angle as Picture 1. The character begins in the pose "
             f"and position established by Picture 1, pinned to the center of the frame, and {spec['motion']}. "
+            + (f"{outfit} " if outfit else "") +
             f"It {HOLD[facing_]}; it must not turn or move across the screen. The flat #00FF00 background stays "
             f"unchanged for the whole shot, and the {styles.get()['look']} stays the same.{end}")
     return (f"{head}\n\nintegrated_multimodal_description: {body}\n\n"

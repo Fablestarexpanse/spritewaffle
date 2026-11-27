@@ -65,6 +65,8 @@ def view(job: Job) -> dict:
 
     names = set(builder.actions_for(inputs.get("asset_type"))) | set(inputs.get("action_overrides") or {}) | set(inputs.get("action_specs") or {})
     names |= {d.name for d in (job.root / "03_actions").glob("*/*") if d.is_dir()}
+    from . import variant
+    outfit = builder.outfit_line(*variant.layers(job))     # layered fits: same line generate.action adds
     acts = {}
     for a in sorted(names):
         spec, source = _spec(job, a)
@@ -79,7 +81,8 @@ def view(job: Job) -> dict:
                    "edited": {k: v for k, v in ((inputs.get("action_overrides") or {}).get(a) or {}).items() if v},
                    "preview": None if not spec else {
                        "transition": builder.transition(a, "S", spec),
-                       "video": builder.action_video(a, "S", 2.0, True, spec)},
+                       "video": builder.action_video(a, "S", 2.0, True, spec,
+                                                     "" if any(((inputs.get("action_overrides") or {}).get(a) or {}).values()) else outfit)},
                    "used": used}
     return {"anchor": anchor, "facing_note_all": notes.get("*", ""), "facings": fac, "actions": acts,
             "writer": inputs.get("prompt_writer") or "template"}

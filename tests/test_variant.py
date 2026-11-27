@@ -166,3 +166,22 @@ def test_back_views_name_the_item_without_its_front_details():
     front = builder.item_reference("SE", "human", full, "wearing this", back_item=core)
     assert "The brown leather armor vest in <Picture 2>" in back and "laced front" not in back
     assert "laced front" in front
+
+
+def test_layered_fit_names_what_the_top_layer_hides(tmp_path):
+    """2026-11-26: the NE run of a cloak over a vest drew bare skin under the cloak until the clothes
+    underneath were named in the clip prompt. Only layered fits get the line."""
+    body = Job.create("human", "body", base=tmp_path, asset_type="base_body", description="a human")
+    vest = Job.create("human", "vest", base=tmp_path, base_job=str(body.root),
+                      item_description="a brown leather vest with a laced front")
+    cloak = Job.create("human", "cloak", base=tmp_path, base_job=str(vest.root),
+                       item_description="a dark blue wool cloak, open at the front")
+    assert variant.layers(body) == ("", []) and variant.layers(vest) == ("", [])   # one item: no line
+    top, under = variant.layers(cloak)
+    assert top == "dark blue wool cloak" and under[0] == "the brown leather vest" and "grey knee-length shorts" in under[1]
+    line = builder.outfit_line(top, under)
+    assert line.startswith("Under the dark blue wool cloak the character keeps wearing the brown leather vest and ")
+    assert "wherever the cloak moves aside" in line
+    assert line in builder.action_video("run", "NE", 2.0, True, outfit=line)
+    assert "keeps wearing" not in builder.action_video("run", "NE", 2.0, True)
+    assert builder.outfit_line("", ["x"]) == "" and builder.outfit_line("cloak", []) == ""

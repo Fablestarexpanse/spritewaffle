@@ -136,6 +136,32 @@ def create(base: Job, instruction: str, job_id: str | None = None, item: str | P
     return job
 
 
+def layers(job: Job) -> tuple[str, list[str]]:
+    """(top item, clothes under it) for a fitted variant, walking the base_job chain: each fitted item
+    by its name ('the brown leather armor vest'), and a base body's plain wear last. Only for layered
+    fits (an item fitted over another fitted item, the measured case): ("", []) otherwise."""
+    inputs = job.read_meta()["inputs"]
+    if not inputs.get("item_description"):
+        return "", []
+
+    def name(d: str) -> str:
+        head = re.split(r"\s+(?:featuring|with|detailed|decorated|adorned|that|which)\b|,", d, maxsplit=1)[0]
+        return re.sub(r"^(?:a|an|the)\s+", "", head.strip(), flags=re.I)
+
+    top, under, seen = name(inputs["item_description"]), [], {str(job.root)}
+    b = base_of(job)
+    while b is not None and str(b.root) not in seen:
+        seen.add(str(b.root))
+        bi = b.read_meta()["inputs"]
+        if bi.get("item_description"):
+            under.append("the " + name(bi["item_description"]))
+        elif bi.get("asset_type") == "base_body":
+            under.append(builder.BASE_BODY_WEAR.split(", bare head")[0].removeprefix("dressed in "))
+            break
+        b = base_of(b)
+    return (top, under) if under and under[0].startswith("the ") else ("", [])
+
+
 def base_of(job: Job) -> Job | None:
     b = job.read_meta()["inputs"].get("base_job")
     return Job.open(b) if b and (Path(b) / "job.json").exists() else None

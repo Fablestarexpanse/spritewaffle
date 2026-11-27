@@ -18,9 +18,8 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
 6. **Sprite stacks:** spikes at thin tips; colours follow the render unless a palette is set.
 7. **UI polish (audit P3):** done 2026-11-26 (imported-anchor placeholder, folded "used by" list,
    Style/Prompts hidden on finished items).
-8. **Equipment:** ~~N view drops fine trim~~: fixed 2026-11-27 (back views keep trim, hood, length). Layers work (cloak over vest,
-   2026-11-26: fit on the fitted body); a video clip of a back view can lose what the top layer hides,
-   fixed per job with one outfit sentence in the action text. A builder default for that is unmeasured.
+8. ~~Equipment~~: done 2026-11-27. N view keeps trim, hood and length; clips of a layered fit name the
+   clothes under the top layer by default (0/3 -> 3/3). Single fits get no line (unmeasured).
 
 ## Tiles, textures and engines (2026-11-26)
 
