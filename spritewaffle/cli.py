@@ -603,6 +603,18 @@ def cmd_align_feet(a):
     _print(result)
 
 
+def cmd_views3d(a):
+    from .core import views3d
+    job = _job(a.job)
+    if a.note is not None:
+        job.update_inputs(views_note=a.note.strip() or None)
+    if a.step == "model":
+        _print(views3d.model(job, seed=a.seed, plan=a.plan))
+    else:
+        only = [float(x) for x in _csv(a.only)] if a.only else None
+        _print(views3d.views(job, count=a.count, seed=a.seed, only=only))
+
+
 def cmd_maps(a):
     from .core import depthmaps
     job = _job(a.job)
@@ -1022,6 +1034,13 @@ def build() -> argparse.ArgumentParser:
         (("--loop",), {"action": "store_true"}), (("--no-loop",), {"action": "store_true"}))
     cmd("pixelize", cmd_pixelize, "turn the selected frames into pixel art (one palette)", JOB, PROFILE,
         OPT_FACING, OPT_ACTION, (("--palette",), {"type": int, "help": "override max colours"}))
+    cmd("views3d", cmd_views3d, "more than 8 views from a 3D model: --step model, then --step views", JOB,
+        (("--step",), {"choices": ("model", "views"), "default": "views"}),
+        (("--count",), {"type": int, "choices": (16, 24, 32), "default": 16}),
+        (("--plan",), {"choices": ("biped", "animal", "monster")}),
+        (("--note",), {"help": "extra words for the 3D steps, e.g. 'six legs'"}),
+        (("--only",), {"metavar": "YAW,YAW", "help": "re-roll these views"}),
+        (("--seed",), {"type": int}))
     cmd("maps", cmd_maps, "depth + normal maps for processed frames (Depth Anything V2 small, GPU)", JOB, OPT_FACING, OPT_ACTION)
     cmd("align-feet", cmd_align_feet, "build foot-aligned copies of the processed frames", JOB, PROFILE, OPT_FACING, OPT_ACTION)
     cmd("qa", cmd_qa, "check the pixel art and write report.json", JOB, PROFILE, OPT_FACING, OPT_ACTION)

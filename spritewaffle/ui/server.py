@@ -384,6 +384,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 "anchor_full": url(j.root / "01_anchor" / "anchor.png"),
                 "anchor_takes": takes_of("01_anchor/anchor.png"),
                 "facings": facings, "facings_report": {k: fr.get(k) for k in ("warnings", "mirrored", "diagonals", "turned")},
+                "views3d": views3d_info(j),
                 "directions": profile_directions(j),
                 "effect_jobs": effect_jobs() if meta["inputs"].get("asset_type") != "effect" else [],
                 "items": item_jobs() if meta["inputs"].get("asset_type") not in ("item", "effect") else [],
@@ -672,6 +673,19 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (KeyError, ValueError) as e:
             bad(e)
         return {"ok": True}
+
+    def views3d_info(j: Job) -> dict:
+        """Extra views from a 3D model (core/views3d): plan, model, drawn views and the report's warnings."""
+        from ..core import views3d
+        vd = views3d.views_dir(j)
+        rep = read_json(vd / "views_report.json") or {}
+        views = [{"yaw": float(p.stem), "image": url(p), "mirrored": bool((rep.get("views", {}).get(p.stem) or {}).get("mirrored_from") is not None)}
+                 for p in sorted(vd.glob("*.png"), key=lambda p: float(p.stem)) if p.stem.replace(".", "", 1).isdigit()]
+        return {"plan": views3d.plan_of(j), "plans": list(views3d.PLANS), "counts": list(views3d.COUNTS),
+                "note": j.read_meta()["inputs"].get("views_note") or "",
+                "model": (j.root / "02_views" / "model.glb").exists(),
+                "render3d": url(j.root / "02_views" / "render3d.png") if (j.root / "02_views" / "render3d.png").exists() else None,
+                "views": views, "warnings": rep.get("warnings", []), "view_count": rep.get("view_count")}
 
     def palette_info(j: Job) -> dict | None:
         from ..core.camera import job_profile as resolve_job_profile

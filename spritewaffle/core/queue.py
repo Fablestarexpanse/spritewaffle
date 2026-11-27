@@ -161,6 +161,19 @@ def _stages():
         rep = texture.generate(job, seed=a.get("seed"), only=a.get("only"))
         return {"variants": len(rep["variants"])}
 
+    def views_model(job, prof, a):
+        from . import views3d
+        if "note" in a:                                  # the human's own words for the 3D steps
+            job.update_inputs(views_note=(a["note"] or "").strip() or None)
+        return views3d.model(job, seed=a.get("seed"), plan=a.get("plan"))
+
+    def views(job, prof, a):
+        from . import views3d
+        if "note" in a:
+            job.update_inputs(views_note=(a["note"] or "").strip() or None)
+        rep = views3d.views(job, count=int(a.get("count", 16)), seed=a.get("seed"), only=a.get("only"))
+        return {"view_count": rep["view_count"], "views": len(rep["views"]), "warnings": rep["warnings"]}
+
     def maps(job, prof, a):
         need(a, "facing", "action")
         from . import depthmaps
@@ -171,16 +184,17 @@ def _stages():
         return {"variants": len(texture.retile(job)["variants"])}
 
     gpu = {"texture": texture_gen, "model3d": model3d, "effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
-           "ortho": ortho, "maps": maps}
+           "ortho": ortho, "maps": maps,
+           "views_model": views_model, "views": views}
     cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export, "align": align,
            "texture_retile": texture_retile}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("texture", "texture_retile", "model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export", "align", "maps")
+STAGE_NAMES = ("texture", "texture_retile", "model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export", "align", "maps", "views_model", "views")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 # stages after which the asset manifest (core/manifest.py) is rebuilt
-MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align", "maps")
+MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align", "maps", "views")
 
 
 # --- store ------------------------------------------------------------------------------------
@@ -243,7 +257,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("texture", "model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "maps") else "cpu",
+                 "resource": "gpu" if stage in ("texture", "model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "maps", "views_model", "views") else "cpu",
                  "args": args, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)

@@ -440,3 +440,60 @@ def bridge() -> str:
     return ("<Picture 1> and <Picture 2> show the same character in two poses with the same facing. "
             "Draw the single in-between pose exactly halfway between them. Keep the identical outfit, colors, "
             f"proportions, size, {styles.get()['noun']} style and outline, same scale and same position in the frame. " + FRAMING)
+
+
+# --- extra views from a 3D model (core/views3d.py) -------------------------------------------------
+# Measured 2026-11-27 on 11 subjects: image-edit in-between views copy their reference (pixel sprites)
+# or turn around (degree wording), so in-between views are drawn from a TRELLIS.2 model of the anchor.
+# Body plans: one 3D-look wording did not fit all (the cat came out standing upright like a person).
+VIEW_PLANS = {
+    "biped": {"subject": "game character", "pose": "standing upright in the same relaxed pose",
+              "front": "its face and chest",
+              "back": ("its back: the back of the head or helmet, the shoulder blades, the back of the legs and the "
+                       "heels; the face, chest and belt buckle are on the far side")},
+    "animal": {"subject": "four-legged animal", "pose": "standing on all four legs in the same pose",
+               "front": "its face and chest", "back": "its hindquarters and tail, the face hidden on the far side"},
+    "monster": {"subject": "creature", "pose": "in the same pose, every limb, wing, tail and horn exactly as drawn",
+                "front": "its face and chest",
+                "back": "its back: the back of the head, the back and anything on it (wings, spines, tail); the face on the far side"},
+}
+
+
+def model_render(plan: str, note: str = "") -> str:
+    """Image edit: the anchor as a lit 3D-look render, so TRELLIS.2 builds volume (a flat sprite gives a card)."""
+    p = VIEW_PLANS[plan]
+    return (f"<Picture 1> shows a {p['subject']} sprite. Draw the exact same {p['subject']} as a solid 3D rendered "
+            "model: smooth realistic volume and depth, soft studio lighting with clear shading on the form, "
+            f"{p['pose']}, seen from the front and slightly from above so its depth and all its parts are visible, "
+            "the same outfit, markings, proportions and colors. Not pixel art, not flat. "
+            + (f"{note.strip().rstrip('.')}. " if note.strip() else "")
+            + "The whole figure is visible, centered, on a flat plain light grey background, no floor, no shadow on "
+            "the ground, no text.")
+
+
+def view_words_3d(yaw: float, plan: str) -> str:
+    """What is visible from this yaw (0 = facing the viewer, 90 = facing screen left), in words: measured
+    2026-11-27, without them near-back views were redrawn as front views (7 of 9)."""
+    p = VIEW_PLANS[plan]
+    y = float(yaw) % 360
+    side = "screen left" if 0 < y < 180 else "screen right"
+    if y < 45 or y > 315:
+        return f"seen mostly from the front, turned slightly toward {side}: {p['front']} toward the viewer"
+    if y < 135 or y > 225:
+        near_front = y < 90 or y > 270
+        return f"seen from the side, facing {side}, " + ("turned a little toward the viewer" if near_front
+                                                           else "turned a little away from the viewer")
+    return f"seen mostly from behind, turned slightly toward {side}: {p['back']}"
+
+
+def view_from_model(yaw: float, plan: str, description: str = "", note: str = "") -> str:
+    """Image edit: one 3D model view (<Picture 1>) redrawn as a sprite in the job's style. Picture 1 alone:
+    adding the nearest facing made pixel sprites copy that facing (4 of 4)."""
+    p, st = VIEW_PLANS[plan], styles.get()
+    d = description.strip().rstrip(".")
+    return (f"<Picture 1> is a plain 3D model render of a {p['subject']}" + (f": {d}" if d else "") + ". "
+            f"It is {view_words_3d(yaw, plan)}. Redraw it as a finished 2D {st['noun']} game sprite in {st['look']}, "
+            "with a clean outline, keeping exactly this view: the same side faces the viewer as in <Picture 1>. "
+            "Keep the pose, colours, proportions, scale and position in the frame. Add nothing that is not in "
+            "<Picture 1>: no new clothes, face, eyes, hat or decoration. "
+            + (f"{note.strip().rstrip('.')}. " if note.strip() else "") + FRAMING)

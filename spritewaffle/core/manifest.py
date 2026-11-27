@@ -165,14 +165,21 @@ def build(job: Job) -> dict:
     elev = cam["camera_elevation_degrees"]
     policy = inputs.get("mirror_policy") or "legacy"
     mirrors = _facing_mirrors(job)
+    extra = job.root / "02_facings" / "views"          # in-between views drawn from a 3D model (core/views3d)
+    extra_rep = json.loads((extra / "views_report.json").read_text(encoding="utf-8")).get("views", {})         if (extra / "views_report.json").exists() else {}
     views = []
     for i, yaw in enumerate(angles.views(vc)):
         lab = angles.label(yaw)
-        img = job.root / "02_facings" / f"{lab}.png"
-        src = mirrors.get(lab)
+        if lab in angles.LEGACY:
+            img, src = job.root / "02_facings" / f"{lab}.png", mirrors.get(lab)
+            src_yaw = angles.yaw_of(src) if src else None
+        else:
+            img = extra / f"{yaw:g}.png"
+            src_yaw = (extra_rep.get(f"{yaw:g}") or {}).get("mirrored_from")
         views.append({"view_index": i, "yaw_degrees": yaw, "label": lab,
-                      "facing_image": _rel(job, img) if lab in angles.LEGACY else None,
-                      "mirrored": bool(src), "source_view_index": angles.view_index(angles.yaw_of(src), vc) if src else None})
+                      "facing_image": _rel(job, img),
+                      "mirrored": src_yaw is not None,
+                      "source_view_index": angles.view_index(src_yaw, vc) if src_yaw is not None else None})
     anims = {}
     pix = job.root / "04_pixel"
     for rp in sorted(pix.glob("*/*/pixel_report.json")) if pix.is_dir() else []:

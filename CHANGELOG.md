@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **More than 8 views:** Facings → *More views from a 3D model* builds a 3D model of the anchor (TRELLIS.2) and draws 16, 24 or 32 views from it, in review; the approved eight stay as they are. Body plans for people, animals and monsters, plus your own extra words. Also `spritewaffle views3d` and MCP `more_views`.
 - Sprite stacks from a 3D model drop one-voxel strands at thin tips (fewer single-pixel prongs; tips and poles kept).
 - **Family palettes:** a variant (fitted item, edit) keeps its base character's colours exactly and only adds colours for what is new, so skin and clothes match across the family. New variants get it automatically; existing ones on **Rebuild from facings**.
 - **Style sets:** an anchor can follow 2-3 project references at once (Style reference, then **Also match**); it takes the style they share instead of one picture's. Also `anchor --style-set` and MCP `generate(project_reference_ids=...)`.

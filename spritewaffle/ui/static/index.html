@@ -1695,6 +1695,7 @@ function paneFacings(j, st) {
         ${takesHtml(x.takes, `02_facings/${f}.png`, "Facing " + f)}</div>`;
     }).join("")}</div>`}
     ${(fr.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
+    ${views3dHtml(j, st, approved, canGenerate)}
     <p class="hint">${isItem ? "The front is the anchor; the back is drawn from it." : sheet
       ? "All views come from one turnaround sheet (W/NW/SW mirrored). Re-roll a single view, or re-draw the whole sheet."
       : "S is the anchor. Drift compares colours and height with it: green is fine, amber borderline, red re-roll."}</p></section>`;
@@ -1709,9 +1710,46 @@ function paneFacings(j, st) {
   if ($('[data-step="anchor"]')) $('[data-step="anchor"]').onclick = () => goToStage("anchor");
   bindMirrorPolicy(j);
   if ($("#ttFacings")) $("#ttFacings").onclick = () => showTurntable(j);
+  bindViews3d(j);
   $$("[data-reroll]").forEach(b => b.onclick = () => run("facings", {only: [b.dataset.reroll]}, `${b.dataset.reroll} re-roll queued`));
   $$("[data-prompt-file]").forEach(b => b.onclick = () => showPromptEditor(b.dataset.promptFile, b.dataset.promptLabel,
     () => run("facings", {only: [b.dataset.promptView]}, `${b.dataset.promptView} re-roll queued with your prompt`)));
+}
+
+// More than 8 views from a 3D model (core/views3d). Characters, creatures and animals; props use stacks.
+function views3dHtml(j, st, approved, canGenerate) {
+  const v = j.views3d;
+  if (!v || ["prop", "item", "effect", "texture", "tileset"].includes(j.asset_type)) return "";
+  const ready = st("anchor") === "approved";
+  const plans = {biped: "Person (two legs)", animal: "Animal (four legs)", monster: "Monster / creature"};
+  return `<section id="views3d" style="margin-top:16px"><h2>More views from a 3D model ${badge(st("views"))}
+      <span class="muted">${v.views.length ? `${v.views.length} extra views · ${v.view_count || ""}-view set` : "for 16, 24 or 32 views"}</span></h2>
+    <div class="row">
+      <label title="How the 3D model and the views are described">Body <select id="v3Plan">${v.plans.map(p => `<option value="${p}" ${p === v.plan ? "selected" : ""}>${plans[p] || p}</option>`).join("")}</select></label>
+      <label>Views <select id="v3Count">${v.counts.map(c => `<option ${c === (v.view_count || 16) ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+      <label class="field" style="flex:1;min-width:220px" title="Your own words for both 3D steps, e.g. six legs, the tail curls up, wings folded">Extra words <input id="v3Note" value="${esc(v.note)}" placeholder="e.g. six legs, wings folded"></label>
+    </div>
+    <div class="row">
+      <button id="v3Model" ${canGenerate && ready ? "" : "disabled"} title="Draws a 3D-look render of the anchor and builds a 3D model from it (about 2 minutes)">${v.model ? "Rebuild 3D model" : "Build 3D model"}</button>
+      <button id="v3Views" ${canGenerate && approved && v.model ? "" : "disabled"} title="Draws the in-between views from the model; your eight facings stay as they are">Draw the views</button>
+      ${v.views.length && st("views") !== "approved" ? `<button class="primary" id="v3Approve">Approve views</button>` : ""}
+      ${v.render3d ? `<a href="${esc(v.render3d)}" data-view="3D-look render" title="the render the 3D model was built from">3D-look render</a>` : ""}
+    </div>
+    ${!approved ? '<p class="hint">Approve the eight facings first; the extra views go between them.</p>' : ""}
+    ${(v.warnings || []).map(w => `<p class="warn">⚠ ${esc(w)}</p>`).join("")}
+    ${v.views.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${v.views.map(x =>
+      `<div class="card" style="width:110px"><a href="${esc(x.image)}" data-view="View ${x.yaw}°">${img(x.image, x.yaw + "°")}</a>
+        <div class="row" style="margin:0;justify-content:space-between"><b>${x.yaw}°</b><span class="muted">${x.mirrored ? "mirrored" : ""}</span></div>
+        ${x.mirrored ? "" : `<button data-v3reroll="${x.yaw}">Re-roll</button>`}</div>`).join("")}</div>
+      <p class="hint">Check each view turns the right way and keeps the character's look; re-roll any that don't. The Turntable shows them between the eight.</p>` : ""}
+  </section>`;
+}
+
+function bindViews3d(j) {
+  if ($("#v3Model")) $("#v3Model").onclick = () => run("views_model", {plan: $("#v3Plan").value, note: $("#v3Note").value}, "3D model queued");
+  if ($("#v3Views")) $("#v3Views").onclick = () => run("views", {count: +$("#v3Count").value, note: $("#v3Note").value}, "Extra views queued");
+  if ($("#v3Approve")) $("#v3Approve").onclick = () => approve("views");
+  $$("[data-v3reroll]").forEach(b => b.onclick = () => run("views", {count: +$("#v3Count").value, only: [+b.dataset.v3reroll]}, `${b.dataset.v3reroll}° re-roll queued`));
 }
 
 // "Edit prompt…" next to a re-roll: the prompt this view was made with, editable, saved for its next

@@ -4,10 +4,9 @@ The one list of open work ([docs/UPGRADE_ROADMAP.md](../UPGRADE_ROADMAP.md) is a
 
 Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Suggested order:
 
-1. **Directional test prep** (when the Myth-style test starts): more than 8 views by H3 image edit was
-   measured 2026-11-27 and rejected (small pixel sprites copy their reference 0/4; degree wording turns them
-   around 0/8). Open: a 3D route (TRELLIS.2) or engine crossfade between the 8. Depth/normal maps:
-   done 2026-11-27 (Lighting maps; not yet checked in an engine).
+1. ~~Directional test prep~~: 16/24/32 views from a 3D model built 2026-11-27 (Facings -> More views from a
+   3D model; body plans person / animal / monster, extra words per job; props use sprite stacks). Depth/normal
+   maps done (Lighting maps). Open: engine checks of both.
 2. **Style sets** (backlog #13): the local library, palette inheritance, and style checks
    are available. Anchors take one saved image or, since 2026-11-27, a style set of 2-3 (Also match). Family
    palette rule done 2026-11-27 (a variant keeps its base's colours exactly).

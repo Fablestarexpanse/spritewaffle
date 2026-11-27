@@ -174,3 +174,93 @@ def quantize(occ: np.ndarray, colour: np.ndarray, k: int, palette: list[str] | N
     out = pal[d.argmin(1)].reshape(colour.shape)
     out[~occ] = 0
     return out, pal
+
+
+# --- views of the model at any angle (extra character views, docs/PLAN_DIRECTIONAL.md) -------------
+# Yaw as core/angles: 0 = facing the viewer, 90 = facing screen left, 180 = away, 270 = screen right.
+# Orthographic, the camera `elevation` degrees above the horizon, lambert-lit, on flat #00FF00.
+
+def _view(pos, col, faces, yaw, elevation=0.0, size=1024, frac=0.45, samples=1_500_000, seed=0, light=(-0.4, 0.6, 0.7),
+         foot=None, cx=0.5):
+    rng = np.random.default_rng(seed)
+    a, b, c = pos[faces[:, 0]], pos[faces[:, 1]], pos[faces[:, 2]]
+    nrm = np.cross(b - a, c - a)
+    area = 0.5 * np.linalg.norm(nrm, axis=1)
+    keep = area > 0
+    tri = rng.choice(np.flatnonzero(keep), samples, p=area[keep] / area[keep].sum())
+    u, v = rng.random(samples), rng.random(samples)
+    flip = u + v > 1
+    u[flip], v[flip] = 1 - u[flip], 1 - v[flip]
+    w = 1 - u - v
+    f = faces[tri]
+    pts = pos[f[:, 0]] * w[:, None] + pos[f[:, 1]] * u[:, None] + pos[f[:, 2]] * v[:, None]
+    cols = col[f[:, 0]] * w[:, None] + col[f[:, 1]] * u[:, None] + col[f[:, 2]] * v[:, None]
+    n = nrm[tri] / np.maximum(np.linalg.norm(nrm[tri], axis=1, keepdims=True), 1e-12)
+    centre = (pos.min(0) + pos.max(0)) / 2
+    pts = pts - centre
+    phi = np.radians(-yaw)                       # model front (+z) turned to face direction `yaw`
+    R = np.array([[np.cos(phi), 0, np.sin(phi)], [0, 1, 0], [-np.sin(phi), 0, np.cos(phi)]])
+    e = np.radians(elevation)
+    E = np.array([[1, 0, 0], [0, np.cos(e), -np.sin(e)], [0, np.sin(e), np.cos(e)]])
+    M = E @ R
+    p = pts @ M.T
+    nn = n @ M.T
+    # orient normals toward the camera (+z) for shading; the mesh may not be consistently wound
+    nn *= np.where(nn[:, 2:3] < 0, -1, 1)
+    L = np.array(light) / np.linalg.norm(light)
+    shade = 0.45 + 0.55 * np.clip(nn @ L, 0, 1)
+    rgb = np.clip(cols * shade[:, None], 0, 255)
+    H = p[:, 1].max() - p[:, 1].min()
+    k = size * frac / H
+    sx = np.round(size * cx + p[:, 0] * k).astype(int)
+    if foot is None:
+        sy = np.round(size / 2 - (p[:, 1] - (p[:, 1].max() + p[:, 1].min()) / 2) * k).astype(int)
+    else:                                        # lowest point on the anchor's foot line
+        sy = np.round(size * foot - (p[:, 1] - p[:, 1].min()) * k).astype(int)
+    ok = (sx >= 0) & (sx < size) & (sy >= 0) & (sy < size)
+    sx, sy, z, rgb = sx[ok], sy[ok], p[ok, 2], rgb[ok]
+    order = np.argsort(z)                         # far first, near last wins
+    img = np.zeros((size, size, 3), np.uint8)
+    img[...] = (0, 255, 0)
+    for dy in (0, 1):                             # 2x2 splat closes sampling gaps
+        for dx in (0, 1):
+            yy, xx = np.clip(sy[order] + dy, 0, size - 1), np.clip(sx[order] + dx, 0, size - 1)
+            img[yy, xx] = rgb[order].astype(np.uint8)
+    return img
+
+
+def drop_floor(pos, col, faces, band=0.006, share=0.15, span=0.85):
+    """Remove a ground sheet TRELLIS sometimes adds under a figure: a thin horizontal band that holds a large
+    share of the vertices and spans most of the box. Returns (pos, col, faces, removed_faces)."""
+    lo, hi = pos.min(0), pos.max(0)
+    ext = hi - lo
+    step = max(ext.max() * band, 1e-9)
+    bins = np.floor((pos[:, 1] - lo[1]) / step).astype(int)
+    counts = np.bincount(bins)
+    for b in np.argsort(counts)[::-1][:3]:
+        sel = (bins >= b - 1) & (bins <= b + 1)
+        if sel.sum() < share * len(pos):
+            continue
+        sx, sz = np.ptp(pos[sel, 0]), np.ptp(pos[sel, 2])
+        if sx < span * ext[0] or sz < span * ext[2]:
+            continue
+        kill = sel[faces].all(1)
+        used = np.unique(faces[~kill])
+        remap = -np.ones(len(pos), int)
+        remap[used] = np.arange(len(used))
+        return pos[used], col[used], remap[faces[~kill]], int(kill.sum())
+    return pos, col, faces, 0
+
+
+def view(pos, col, faces, yaw, elevation=0.0, size=1024, frac=0.45, samples=1_500_000, seed=0, light=(-0.4, 0.6, 0.7),
+         foot=None, cx=0.5, work=256):
+    """Render at `work` px (dense enough that no far surface shows through gaps), then scale up to `size`.
+    Measured 2026-11-27: rendered straight at 1024 px the chest's lock and the goblin's face showed through
+    from the back, and H3 drew those back views as front views."""
+    from PIL import Image
+    small = _view(pos, col, faces, yaw, elevation, size=min(size, work), frac=frac, samples=samples, seed=seed,
+                  light=light, foot=foot, cx=cx)
+    if size <= work:
+        return small
+    return np.array(Image.fromarray(small).resize((size, size), Image.BICUBIC))
+

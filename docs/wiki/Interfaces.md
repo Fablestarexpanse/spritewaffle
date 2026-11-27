@@ -12,6 +12,7 @@ Use `spritewaffle --help` to list the 51 top-level commands and
 | --- | --- | --- |
 | Jobs and preferences | `studio jobs`, `studio job`, `studio create-job`, `studio update-job`, `archive` | `status`, `studio` |
 | Anchor, sheet import, facings, and actions | `anchor`, `sheet-import`, `facings`, `action`, `animate`, `approve` | `generate`, `animate`, `animate_all`, `approve`, `studio` with `run-stage` |
+| More than 8 views from a 3D model (Facings → More views from a 3D model) | `views3d --step model`, `views3d --step views --count 16` | `more_views` |
 | Edit a view's prompt before a re-roll | `prompt --file 02_facings/NE.png --set …` | `prompt` |
 | Assembly, repair, and QA | `run`, `extract`, `select`, `pixelize`, `qa`, `qa-review`, `timeline`, `align-feet`, `maps` | `animation_timeline`, `timeline_pixels`, `edit_timeline_frame`, `preview_frame_reprocess`, `preview_frame_reposition`, `align_feet`, `lighting_maps`, `studio` with `run-stage` |
 | Project style, palette, and reference images | `project-style`, `project-palette`, `project-references`, `palette`, `style-check` | `project_style`, `project_palette`, `project_references`, `project_reference_image`, `palette`, `style_check` |

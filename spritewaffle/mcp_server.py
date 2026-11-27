@@ -213,6 +213,22 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return {"tasks": [task["id"]]}
 
     @mcp.tool()
+    def more_views(character: str, job_id: str, step: str = "views", count: int = 16, plan: str | None = None,
+                   note: str | None = None, only: list[float] | None = None) -> dict:
+        """More than 8 views from a 3D model (characters, creatures, animals). step='model' builds the
+        TRELLIS.2 model from the approved anchor (plan: biped | animal | monster; default from the asset
+        type); step='views' draws the in-between views of a count-view set (16, 24, 32) from it, left in
+        review as stage 'views' (show them to the human; approve with stage 'views'). note: extra words for
+        both steps (e.g. 'six legs', 'the tail curls up'). only: re-roll these yaws."""
+        job = job_for(character, job_id)
+        if step not in ("model", "views"):
+            raise ValueError("step must be 'model' or 'views'")
+        args = {k: v for k, v in (("plan", plan), ("note", note), ("count", count), ("only", only)) if v is not None}
+        stage = "views_model" if step == "model" else "views"
+        task = q.submit(job.root, stage, args, profile=job.read_meta()["inputs"].get("profile"))
+        return {"tasks": [task["id"]]}
+
+    @mcp.tool()
     def lighting_maps(character: str, job_id: str, facing: str | None = None, action: str | None = None) -> dict:
         """Queue depth + normal maps (Depth Anything V2 small on the GPU) for every pixelized clip, or
         one facing/action. Written next to each frame as NNN_depth.png / NNN_normal.png and listed in
