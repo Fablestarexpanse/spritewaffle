@@ -47,6 +47,8 @@ function paneTexture(j, st) {
         <select id="txZoom"><option value="0" ${s.zoom_auto ? "selected" : ""}>Auto (${s.zoom}×)</option>${[1, 2, 3, 4, 5, 6].map(z => `<option value="${z}" ${!s.zoom_auto && z === s.zoom ? "selected" : ""}>${z}×</option>`).join("")}</select></label>
       <label class="field" title="Every variant takes variant 1's border (colour-matched, joined along the least visible cut), so any two variants fit side by side. Re-cut tiles after changing it."><span>Variants fit together</span>
         <select id="txShared"><option value="0">No, each tiles with itself</option><option value="1" ${s.shared_edges ? "selected" : ""}>Yes, shared edges</option></select></label>
+      <label class="field" title="Export also writes a height map and a normal map for each tile (OpenGL style, green up: Godot and Unity read it). Estimated from the colour, and seamless like the tile."><span>Lighting maps</span>
+        <select id="txSurface"><option value="0">No</option><option value="1" ${s.surface_maps ? "selected" : ""}>Height + normal</option></select></label>
     </div>
     <div class="row">
       <button class="primary" id="txGen" title="Render every variant (GPU), make it seamless, cut the tiles">${have ? "Re-generate all" : "Generate"}</button>
@@ -77,8 +79,9 @@ function paneTexture(j, st) {
   if ($("#txMix")) texDrawMixed($("#txMix"), tx.variants.map(v => v.tile), 6);
   const save = () => api(jobPath() + "/texture", {description: $("#txDesc").value.trim(), tile_size: +$("#txSize").value,
     style: $("#txStyle").value, variants: +$("#txVar").value, colours: +($("#txCol")?.value || 16), zoom: +$("#txZoom").value,
-    shared_edges: $("#txShared").value === "1"});
+    shared_edges: $("#txShared").value === "1", surface_maps: $("#txSurface").value === "1"});
   $("#txStyle").onchange = async () => { await save(); lastSig = ""; refreshAll(); };
+  $("#txSurface").onchange = async () => { await save(); toast("Saved: the next export includes " + ($("#txSurface").value === "1" ? "height and normal maps" : "no lighting maps")); };
   $("#txGen").onclick = async () => {
     if (!$("#txDesc").value.trim()) return toast("Describe the texture first", true);
     await save(); run("texture", {}, "Texture variants queued");

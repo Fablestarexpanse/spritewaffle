@@ -466,6 +466,15 @@ cobble 3.25 -> 0.80, the same as variant 1 tiling with itself; each variant keep
 pixels. The shared border repeats, and a variant with very different detail size can still read as a
 patch: re-roll it. Off by default; Re-cut tiles after changing it.
 
+**Lighting maps** (setting; CLI `--surface-maps on`, MCP/HTTP `surface_maps`, `surface_strength`
+0.25-16, default 2): Export also writes `<name>_<n>_height.png` and `<name>_<n>_normal.png` per
+tile, plus height and normal sheets in the same order as the colour sheet. The height is the
+tile's brightness, softened and stretched (bright = raised); the normal map is OpenGL style (green
+up), which Godot and Unity read, from the height's slope. Every neighbour lookup wraps around the
+tile, so both maps tile exactly like the colour map. They are estimated from colour, not real
+depth: on cobblestone the mortar lines read as sunken; on a light stone with dark moss the moss
+reads as low. Off by default; no new render, no model.
+
 ### Terrain transitions (two textures → corner or blob tileset)
 
 On an approved seamless texture: **Make transition…** → pick a second approved texture (e.g. dirt

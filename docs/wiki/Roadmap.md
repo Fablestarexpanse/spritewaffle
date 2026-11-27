@@ -30,7 +30,7 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 1. ~~Tiled `probability` per texture variant~~: done 2026-11-26 (tile **Weight**, and **mix variants** in
    SpriteWaffle's own map painter).
 2. **Edge-only terrain sets**, more than one layer per map, maps larger than 32 × 32.
-3. **Normal / height maps** for textures that tile with the colour map.
+3. ~~Normal / height maps~~: done 2026-11-26 (estimated from colour; Lighting maps setting).
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
    needs Ronan's approval to install).
 5. **Target engine** setting picking an export preset (Godot files are always written now).

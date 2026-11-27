@@ -136,6 +136,22 @@ def cross_score(tiles: list[np.ndarray]) -> float:
     return round(float(worst), 2)
 
 
+def surface_maps(rgb: np.ndarray, strength: float = 2.0) -> tuple[np.ndarray, np.ndarray]:
+    """(height, normal) for a seamless tile, both seamless too: every neighbour lookup wraps
+    around the edges. Height is the tile's brightness, softened by one wrapped 3 x 3 blur pass and
+    stretched to 0-255 (bright = raised). Normal is OpenGL style (green = up, as Godot and Unity
+    read it) from the height's slope times `strength`. An estimate from colour, not real depth."""
+    lum = rgb[..., :3].astype(np.float32) @ np.array([0.299, 0.587, 0.114], np.float32)
+    soft = sum(np.roll(np.roll(lum, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1)) / 9.0
+    lo, hi = float(soft.min()), float(soft.max())
+    height = (soft - lo) / (hi - lo) if hi > lo else np.zeros_like(soft)
+    dx = (np.roll(height, -1, 1) - np.roll(height, 1, 1)) / 2.0
+    dy = (np.roll(height, -1, 0) - np.roll(height, 1, 0)) / 2.0
+    n = np.dstack([-dx * strength, dy * strength, np.ones_like(height)])
+    n /= np.linalg.norm(n, axis=2, keepdims=True)
+    return (height * 255).round().astype(np.uint8), ((n + 1) * 127.5).round().clip(0, 255).astype(np.uint8)
+
+
 def resize_wrapped(rgb: np.ndarray, size: int, resample: str = "area") -> np.ndarray:
     """Resize a tileable image to size x size so it still tiles: the image is padded with its own
     wrap-around before resampling, then the padding is cut away."""
@@ -191,7 +207,8 @@ def settings(job) -> dict:
             "tile_size": tile, "variants": int(i.get("variants") or 4),
             "colours": int(i.get("colours") or 16), "overlap": float(i.get("overlap") or 0.15),
             "zoom": int(i.get("zoom") or 0) or auto_zoom(tile), "zoom_auto": not int(i.get("zoom") or 0),
-            "shared_edges": bool(i.get("shared_edges", False)), "palette": _project_palette(job)}
+            "shared_edges": bool(i.get("shared_edges", False)), "palette": _project_palette(job),
+            "surface_maps": bool(i.get("surface_maps", False)), "surface_strength": float(i.get("surface_strength") or 2.0)}
 
 
 def _project_palette(job) -> list[str] | None:
@@ -206,11 +223,15 @@ def _project_palette(job) -> list[str] | None:
 def configure(job, **values) -> dict:
     """Save texture settings (description, tile_size, variants, colours, overlap, style, zoom;
     zoom 0 = automatic from the tile size; shared_edges: every variant takes variant 0's border so
-    variants fit next to each other)."""
+    variants fit next to each other; surface_maps: export a height and a normal map per tile, with
+    surface_strength for how steep the normal map reads)."""
     v = {k: values[k] for k in ("description", "tile_size", "variants", "colours", "overlap", "style", "zoom",
-                                "shared_edges") if values.get(k) is not None}
-    if "shared_edges" in v:
-        v["shared_edges"] = bool(v["shared_edges"])
+                                "shared_edges", "surface_maps", "surface_strength") if values.get(k) is not None}
+    for flag in ("shared_edges", "surface_maps"):
+        if flag in v:
+            v[flag] = bool(v[flag])
+    if "surface_strength" in v and not 0.25 <= float(v["surface_strength"]) <= 16:
+        raise ValueError("surface strength must be 0.25-16")
     if "tile_size" in v and int(v["tile_size"]) not in TILE_SIZES:
         raise ValueError(f"tile size must be one of {TILE_SIZES}")
     if "variants" in v and not 1 <= int(v["variants"]) <= 16:
@@ -404,18 +425,30 @@ def export(job) -> dict:
     tiles = [np.array(Image.open(src / f"tile_{k}.png").convert("RGB")) for k in keys]
     if len({t.shape for t in tiles}) != 1:
         raise ValueError("tiles have different sizes: Re-cut tiles first")
-    files = []
+    files, maps = [], []
     for k, t in zip(keys, tiles):
         Image.fromarray(t).save(out / f"{name}_{k}.png")
         prev = tiled(t)
         scale = max(1, 384 // prev.shape[0])
         Image.fromarray(prev).resize((prev.shape[1] * scale, prev.shape[0] * scale), Image.NEAREST).save(out / f"{name}_{k}_preview.png")
         files.append(f"{name}_{k}.png")
+        if s["surface_maps"]:
+            height, normal = surface_maps(t, s["surface_strength"])
+            Image.fromarray(height).save(out / f"{name}_{k}_height.png")
+            Image.fromarray(normal).save(out / f"{name}_{k}_normal.png")
+            maps.append({"height": f"{name}_{k}_height.png", "normal": f"{name}_{k}_normal.png"})
     Image.fromarray(np.concatenate(tiles, axis=1)).save(out / f"{name}_sheet.png")
     info = {"texture": name, "tile_size": int(tiles[0].shape[0]), "style": s["style"], "variants": len(tiles),
             "sheet": f"{name}_sheet.png", "tiles": files, "seeds": [rep["variants"][k]["seed"] for k in keys],
             "wrap_scores": [rep["variants"][k]["wrap_tile"] for k in keys],
             "shared_edges": s["shared_edges"], "cross_score": rep.get("cross_score")}
+    if maps:
+        surface = [surface_maps(t, s["surface_strength"]) for t in tiles]
+        Image.fromarray(np.concatenate([h for h, _ in surface], axis=1)).save(out / f"{name}_height_sheet.png")
+        Image.fromarray(np.concatenate([n for _, n in surface], axis=1)).save(out / f"{name}_normal_sheet.png")
+        info["surface_maps"] = {"tiles": maps, "height_sheet": f"{name}_height_sheet.png",
+                                "normal_sheet": f"{name}_normal_sheet.png", "strength": s["surface_strength"],
+                                "normal_convention": "OpenGL (green up)"}
     (out / f"{name}.json").write_text(json.dumps(info, indent=2))
     job.set_stage("export:texture", "done", variants=len(tiles), tile_size=info["tile_size"])
     return info
