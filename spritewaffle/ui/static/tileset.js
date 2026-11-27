@@ -36,6 +36,8 @@ function paneTileset() {
           <label title="Custom data for the game: name=value, comma separated. Numbers and true/false keep their type.">Properties
             <input id="tileProps" size="30" placeholder="damage=5, water=true"></label>
           <button type="button" id="tilePropsSave">Save properties</button>
+          <label title="How often Tiled picks this tile among tiles that fit the same place (random brush, terrain fill). 1 is normal, 0 never, 2 twice as often.">Weight
+            <input id="tileWeight" type="number" min="0" max="1000" step="0.1" style="width:70px"></label>
         </div>
       </div>
       <div>
@@ -149,6 +151,7 @@ function paneTileset() {
     find("#tilePointsField").hidden = shapeSelect.value !== "custom";
     shapeSelect.disabled = oneWay.disabled = !solid.checked;
     propsInput.value = propsText((state.tileset.tile_properties || {})[String(id)]);
+    find("#tileWeight").value = (state.tileset.tile_probability || {})[String(id)] ?? 1;
     find("#tileEmpty").textContent = state.tileset.empty_tiles.includes(id) ? "Transparent tile" : "";
     terrain.selectTile(id);
     animation.selectTile(id);
@@ -252,6 +255,10 @@ function paneTileset() {
     let values;
     try { values = parseProps(propsInput.value); } catch (cause) { return error(cause.message); }
     perform(find("#tilePropsSave"), () => request("/properties", {tile: active, properties: values, revision: state.revision}), render);
+  };
+  find("#tileWeight").onchange = event => {
+    const weight = event.target.value === "" ? null : Number(event.target.value);
+    perform(event.target, () => request("/probability", {tile: active, weight, revision: state.revision}), render);
   };
   exportButton.onclick = () => perform(exportButton, () => request("/export", {}), render);
   form.onsubmit = event => {

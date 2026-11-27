@@ -211,6 +211,11 @@ In the exports, a shaped tile becomes a polygon object in Tiled's tile collision
 properties and typed Godot custom data layers (`get_custom_data("damage")`), checked by loading
 the TileSet in Godot 4.6. Tile modules list each shaped tile's bounding box plus its `polygon`.
 
+**Weight** sets how often Tiled picks a tile among tiles that fit the same place: its random
+brush and its terrain fill. 1 is normal, 2 twice as often, 0 never at random. It exports as the
+tile's `probability` in `tileset.tsj` and `tileset.json`. Use it on texture variants that share
+edges (Texture → Make a tileset) so a filled area mixes them, the plain one most often.
+
 **Export tileset** writes `tiles.png`, `tileset.json`, and `tileset.tsj` to the job's
 `06_export/tileset` folder. Keep the PNG next to either metadata file. Collision changes
 flag the previous export as stale. The PNG in the bundle is an exact copy of the source.
@@ -221,12 +226,13 @@ spritewaffle tileset collision --job meadow/v1 --tile 1
 spritewaffle tileset collision --job meadow/v1 --tile 2 --shape slope_up
 spritewaffle tileset collision --job meadow/v1 --tile 3 --shape half_top --one-way
 spritewaffle tileset properties --job meadow/v1 --tile 2 --set "damage=5, footstep=grass"
+spritewaffle tileset weight --job meadow/v1 --tile 3 --weight 0.25
 spritewaffle tileset export --job meadow/v1
 ```
 
 `tileset inspect` reports the grid and export status. Add `--clear` to a collision command
 to remove the rectangle. The MCP `tileset` tool offers the same operations. The HTTP
-base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision` (optional `shape`), `properties`, `terrain`, `animation`, `preview`,
+base is `/api/jobs/{character}/{job}/tileset`, with `import`, `collision` (optional `shape`), `properties`, `probability` (tile weight), `terrain`, `animation`, `preview`,
 and `export` POST routes.
 
 The `.tsj` and map `.tmj` name the Tiled release they follow (`tiledversion` 1.10.2), and the terrain

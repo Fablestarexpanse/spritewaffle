@@ -453,6 +453,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 
+    @app.post("/api/jobs/{char}/{jid}/tileset/probability")
+    def tileset_probability(char: str, jid: str, body: dict = Body(...)):
+        """A tile's random weight for Tiled (1 normal, 0 never at random; null resets)."""
+        j = job_or_404(char, jid)
+        try:
+            return tileset_view(j, tileset.probability(j, body.get("tile"), body.get("weight"), body.get("revision")))
+        except (ValueError, OSError, RuntimeError) as error:
+            bad(error)
+
     def texture_view(j: Job, meta: dict) -> dict:
         from ..core import texture
         rep = read_json(j.root / "02_facings" / "texture_report.json") or {}

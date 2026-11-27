@@ -86,6 +86,8 @@ def cmd_tileset(a):
             if a.one_way:
                 shape = {**(shape or {}), "one_way": True}
             result = tileset.collision(job, a.tile, not a.clear, shape=shape)
+        elif a.operation == "weight":
+            result = tileset.probability(job, a.tile, None if a.clear else a.weight)
         elif a.operation == "properties":
             from .core import tile_collision
             result = tileset.properties(job, a.tile, {} if a.clear else tile_collision.parse_text(a.set or ""))
@@ -797,7 +799,7 @@ def build() -> argparse.ArgumentParser:
         (("--query",), {"action": "append", "default": [], "help": "query parameter as NAME=VALUE"}))
 
     cmd("tileset", cmd_tileset, "import, edit, preview, or export a local tileset",
-        (("operation",), {"choices": ("import", "inspect", "collision", "properties", "terrain", "animation", "preview",
+        (("operation",), {"choices": ("import", "inspect", "collision", "properties", "weight", "terrain", "animation", "preview",
                                       "module", "stamp", "export-module", "export")}), JOB,
         (("--file",), {"help": "source PNG for import, JSON for terrain, animation, preview or module placement"}),
         (("--tile-width",), {"type": int, "default": 16}), (("--tile-height",), {"type": int, "default": 16}),
@@ -808,7 +810,8 @@ def build() -> argparse.ArgumentParser:
                                 "slope_up_high, slope_down_low, slope_down_high"}),
         (("--points",), {"help": "collision polygon as JSON [[x, y], ...] in tile pixels, top-left origin"}),
         (("--one-way",), {"action": "store_true", "help": "jump-through platform collision"}),
-        (("--set",), {"help": "properties as name=value, comma separated (damage=5, water=true)"}))
+        (("--set",), {"help": "properties as name=value, comma separated (damage=5, water=true)"}),
+     (("--weight",), {"type": float, "help": "weight: how often Tiled picks this tile at random (1 normal, 0 never)"}))
 
     cmd("tilemap", cmd_tilemap, "manage named terrain maps and object templates",
         (("operation",), {"choices": ("list", "load", "save", "export", "templates", "save-template",

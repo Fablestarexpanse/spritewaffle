@@ -80,6 +80,11 @@ def _read(directory: Path) -> dict | None:
         if not isinstance(props, dict) or any(not k.isdigit() or not 0 <= int(k) < count for k in props):
             raise ValueError("The stored tile properties are invalid.")
         record["tile_properties"] = {k: tc.clean_properties(v) for k, v in props.items() if v}
+    if "tile_probability" in record:
+        weights = record["tile_probability"]
+        if not isinstance(weights, dict) or any(not k.isdigit() or not 0 <= int(k) < count for k in weights):
+            raise ValueError("The stored tile weights are invalid.")
+        record["tile_probability"] = {k: _weight(v) for k, v in weights.items()}
     if "terrain" in record:
         record["terrain"] = terrain.normalize(record["terrain"], count)
     if "animations" in record:
@@ -154,7 +159,7 @@ def import_bytes(job: Job, data: bytes, filename: str, values: dict) -> dict:
         previous = _read(directory)
         if previous and (previous["digest"], previous["grid"]) == (digest, grid):
             record["solid_tiles"] = previous["solid_tiles"]
-            for key in ("terrain", "animations", "modules", "tile_shapes", "tile_properties"):
+            for key in ("terrain", "animations", "modules", "tile_shapes", "tile_properties", "tile_probability"):
                 if key in previous:
                     record[key] = previous[key]
         elif previous:
@@ -237,6 +242,36 @@ def properties(job: Job, tile: int, values: dict, revision: str | None = None) -
             record["tile_properties"] = dict(sorted(props.items(), key=lambda kv: int(kv[0])))
         else:
             record.pop("tile_properties", None)
+    return inspect(job)
+
+
+MAX_WEIGHT = 1000
+
+
+def _weight(value) -> float:
+    """A tile's random weight: a number from 0 (never picked at random) to MAX_WEIGHT; 1 is normal."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= MAX_WEIGHT or value != value:
+        raise ValueError(f"A tile weight is a number from 0 to {MAX_WEIGHT} (1 is normal).")
+    return round(float(value), 4)
+
+
+def probability(job: Job, tile: int, weight, revision: str | None = None) -> dict:
+    """Set how often Tiled picks this tile among tiles that fit the same place (random brush,
+    terrain fill): exported as the tile's "probability". None or 1 resets it."""
+    with _edit(job, revision) as record:
+        grid = record["grid"]
+        if type(tile) is not int or not 0 <= tile < grid["columns"] * grid["rows"]:
+            raise ValueError("Choose a tile in the grid.")
+        weights = record.get("tile_probability") or {}
+        value = 1.0 if weight is None else _weight(weight)
+        if value == 1.0:
+            weights.pop(str(tile), None)
+        else:
+            weights[str(tile)] = value
+        if weights:
+            record["tile_probability"] = dict(sorted(weights.items(), key=lambda kv: int(kv[0])))
+        else:
+            record.pop("tile_probability", None)
     return inspect(job)
 
 
@@ -420,7 +455,7 @@ def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
 def _snapshot(job: Job, directory: Path, record: dict) -> dict:
     return receipt.snapshot(job.root, [_source(directory, record)],
                             {key: record[key] for key in ("grid", "solid_tiles", "terrain", "animations", "modules",
-                                                         "tile_shapes", "tile_properties")
+                                                         "tile_shapes", "tile_properties", "tile_probability")
                              if key in record})
 
 
@@ -460,9 +495,12 @@ def _export_metadata(record: dict, name: str) -> tuple[dict, dict]:
                            "width": w, "height": h, "rotation": 0, "visible": True}]}
     from . import tile_collision as tc
     shapes, props = record.get("tile_shapes") or {}, record.get("tile_properties") or {}
+    weights = record.get("tile_probability") or {}
     tiled_tiles = []
-    for tile in sorted(ids | animations.keys() | {int(k) for k in props}):
+    for tile in sorted(ids | animations.keys() | {int(k) for k in props} | {int(k) for k in weights}):
         entry = {"id": tile}
+        if str(tile) in weights:
+            native["tiles"][tile]["probability"] = entry["probability"] = weights[str(tile)]
         shape = shapes.get(str(tile))
         if tile in ids and shape:
             pts = tc.polygon(shape, w, h)

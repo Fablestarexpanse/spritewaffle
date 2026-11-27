@@ -84,3 +84,37 @@ def test_module_export_carries_the_slope_polygon(tmp_path):
     assert spec["collision"][0] == {"x": 0, "y": 0, "width": 8, "height": 6}          # full tiles unchanged
     assert spec["collision"][1] == {"x": 0, "y": 6, "width": 8, "height": 6, "one_way": True,
                                     "polygon": [[0, 12], [8, 6], [8, 12]]}
+
+
+def test_tile_weight_exports_as_tiled_probability(tmp_path):
+    """Texture variants that share edges can be mixed in a map; Tiled picks among them by weight."""
+    import json
+    import pytest
+    from fastapi.testclient import TestClient
+    from spritewaffle.core import tileset
+    from spritewaffle.ui.server import create_app
+    from test_tileset import atlas_bytes
+    job = tileset.create(tmp_path, "ground", "w")
+    tileset.import_bytes(job, atlas_bytes(), "g.png", {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1})
+    tileset.probability(job, 1, 0.25)
+    tileset.probability(job, 0, 3)
+    for bad in (-1, 1001, "2", True, float("nan")):
+        with pytest.raises(ValueError):
+            tileset.probability(job, 1, bad)
+    with pytest.raises(ValueError):
+        tileset.probability(job, 99, 2)
+    out = tileset.export(job)
+    tsj = json.loads((job.root / out["files"]["tileset.tsj"]).read_text())
+    native = json.loads((job.root / out["files"]["tileset.json"]).read_text())
+    assert {t["id"]: t.get("probability") for t in tsj["tiles"]} == {0: 3.0, 1: 0.25}
+    assert native["tiles"][1]["probability"] == 0.25
+    assert tileset.probability(job, 0, None)["tileset"]["tile_probability"] == {"1": 0.25}   # reset to 1
+    tileset.import_bytes(job, atlas_bytes(), "g.png", {"tile_width": 8, "tile_height": 9, "margin": 1, "spacing": 1})
+    assert tileset.inspect(job)["tileset"]["tile_probability"] == {"1": 0.25}   # same sheet: kept
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        route = "/api/jobs/ground/w/tileset/probability"
+        assert client.post(route, json={"tile": 1, "weight": 1}).json()["tileset"].get("tile_probability") is None
+        assert client.post(route, json={"tile": 1, "weight": -2}).status_code == 400
+    from spritewaffle import cli
+    assert cli.main(["tileset", "--job", str(job.root), "--tile", "0", "--weight", "0", "weight"]) in (0, None)
+    assert tileset.inspect(job)["tileset"]["tile_probability"] == {"0": 0.0}
