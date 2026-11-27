@@ -32,12 +32,13 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 2. ~~More than one layer per map~~: done 2026-11-26 (up to 4 extra tile layers; also edge sets, path
    generation and maps up to 64 × 64).
 3. ~~Normal / height maps~~: done 2026-11-26 (estimated from colour; Lighting maps setting).
-4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
-   needs Ronan's approval to install).
+4. **DiT-aware seamless generation** for H3: Universal-Seamless-Tiles installed 2026-11-26 (approved;
+   pinned c10836d). Loads after the next ComfyUI restart; then measure against the code-side seaming.
 5. **Target engine** setting picking an export preset (Godot files are always written now). Waiting on a
    measured need: which settings a Unity or GameMaker project wants different (pot, extrude, mirror?).
 6. **Engine checks:** done 2026-11-26 (Tiled read shaped collision; LDtk 1.5.3 opened the new map.ldtk).
-   LDtk entities for map objects: done 2026-11-26. Open: non-square tiles in LDtk.
+   LDtk entities for map objects: done 2026-11-26. Non-square tiles in LDtk: not possible (LDtk's
+   layers and tilesets have one square grid size); those maps export Tiled and SpriteWaffle JSON only.
    (Unity `.aseprite` one-shot tags and pivots: checked 2026-11-26.)
 
 ## Studio (from the upgrade roadmap)
