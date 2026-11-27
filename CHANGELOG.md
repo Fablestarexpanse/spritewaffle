@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Effects: **Lies flat on the ground** squashes auras and rune circles onto the floor; new **aura** preset; the **slash** preset is reworded and now draws a sweeping arc instead of a crosshair flash.
 - Maps can have up to 4 extra **tile layers** above the terrain (decoration, props), exported as extra Tiled and LDtk tile layers.
 - **Path sets** from two textures: Transition → Set: Path makes the 16 edge tiles (straights, bends, junctions, crossing, ends) with edge terrain rules, ready for Tiled and Godot.
 - **Edge terrain sets** (paths, fences, roads): set type Edges in the Terrain panel; exported as a Tiled edge Wang set and a Godot Match Sides terrain set.

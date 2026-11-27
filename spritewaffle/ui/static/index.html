@@ -2098,6 +2098,9 @@ function paneEffect(j, st) {
       <label class="field"><span>Frames</span><input type="number" data-fx="frame_count" value="${v.frames}" min="4" max="48"></label>
       <label class="field"><span>FPS</span><input type="number" data-fx="fps" value="${v.fps}" min="1" max="60"></label>
       <label class="field"><span>Colours (pixel art)</span><input type="number" data-fx="colours" value="${v.colours}" min="2" max="256"></label>
+      <label class="field" title="For auras and rune circles under a character: squash the effect so it lies on the ground as the game camera sees it. Re-process after changing it (no new render).">
+        <span>Lies flat on the ground</span><select data-fx="ground">${[[0, "no (faces the camera)"], [0.7, "yes, steep camera (0.7)"], [0.5, "yes, 3/4 view (0.5)"], [0.35, "yes, low camera (0.35)"]]
+          .map(([g, label]) => `<option value="${g}" ${Number(v.ground || 0) === g ? "selected" : ""}>${label}</option>`).join("")}</select></label>
     </div>
     <label class="field"><span>First frame: what it looks like</span><textarea data-fx="still" placeholder="e.g. a round fireball of swirling orange flames">${esc(v.still)}</textarea></label>
     <label class="field"><span>What it does (short and literal)</span><textarea data-fx="motion" placeholder="e.g. the fireball churns and flickers in place, embers drifting off">${esc(v.motion)}</textarea></label>
@@ -2126,7 +2129,7 @@ function paneEffect(j, st) {
     fxDraft.v = read();
     if (i.dataset.fx === "preset" && i.value && e.presets[i.value]) {        // a preset fills the texts
       const pr = e.presets[i.value];
-      Object.assign(fxDraft.v, {still: pr.still, motion: pr.motion, loop: pr.loop});
+      Object.assign(fxDraft.v, {still: pr.still, motion: pr.motion, loop: pr.loop, ground: pr.ground || 0});
       renderJob();
     }
   });

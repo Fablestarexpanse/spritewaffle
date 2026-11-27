@@ -48,7 +48,24 @@ def spec(job: Job) -> dict:
             "bg": i.get("bg") or ("green" if p.get("green") else "black"),
             "seconds": float(i.get("seconds") or 2.0),
             "size": int(i.get("size") or 64), "frames": int(i.get("frame_count") or (12 if p.get("loop", True) else 16)),
-            "fps": int(i.get("fps") or 12), "colours": int(i.get("colours") or 16)}
+            "fps": int(i.get("fps") or 12), "colours": int(i.get("colours") or 16),
+            "ground": float(i["ground"]) if i.get("ground") is not None else float(p.get("ground", 0))}
+
+
+def lay_flat(frames: list[np.ndarray], squash: float) -> list[np.ndarray]:
+    """An effect drawn facing the camera (a rune circle, a ring) laid on the ground: squash it to
+    `squash` of its height, as a flat circle looks from a game camera above (0.5 for a 3/4 view).
+    Resized on premultiplied colour so the soft edge keeps its colour."""
+    out = []
+    for f in frames:
+        h, w = f.shape[:2]
+        nh = max(1, round(h * squash))
+        a = f[..., 3:].astype(np.float32) / 255
+        pm = cv2.resize(np.dstack([f[..., :3] * a, a * 255]).astype(np.float32), (w, nh), interpolation=cv2.INTER_AREA)
+        al = pm[..., 3:] / 255
+        col = np.where(al > 0, pm[..., :3] / np.maximum(al, 1e-6), 0)
+        out.append(np.dstack([np.clip(col, 0, 255), np.clip(pm[..., 3:], 0, 255)]).astype(np.uint8))
+    return out
 
 
 # --- render (GPU) ------------------------------------------------------------------------------
@@ -170,6 +187,8 @@ def export_directory(job: Job, name: str) -> Path:
 
 def _export_inputs(job: Job, s: dict, style: dict) -> dict:
     settings = {field: s[field] for field in ("loop", "bg", "size", "frames", "fps")}
+    if s.get("ground"):
+        settings["ground"] = s["ground"]
     settings.update(name=output_name(s["name"]), processing_style=style["post"], scale=style.get("scale", 1))
     if style["post"] == "pixel":
         settings["colours"] = s["colours"]
@@ -228,6 +247,8 @@ def _process_frames(clip: Path, s: dict, st: dict, pixel: bool) -> tuple[list[np
     x0, y0 = max(0, x0 - pad), max(0, y0 - pad)
     x1, y1 = min(chosen[0].shape[1], x1 + pad), min(chosen[0].shape[0], y1 + pad)
     crop = [f[y0:y1, x0:x1] for f in chosen]
+    if s.get("ground"):                                           # lies flat on the ground (auras, rune circles)
+        crop = lay_flat(crop, s["ground"])
     size = s["size"] * (1 if pixel else st.get("scale", 4))
     k = size / max(y1 - y0, x1 - x0)                              # the largest frame fits `size`
     if pixel:
@@ -246,7 +267,8 @@ def _process_frames(clip: Path, s: dict, st: dict, pixel: bool) -> tuple[list[np
             col = np.where(al > 0, pm[..., :3] / np.maximum(al, 1e-6), 0)
             out_frames.append(np.dstack([np.clip(col, 0, 255), np.clip(pm[..., 3:], 0, 255)]).astype(np.uint8))
         palette = []
-    return out_frames, info | {"source_frames": [int(i) for i in idx], "background_detected": bg, "background_asked": s["bg"]}, palette, bg
+    return out_frames, info | {"source_frames": [int(i) for i in idx], "background_detected": bg, "background_asked": s["bg"],
+                               **({"ground_squash": s["ground"]} if s.get("ground") else {})}, palette, bg
 
 
 def export(job: Job, s: dict, frames: list[np.ndarray], info: dict, pixel: bool, palette: list[str]) -> dict:
@@ -282,6 +304,8 @@ def export(job: Job, s: dict, frames: list[np.ndarray], info: dict, pixel: bool,
             "sheet": {"image": f"{name}_sheet.png", "cols": cols, "rows": rows},
             "strip": f"{name}.png", "background": s["bg"],
             "blend": "alpha or additive" if s["bg"] == "black" else "alpha",
-            "palette": palette, "pick": info}
+            "palette": palette, "pick": info,
+            **({"ground": {"squash": s["ground"], "place": "centre it on the character's feet, drawn behind the character"}}
+               if s.get("ground") else {})}
     (out / f"{name}.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return meta | {"dir": str(out)}

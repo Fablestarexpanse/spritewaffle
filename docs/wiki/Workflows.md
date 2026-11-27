@@ -112,7 +112,7 @@ without rendering.
 ### Effects (spells, fire, explosions, impacts)
 
 Home → **New effect** (type `effect`). Pick a preset (fireball, explosion, magic circle, healing,
-slash, lightning) or write your own first frame and motion; choose loops / once, the background,
+slash, lightning, aura) or write your own first frame and motion; choose loops / once, the background,
 size, frames and fps; **Render effect**. H3 draws the first frame, then a clip; the background
 becomes transparency:
 - **black** (glowing effects): alpha from brightness. Works with normal alpha blending and, since
@@ -123,6 +123,15 @@ becomes transparency:
 Loops skip the clip's first frames and use the window (at least 1 s) whose ends match best;
 one-shots keep everything from the first to the last visible frame. Exports: strip PNG, frames,
 square flipbook sheet, `.aseprite` (one-shots play once), preview GIF, JSON (fps, loop, blend).
+
+**Lies flat on the ground** (setting; HTTP `ground`): for auras and rune circles under a character.
+H3 draws them facing the camera; this squashes the frames to 0.7, 0.5 (3/4 view) or 0.35 of their
+height before pixelizing, so the circle becomes the ellipse a flat ground circle looks like. The
+**aura** preset (a golden ring) uses 0.5. The JSON gets `ground: {squash, place}`: centre it on the
+character's feet, behind the character. Re-process after changing it; no new render.
+
+The **slash** preset was reworded 2026-11-26 as a sword's motion trail (one arc that sweeps and
+fades, "never a star, cross, burst or flash"): the old wording turned into a crosshair flash.
 **Re-process frames** changes size / frames / colours without rendering again.
 
 ### Variants: one change, or an item from a picture

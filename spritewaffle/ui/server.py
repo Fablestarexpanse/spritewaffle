@@ -133,7 +133,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             meta = read_json(d / f"{d.name}.json")
         except ValueError:
             meta = None
-        return {"spec": s, "presets": {k: {kk: v.get(kk) for kk in ("still", "motion", "loop")} for k, v in fx.PRESETS.items()},
+        return {"spec": s, "presets": {k: {kk: v.get(kk) for kk in ("still", "motion", "loop", "ground")} for k, v in fx.PRESETS.items()},
                 "still": url(j.root / "01_anchor" / "anchor.png"),
                 "clip": url(j.root / "03_actions" / "S" / "effect" / "raw.mp4"),
                 "preview": url(d / f"{d.name}_preview.gif") if meta else None,
@@ -865,6 +865,11 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                 if body["bg"] not in ("black", "green"):
                     raise ValueError("background must be black or green")
                 f["bg"] = body["bg"]
+            if "ground" in body:                       # lies flat: vertical squash 0.2-0.9, 0 = faces the camera
+                g = float(body["ground"] or 0)
+                if g and not 0.2 <= g <= 0.9:
+                    raise ValueError("ground squash must be 0 (off) or 0.2-0.9")
+                f["ground"] = g
             for k, lo, hi in (("seconds", 1, 8), ("size", 8, 1024), ("frame_count", 4, 48), ("fps", 1, 60), ("colours", 2, 256)):
                 if k in body and body[k] not in (None, ""):
                     v = float(body[k]) if k == "seconds" else int(body[k])

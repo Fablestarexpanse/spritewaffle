@@ -98,3 +98,29 @@ def test_green_card_on_black_is_keyed_away():
     assert effect.detect_bg(g) == "green"
     with pytest.raises(ValueError):
         effect.detect_bg(np.full((200, 200, 3), 128, np.uint8))
+
+
+def test_lay_flat_squashes_a_circle_onto_the_ground():
+    from spritewaffle.core import effect as fxc
+    yy, xx = np.mgrid[0:40, 0:40]
+    ring = (np.hypot(xx - 19.5, yy - 19.5) < 18).astype(np.uint8)
+    frame = np.dstack([ring * 255, ring * 200, ring * 50, ring * 255]).astype(np.uint8)
+    flat, = fxc.lay_flat([frame], 0.5)
+    assert flat.shape == (20, 40, 4)
+    ys, xs = np.where(flat[..., 3] > 127)
+    assert xs.max() - xs.min() > 1.8 * (ys.max() - ys.min())            # an ellipse twice as wide as tall
+    assert abs(flat[10, 20, 0] - 255) <= 1                                # colour kept inside
+
+
+def test_aura_preset_lies_flat_and_others_do_not(tmp_path):
+    from fastapi.testclient import TestClient
+    from spritewaffle.core import effect as fxc
+    from spritewaffle.ui.server import create_app
+    j = Job.create("glow", "a1", base=tmp_path, asset_type="effect", preset="aura")
+    assert fxc.spec(j)["ground"] == 0.5 and fxc.spec(j)["loop"] is True
+    k = Job.create("bolt", "l1", base=tmp_path, asset_type="effect", preset="lightning")
+    assert fxc.spec(k)["ground"] == 0
+    with TestClient(create_app(tmp_path, worker=False)) as client:
+        assert client.post("/api/jobs/bolt/l1/effect", json={"ground": 0.95}).status_code == 400
+        assert client.post("/api/jobs/bolt/l1/effect", json={"ground": "0.35"}).status_code == 200
+    assert fxc.spec(k)["ground"] == 0.35

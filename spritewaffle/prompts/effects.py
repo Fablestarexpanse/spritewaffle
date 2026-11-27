@@ -29,9 +29,19 @@ PRESETS = {
     "healing": {"still": "a soft burst of green and white healing sparkles and small glowing plus signs",
                 "motion": "the sparkles rise gently upward and twinkle, new ones appearing at the bottom, the "
                           "cluster staying in the same place", "loop": True, "sound": "Gentle chimes."},
-    "slash": {"still": "a thin bright white crescent slash arc with a faint blue glow",
-              "motion": "the slash arc sweeps across in a fast curve, flares bright, then fades away to nothing",
-              "loop": False, "sound": "A sharp whoosh."},
+    # 2026-11-20 the old wording drew a crescent that turned into a crosshair flash (an impact, not a
+    # slash): name it as a blade's motion trail, one arc, and rule out the burst shapes
+    "slash": {"still": "the motion trail of a sword swing: one single thin curved arc of bright white light with a "
+                       "faint blue edge, wide at the middle and tapering to sharp points at both ends, like a "
+                       "crescent moon lying on its side",
+              "motion": "the curved trail sweeps once from left to right along its arc, its tail thinning and "
+                        "fading behind it until nothing is left; it stays one curved arc the whole time, never "
+                        "a star, cross, burst or flash", "loop": False, "sound": "A sharp whoosh."},
+    "aura": {"still": "a glowing ring of soft golden light with small sparkles along it, a perfect circle seen "
+             "flat from the front",
+             "motion": "the ring pulses gently brighter and dimmer and slowly turns, sparkles drifting upward from "
+                       "it, always the same size and place", "loop": True, "sound": "A soft warm hum.",
+             "ground": 0.5},
     "lightning": {"still": "a thin jagged forked lightning strike of bright blue-white light running from the top "
                            "of the effect down to the bottom, with small branching forks, not an icon or symbol",
                   "motion": "the lightning bolt flickers and forks, flashing bright several times, staying in "
