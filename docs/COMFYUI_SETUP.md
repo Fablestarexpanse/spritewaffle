@@ -48,6 +48,7 @@ About 94 GB in total.
 | `trellis_2_shape_vae_bf16.safetensors` | `vae/` | 1.0 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/vae/trellis_2_shape_vae_bf16.safetensors) |
 | `trellis_2_texture_vae_bf16.safetensors` | `vae/` | 0.9 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/vae/trellis_2_texture_vae_bf16.safetensors) |
 | `dino_v3_L_naf_fp32.safetensors` | `clip_vision/` | 1.2 GB | sprite stacks (3D) | [Comfy-Org/Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D/resolve/main/clip_vision/dino_v3_L_naf_fp32.safetensors) |
+| `depth_anything_v2_vits.pth` | `custom_nodes/comfyui_controlnet_aux/ckpts/` (downloaded by the node on first use) | 0.1 GB | lighting maps (depth + normal per frame); needs the comfyui_controlnet_aux nodes | [depth-anything/Depth-Anything-V2-Small](https://huggingface.co/depth-anything/Depth-Anything-V2-Small) |
 | `birefnet.safetensors` | `background_removal/` | 0.4 GB | sprite stacks (3D) | [Comfy-Org/BiRefNet](https://huggingface.co/Comfy-Org/BiRefNet/resolve/main/background_removal/birefnet.safetensors) |
 
 Any ComfyUI install works (portable, git, desktop app, a launcher). `<ComfyUI>/models/` is the
@@ -88,3 +89,4 @@ There are two copies of each workflow:
 | `prompt_writer` | Qwen3-VL 4B looks at the character and writes prompt text |
 | `sam3_mask` | SAM 3 cuts figures off a character sheet (and animal turnaround sheets) |
 | `trellis_mesh` | TRELLIS.2: image → vertex-coloured 3D model for sprite stacks |
+| `depth_map` | Depth Anything V2 (small): a frame's master → depth, for lighting maps |

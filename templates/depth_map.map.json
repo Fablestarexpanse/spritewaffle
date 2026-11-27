@@ -1,0 +1,17 @@
+{
+  "slot": "depth_map",
+  "params": {
+    "ref_images": [
+      {
+        "node": "1",
+        "input": "image",
+        "kind": "image"
+      }
+    ],
+    "width": {
+      "node": "2",
+      "input": "resolution"
+    }
+  },
+  "output_node": "3"
+}

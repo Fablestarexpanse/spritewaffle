@@ -149,7 +149,9 @@ Every asset keeps a manifest (`manifest.json`): each frame's view angle in degre
 views), foot point, colour / depth / normal / high-res master files and how it was downscaled,
 ready for engines that blend between angles and light sprites with maps. **Camera…** sets the
 project's camera profile (or one asset's), **Mirror policy** on Facings/Animations decides which
-views are flipped, **Align feet** pins every frame's foot point, and **Turntable…** spins through
+views are flipped, **Lighting maps** writes a depth and a normal map next to every frame (Depth
+Anything V2 small on the GPU, about 1 s a frame; mirrored views reuse their source's),
+**Align feet** pins every frame's foot point, and **Turntable…** spins through
 the views (read-only) to spot angle-to-angle drift. Existing assets: `spritewaffle manifest`.
 Details and every call: [docs/MANIFEST.md](../../docs/MANIFEST.md).
 

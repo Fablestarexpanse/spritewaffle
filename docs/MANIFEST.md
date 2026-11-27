@@ -100,6 +100,13 @@ steps on any image the master's size, so a depth or normal map made from the mas
 colour frame's pixels. Measured on knight, cat and hare (250 frames, mirrored ones included): the
 replayed opaque pixels match the stored frames (worst 0.9 %).
 
+**Lighting maps** (`core/depthmaps.py`, Animations → Lighting maps, `spritewaffle maps`, MCP
+`lighting_maps`) fill the `depth` / `normal` slots this way: Depth Anything V2 (small) on each master,
+cut to the sprite, one depth range per clip, normals from its slopes (OpenGL style: R = +x right,
+G = +y up, B = toward the camera), then replayed onto the frame. Depth is bright = near. Mirrored
+views reuse their source's depth and get their normals' x flipped. Checked 2026-11-27: 0 % alpha
+mismatch over 72 frames (E walk 12f/24f and mirrored W).
+
 ## Camera profile
 
 One per project in `<jobs>/project.json` (`{"schema_version": 1, "id": "...", "camera": {...}}`),

@@ -6,8 +6,8 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
 
 1. **Directional test prep** (when the Myth-style test starts): more than 8 views by H3 image edit was
    measured 2026-11-27 and rejected (small pixel sprites copy their reference 0/4; degree wording turns them
-   around 0/8). Open: a 3D route (TRELLIS.2) or engine crossfade between the 8; depth/normal maps from
-   masters via `manifest.replay_downscale` (needs Depth Anything V2 / DSINE weights downloaded).
+   around 0/8). Open: a 3D route (TRELLIS.2) or engine crossfade between the 8. Depth/normal maps:
+   done 2026-11-27 (Lighting maps; not yet checked in an engine).
 2. **Style sets** (backlog #13): the local library, palette inheritance, and style checks
    are available. Anchor generation accepts one saved image. Multi-image guidance and family
    palette rules remain open.

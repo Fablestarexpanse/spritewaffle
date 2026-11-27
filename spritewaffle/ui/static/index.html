@@ -1786,6 +1786,7 @@ function paneAnimations(j, st) {
   $("#pane").innerHTML = `
     ${clips ? `<div class="row"><h2 style="margin:0">Animation clips</h2><span class="spacer"></span>
       <button class="ghost" id="ttAnims">Turntable…</button>
+      <button class="ghost" id="lightMaps" title="Depth and normal maps for every clip, for lighting in the engine (GPU)">Lighting maps</button>
       <button class="ghost" id="alignFeet" title="Writes aligned copies with a consistent foot position">${j.inputs.align_feet ? "Re-align feet" : "Align feet"}</button>
       ${j.inputs.align_feet ? `<span class="chip">Alignment enabled</span>` : ""}</div>${clips}` : ""}
     ${generation}
@@ -1816,6 +1817,7 @@ function paneAnimations(j, st) {
   if ($("#goToFacings")) $("#goToFacings").onclick = () => goToStage("facings");
   if ($("#ttAnims")) $("#ttAnims").onclick = () => showTurntable(j, Object.keys(byAction).sort()[0]);
   if ($("#alignFeet")) $("#alignFeet").onclick = () => run("align", {}, "Foot alignment queued");
+  if ($("#lightMaps")) $("#lightMaps").onclick = () => run("maps", {}, "Lighting maps queued");
   $("#queueAnim").onclick = () => {
     const [method, motion] = source.split("|");
     const args = {facings: selected, actions: selectedActions, mirror: (j.inputs.mirror_policy || "legacy") === "legacy" ? form.mirror : true};

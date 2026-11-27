@@ -160,21 +160,26 @@ def _stages():
         rep = texture.generate(job, seed=a.get("seed"), only=a.get("only"))
         return {"variants": len(rep["variants"])}
 
+    def maps(job, prof, a):
+        need(a, "facing", "action")
+        from . import depthmaps
+        return depthmaps.make(job, a["facing"], a["action"])
+
     def texture_retile(job, prof, a):
         from . import texture
         return {"variants": len(texture.retile(job)["variants"])}
 
     gpu = {"texture": texture_gen, "model3d": model3d, "effect_render": effect_render, "sheet": sheet, "anchor": anchor, "facings": facings, "action": action, "transfer": transfer, "bridge": bridge,
-           "ortho": ortho}
+           "ortho": ortho, "maps": maps}
     cpu = {"effect_process": effect_process, "mirror": mirror, "stack": stack, "flow": flow, "extract": extract, "select": select, "pixelize": pixelize, "qa": qa, "export": export, "align": align,
            "texture_retile": texture_retile}
     return {**{k: ("gpu", f) for k, f in gpu.items()}, **{k: ("cpu", f) for k, f in cpu.items()}}
 
 
-STAGE_NAMES = ("texture", "texture_retile", "model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export", "align")
+STAGE_NAMES = ("texture", "texture_retile", "model3d", "effect_render", "effect_process", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "stack", "mirror", "flow", "extract", "select", "pixelize", "qa", "export", "align", "maps")
 POST_ACTION = ("select", "pixelize", "qa", "export")
 # stages after which the asset manifest (core/manifest.py) is rebuilt
-MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align")
+MANIFEST_STAGES = ("anchor", "facings", "sheet", "pixelize", "mirror", "flow", "transfer", "export", "align", "maps")
 
 
 # --- store ------------------------------------------------------------------------------------
@@ -229,7 +234,7 @@ class Queue:
                 raise ValueError(f"unknown task in after: {a}")
         with self._lock:
             t = {"id": uuid.uuid4().hex[:10], "seq": self._next_seq(), "job": str(job), "stage": stage,
-                 "resource": "gpu" if stage in ("texture", "model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho") else "cpu",
+                 "resource": "gpu" if stage in ("texture", "model3d", "effect_render", "sheet", "anchor", "facings", "action", "transfer", "bridge", "ortho", "maps") else "cpu",
                  "args": args, "profile": profile, "after": list(after or []), "status": "queued",
                  "created": _now(), "started": None, "finished": None, "error": None, "result": None}
             return self._put(t)
@@ -351,6 +356,16 @@ class Queue:
             if src is not None:
                 out[f] = angles.label(src)
         return out
+
+    def submit_maps(self, job, profile: str | None = None, facing: str | None = None,
+                    action: str | None = None) -> list[dict]:
+        """Depth + normal maps: one GPU task per pixelized clip (or just the one named)."""
+        root = Job.open(job).root
+        clips = sorted((rp.parent.parent.name, rp.parent.name) for rp in (root / "04_pixel").glob("*/*/pixel_report.json"))
+        clips = [c for c in clips if (facing is None or c[0] == facing) and (action is None or c[1] == action)]
+        if not clips:
+            raise FileNotFoundError("no pixelized clips to make maps for")
+        return [self.submit(job, "maps", {"facing": f, "action": a}, profile) for f, a in clips]
 
     def submit_reprocess(self, job, profile: str | None = None) -> list[dict]:
         """Re-run every pixelized clip of a job from its frames (no rendering), e.g. after the job

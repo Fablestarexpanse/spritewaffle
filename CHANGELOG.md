@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Lighting maps** for animations: Animations → Lighting maps (or `spritewaffle maps`, MCP `lighting_maps`) writes `NNN_depth.png` and `NNN_normal.png` next to every frame, lined up pixel for pixel and listed in the manifest, for engines that light sprites. Uses Depth Anything V2 small (0.1 GB, downloaded by comfyui_controlnet_aux on first use).
+- Back views of fitted items keep details seen from behind (trim, hood, length); clips of layered fits name the clothes under the top layer.
 - The job list is **resizable**: drag its edge (or focus it and use the arrow keys), the width is remembered, double-click resets.
 - `spritewaffle shortcut` adds Windows Desktop and Start Menu shortcuts (SpriteWaffle icon) that start the app; `--remove` deletes them.
 - Effects: **Lies flat on the ground** squashes auras and rune circles onto the floor; new **aura** preset; the **slash** preset is reworded and now draws a sweeping arc instead of a crosshair flash.

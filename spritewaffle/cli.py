@@ -600,6 +600,17 @@ def cmd_align_feet(a):
     _print(result)
 
 
+def cmd_maps(a):
+    from .core import depthmaps
+    job = _job(a.job)
+    if a.facing and a.action:
+        clips = [(a.facing, a.action)]
+    else:
+        clips = sorted((rp.parent.parent.name, rp.parent.name) for rp in (job.root / "04_pixel").glob("*/*/pixel_report.json")
+                       if (not a.facing or rp.parent.parent.name == a.facing) and (not a.action or rp.parent.name == a.action))
+    _print([depthmaps.make(job, f, act) for f, act in clips])
+
+
 def cmd_qa(a):
     job = _job(a.job)
     r = stages.qa(job, _profile(a, job), a.facing, a.action)
@@ -1006,6 +1017,7 @@ def build() -> argparse.ArgumentParser:
         (("--loop",), {"action": "store_true"}), (("--no-loop",), {"action": "store_true"}))
     cmd("pixelize", cmd_pixelize, "turn the selected frames into pixel art (one palette)", JOB, PROFILE,
         OPT_FACING, OPT_ACTION, (("--palette",), {"type": int, "help": "override max colours"}))
+    cmd("maps", cmd_maps, "depth + normal maps for processed frames (Depth Anything V2 small, GPU)", JOB, OPT_FACING, OPT_ACTION)
     cmd("align-feet", cmd_align_feet, "build foot-aligned copies of the processed frames", JOB, PROFILE, OPT_FACING, OPT_ACTION)
     cmd("qa", cmd_qa, "check the pixel art and write report.json", JOB, PROFILE, OPT_FACING, OPT_ACTION)
     cmd("qa-review", cmd_qa_review, "read the saved QA findings for one action", JOB, OPT_FACING, OPT_ACTION)

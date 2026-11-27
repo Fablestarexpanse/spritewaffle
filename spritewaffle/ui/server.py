@@ -930,6 +930,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                                                      profile, generate=gen, **args)
             elif stage == "reprocess":
                 tasks = queue.submit_reprocess(j.root, profile)
+            elif stage == "maps":
+                tasks = queue.submit_maps(j.root, profile, args.get("facing"), args.get("action"))
             elif stage == "animate":
                 facings, actions = args.pop("facings", []), args.pop("actions", [])
                 if not facings or not actions:

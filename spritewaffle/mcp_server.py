@@ -204,6 +204,15 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         return {"tasks": [task["id"]]}
 
     @mcp.tool()
+    def lighting_maps(character: str, job_id: str, facing: str | None = None, action: str | None = None) -> dict:
+        """Queue depth + normal maps (Depth Anything V2 small on the GPU) for every pixelized clip, or
+        one facing/action. Written next to each frame as NNN_depth.png / NNN_normal.png and listed in
+        the manifest."""
+        job = job_for(character, job_id)
+        tasks = q.submit_maps(job.root, job.read_meta()["inputs"].get("profile"), facing, action)
+        return {"tasks": [t["id"] for t in tasks]}
+
+    @mcp.tool()
     def export_action(character: str, job_id: str, facing: str, action: str, format: str = "both") -> dict:
         """Export processed frames for one facing and action. Format is png, aseprite, or both."""
         from .core import stages
