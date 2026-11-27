@@ -53,3 +53,16 @@ def test_mix_picks_variants_by_weight_and_stays_off_by_default(tmp_path):
 def test_pick_ignores_zero_weights_unless_nothing_else():
     assert terrain._pick([4, 5], {4: 0, 5: 0}, 0, 0) == 4
     assert {terrain._pick([4, 5], {4: 0}, x, 0) for x in range(20)} == {5}
+
+
+def test_maps_up_to_64_tiles_per_side(tmp_path):
+    import pytest
+    job = grass_variants(tmp_path)
+    big = tilemap.save(job, "Big", [["Grass"] * 65 for _ in range(65)])          # 64 x 64 cells
+    out = tilemap.export(job, big["id"])
+    with ZipFile(job.root / out["file"]) as z:
+        tiled = json.loads(z.read("map.tmj"))
+        assert (tiled["width"], tiled["height"]) == (64, 64) and len(tiled["layers"][0]["data"]) == 64 * 64
+        assert json.loads(z.read("map.ldtk"))["levels"][0]["pxWid"] == 64 * 8
+    with pytest.raises(ValueError, match="1 to 64"):
+        tilemap.save(job, "Too big", [["Grass"] * 66 for _ in range(2)])

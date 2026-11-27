@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Maps up to **64 × 64** (was 32 × 32), with a **Size** control in the map panel; resizing keeps painted corners, placed tiles and objects that still fit and asks before dropping any. New maps in the panel were fixed at 8 × 6 before.
 - Textures can export **lighting maps**: a height and a normal map (OpenGL, green up) per tile and as sheets, seamless like the tile, estimated from the colour. Off by default.
 - Maps can **mix variants**: tiles with the same terrain corners are picked per cell by tile weight. Off by default; maps saved before keep their first-tile look.
 - Tile **Weight** (tileset panel, `tileset weight`, `/tileset/probability`, MCP `weight`): how often Tiled picks a tile among tiles that fit the same place, exported as Tiled's `probability`. Lets a filled area mix texture variants.

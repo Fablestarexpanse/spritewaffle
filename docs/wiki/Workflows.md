@@ -308,7 +308,7 @@ spritewaffle tilemap load --job meadow/v1 --map-id MAP_ID
 spritewaffle tilemap export --job meadow/v1 --map-id MAP_ID
 ```
 
-The CLI and MCP accept rectangular maps up to 32 × 32 tiles. To include manual placements, pass a
+Maps can be up to 64 × 64 tiles: set **Size** (width × height) and **Resize** in the map panel; resizing keeps painted corners, placed tiles and objects that still fit (it asks before dropping any). The CLI and MCP accept the same sizes. To include manual placements, pass a
 JSON object with `vertices` and `overrides`, for example
 `{"vertices":[[null,null,null],[null,null,null]],"overrides":{"0":4,"1":null}}`.
 Override keys are zero-based cell numbers in row order. Each value is an atlas tile ID or

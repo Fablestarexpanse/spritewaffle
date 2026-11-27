@@ -8,7 +8,7 @@ preview paints corners, so it resolves corner sets; mixed sets are painted in Ti
 from __future__ import annotations
 
 MAX_COLORS = 8
-MAX_SIDE = 32
+MAX_SIDE = 64                 # tiles per map side (was 32; raised 2026-11-26 with a Size control in the map panel)
 SWATCHES = ("#699154", "#5782b0", "#b89459", "#a16d58", "#8b72a5", "#659a90", "#d0b763", "#96a0b0")
 
 
@@ -93,7 +93,7 @@ def preview(rules: dict, vertices: list, *, allow_unknown: bool = False, weights
     if (not isinstance(vertices, list) or not 2 <= len(vertices) <= MAX_SIDE + 1
             or not isinstance(vertices[0], list) or not 2 <= len(vertices[0]) <= MAX_SIDE + 1
             or any(not isinstance(row, list) or len(row) != len(vertices[0]) for row in vertices)):
-        raise ValueError("Give a rectangular corner grid for a map of 1 to 32 tiles per side.")
+        raise ValueError(f"Give a rectangular corner grid for a map of 1 to {MAX_SIDE} tiles per side.")
     valid = set(rules["colors"])
     if any(name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 40
                                  or len(name.splitlines()) != 1 or (not allow_unknown and name not in valid))

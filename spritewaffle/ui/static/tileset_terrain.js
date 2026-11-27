@@ -22,6 +22,10 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
           <label>Terrain <select id="terrainBrush"></select></label>
           <button type="button" id="terrainFill">Fill preview</button>
           <button type="button" id="terrainClear">Clear ground</button>
+          <label title="Map size in tiles (1-64 each way). Resizing keeps what is painted, placed tiles and objects that still fit.">Size
+            <input type="number" id="terrainCols" min="1" max="64" step="1" style="width:56px" aria-label="Map width in tiles"> ×
+            <input type="number" id="terrainRows" min="1" max="64" step="1" style="width:56px" aria-label="Map height in tiles"></label>
+          <button type="button" id="terrainResize">Resize</button>
         </div>
         <div class="row">
           <label>Cell <input type="number" id="terrainCell" min="0" max="47" value="0" step="1"></label>
@@ -155,6 +159,8 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     vertices = draft;
     rows = vertices.length - 1;
     cols = vertices[0].length - 1;
+    find("#terrainCols").value = cols;
+    find("#terrainRows").value = rows;
     cellInput.max = cols * rows - 1;
     if (cellInput.valueAsNumber > Number(cellInput.max)) cellInput.value = 0;
     objects.sync(state, cols * rows);
@@ -356,6 +362,24 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     overrideAtlas = undefined;
     updateCellTool();
     editMap(lattice());
+  };
+  find("#terrainResize").onclick = () => {
+    if (mapWorking) return;
+    const w = find("#terrainCols").valueAsNumber, h = find("#terrainRows").valueAsNumber;
+    if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w > 64 || h > 64)
+      return error("Choose a map size of 1 to 64 tiles each way.");
+    if (w === cols && h === rows) return;
+    const lost = Object.keys(overrides).filter(key => (+key % cols) >= w || Math.floor(+key / cols) >= h).length
+      + objects.entries().filter(entry => (entry.cell % cols) >= w || Math.floor(entry.cell / cols) >= h).length;
+    if (lost && !confirm(`${lost} placed tile${lost === 1 ? "" : "s"} or object${lost === 1 ? "" : "s"} fall outside the new size and will be removed. Resize?`)) return;
+    error();
+    const move = cell => (cell % cols) < w && Math.floor(cell / cols) < h ? Math.floor(cell / cols) * w + cell % cols : null;
+    overrides = Object.fromEntries(Object.entries(overrides).map(([key, value]) => [move(+key), value])
+      .filter(([key]) => key !== null));
+    objects.load(objects.entries().map(entry => ({...entry, cell: move(entry.cell)})).filter(entry => entry.cell !== null));
+    const next = Array.from({length: h + 1}, (_, y) => Array.from({length: w + 1}, (_, x) => vertices[y]?.[x] ?? null));
+    updateCellTool();
+    editMap(next);
   };
   cellMode.onchange = () => { stampError(); updateCellTool(); };
   moduleSelect.onchange = () => { stampError(); updateCellTool(); };
