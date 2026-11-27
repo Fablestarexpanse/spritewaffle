@@ -768,7 +768,8 @@ async function showProfiles(name, note = "") {
   d.innerHTML = `<h2>Sizes & profile <span class="spacer"></span><button class="ghost" id="pfClose">Close</button></h2>
     ${note ? `<p class="ok-note">${esc(note)}</p>` : ""}
     <div class="row"><label>Profile <select id="pfPick">${all.map(x => `<option ${x.name === p.name ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
-      <span class="muted">${p.builtin ? "built-in: change the values, then save a copy under a new name" : ""} · used by ${p.used_by.length} job${p.used_by.length === 1 ? "" : "s"}${p.used_by.length ? `: ${esc(p.used_by.slice(0, 5).join(", "))}${p.used_by.length > 5 ? "…" : ""}` : ""}</span></div>
+      <span class="muted">${p.builtin ? "built-in: change the values, then save a copy under a new name · " : ""}used by ${p.used_by.length} job${p.used_by.length === 1 ? "" : "s"}</span>
+      ${p.used_by.length ? `<details class="muted" id="pfUsedBy"><summary>Show jobs</summary><ul style="margin:4px 0 0 1.2em;columns:2">${p.used_by.map(u => `<li>${esc(u)}</li>`).join("")}</ul></details>` : ""}</div>
     ${p.error ? `<p class="warn">${esc(p.error)}</p>` : `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:8px">
       ${num("cell_size", "Cell size (px)", 8, 1024, mult > 1 ? `this job's style draws at ×${mult}: ${p.cell_size * mult} px` : "one frame of the sheet")}
@@ -1333,13 +1334,13 @@ function renderJob() {
       ${["tileset", "texture"].includes(j.asset_type) ? "" : `<div class="jobsettings-fields" style="margin-top:.65rem">
       <label class="field">Game profile <select id="jProfile"><option value="">Built-in defaults</option>
         ${status.profiles.map(p => `<option ${p === j.inputs.profile ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
-      <label class="field" title="Art style for new generations; generate a new anchor after switching">Art style
+      ${itemReady ? "" : `<label class="field" title="Art style for new generations; generate a new anchor after switching">Art style
         <select id="jStyle">${status.styles.map(s => `<option value="${esc(s.name)}" ${s.name === j.style ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select></label>
       <label class="field" title="Template: fixed wording. AI: Qwen3-VL 4B looks at your character and writes the descriptions and motion (checked, falls back to the template)">Prompt writer
-        <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>
-      </div><div class="row">
+        <select id="jWriter"><option value="template">Template</option><option value="ai" ${j.inputs.prompt_writer === "ai" ? "selected" : ""}>AI (Qwen3-VL 4B)</option></select></label>`}
+      </div>${itemReady ? '<p class="hint" id="jItemDone">Front and back are approved, so style and prompts no longer change this item. Fit it on a character instead.</p>' : ""}<div class="row">
       <button id="jSizes" title="Cell size, sprite height, palette size, fps…">Profile sizes…</button>
-      <button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>
+      ${itemReady ? "" : '<button class="ghost" id="jPrompts" title="See what is sent to ComfyUI, what was sent last time, and edit the creative text">Prompts…</button>'}
       <button class="ghost" id="jCamera" title="Camera profile: elevation, framing, character scale, light, border (project-wide, or this asset only)">Camera…</button>
       ${j.inputs.style_guide ? '<button class="ghost" id="jProjectStyle" aria-haspopup="dialog">Saved style guide…</button>' : ""}
       <button class="ghost" id="jStyleCheck" aria-haspopup="dialog">Check project style…</button>
@@ -1369,10 +1370,10 @@ function renderJob() {
   }
   $$(".tab").forEach(b => b.onclick = () => goToStage(b.dataset.tab));
   if (!["tileset", "texture"].includes(j.asset_type)) {
-    $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
-    $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
+    if ($("#jStyle")) $("#jStyle").onchange = async e => { await api(jobPath() + "/settings", {style: e.target.value}); toast("Style saved: generate a new anchor to see it"); lastSig = ""; refreshAll(); };
+    if ($("#jWriter")) $("#jWriter").onchange = async e => { await api(jobPath() + "/settings", {prompt_writer: e.target.value}); toast(`Prompt writer: ${e.target.value}`); lastSig = ""; refreshAll(); };
     $("#jProfile").onchange = async e => { await api(jobPath() + "/settings", {profile: e.target.value || null}); toast("Profile saved"); refreshAll(); };
-    $("#jPrompts").onclick = () => showPrompts();
+    if ($("#jPrompts")) $("#jPrompts").onclick = () => showPrompts();
     $("#jCamera").onclick = () => showCamera(j);
     $("#jStyleCheck").onclick = showStyleCheck;
     $("#jSizes").onclick = () => showProfiles(j.inputs.profile || "default");
@@ -1508,7 +1509,7 @@ function paneAnchor(j, st) {
         <h3>Generate with ComfyUI</h3>
         ${status.comfy?.ok === false ? '<p class="warn">Start your local ComfyUI to generate artwork. You can import a starting image now.</p>' : ""}
         <label class="field"><span>Describe the artwork</span>
-          <textarea id="desc" placeholder="${j.asset_type === "item" ? "e.g. a copper ray gun with a blue grip" : "e.g. a knight with a blue cloak and silver boots"}">${esc(j.inputs.description || "")}</textarea></label>
+          <textarea id="desc" placeholder="${j.anchor && !j.inputs.description ? "(no description: imported) Describe it here before a re-roll." : j.asset_type === "item" ? "e.g. a copper ray gun with a blue grip" : "e.g. a knight with a blue cloak and silver boots"}">${esc(j.inputs.description || "")}</textarea></label>
         <div class="row">
           <label class="field" style="max-width:100%">Style reference <select id="styleRef"><option value="">None</option>
             ${heroes.length ? `<optgroup label="Approved hero jobs">${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}">${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</optgroup>` : ""}

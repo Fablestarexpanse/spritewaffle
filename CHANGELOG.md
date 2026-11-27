@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- UI polish: an imported anchor with no description says so instead of showing an example; the Sizes dialog shows "used by N jobs" with the names folded; an item whose front and back are approved hides Art style, Prompt writer and Prompts (they no longer change it).
 - Layered clothing works: fit a second item on an already-fitted body (a cloak over a vest). The showcase subtitle names every layer ("wearing leather vest + blue cloak").
 - A queued task without a profile uses the job's own profile (it fell back to the built-in 64 px one, so `spritewaffle animate` without --profile cut a 104 px job's jump off).
 - Dark slivers between arms and body are keyed: a black fill touching the sprite outline is found inside its thin green loop, and the dark-green gap mush video models leave (far from #00FF00) is keyed when it is wider than an outline tint. The second only runs when the approved facing has no green of its own, so green clothing is never cut; the pixel report records it.
