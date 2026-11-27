@@ -28,7 +28,7 @@ Done: seamless textures, corner and blob transitions, collision shapes and tile 
 export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-26.md). Open:
 
 1. ~~Tiled `probability` per texture variant~~: done 2026-11-26 (tile **Weight**). SpriteWaffle's own map
-   painter still places the first matching tile; weighted mixing there is open.
+   painter still uses one tile per corner pattern; weighted mixing there is open.
 2. **Edge-only terrain sets**, more than one layer per map, maps larger than 32 × 32.
 3. **Normal / height maps** for textures that tile with the colour map.
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
