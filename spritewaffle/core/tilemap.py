@@ -12,6 +12,7 @@ from . import fsutil, map_objects, tileset
 from .job import Job
 
 MAX_MAPS = 64
+MAX_LAYERS = 4          # extra tile layers above the terrain (decoration, props), hand-placed tiles only
 
 
 def _registry(directory: Path) -> Path:
@@ -67,10 +68,38 @@ def _objects(entries: list, layout: dict, record: dict) -> list[dict]:
                                  tileset._atlas_revision(record), tileset.MAX_TILES)
 
 
+def _layers(entries, cell_count: int, tile_count: int) -> list[dict]:
+    """Extra tile layers: [{"name", "tiles": {cell: tile id}}], names unique, cells and tiles in range."""
+    if not isinstance(entries, list) or len(entries) > MAX_LAYERS:
+        raise ValueError(f"A map can have up to {MAX_LAYERS} extra tile layers.")
+    out, seen = [], set()
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 40 or len(name.strip().splitlines()) != 1:
+            raise ValueError("Name each map layer with 1 to 40 characters on one line.")
+        if name.strip().casefold() in seen:
+            raise ValueError(f"Two map layers are called {name.strip()!r}.")
+        seen.add(name.strip().casefold())
+        tiles = entry.get("tiles") or {}
+        if not isinstance(tiles, dict):
+            raise ValueError("A map layer's tiles map cell IDs to atlas tile IDs.")
+        clean = {}
+        for key, tile in tiles.items():
+            if not str(key).isdecimal() or not 0 <= int(key) < cell_count:
+                raise ValueError(f"Layer {name.strip()!r} uses a cell outside the map.")
+            if type(tile) is not int or not 0 <= tile < tile_count:
+                raise ValueError(f"Layer {name.strip()!r} uses a tile outside the atlas.")
+            clean[str(int(key))] = tile
+        out.append({"name": name.strip(), "tiles": dict(sorted(clean.items(), key=lambda kv: int(kv[0])))})
+    return out
+
+
 def save(job: Job, name: str, vertices: list, map_id: str | None = None, revision: str | None = None,
          tileset_revision: str | None = None, *, overrides: dict | None = None,
-         override_atlas: str | None = None, objects: list | None = None, mix: bool | None = None) -> dict:
-    """mix: pick among terrain variants by tile weight (None keeps the saved map's choice)."""
+         override_atlas: str | None = None, objects: list | None = None, mix: bool | None = None,
+         layers: list | None = None) -> dict:
+    """mix: pick among terrain variants by tile weight (None keeps the saved map's choice).
+    layers: extra tile layers above the terrain ([] removes them; None keeps the saved ones)."""
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or len(name.strip().splitlines()) != 1:
         raise ValueError("Enter a map name of 1 to 80 characters on one line.")
     with tileset._locked_record(job) as (directory, record):
@@ -87,6 +116,8 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
                 objects = current.get("objects")
             if mix is None:
                 mix = current.get("mix", False)
+            if layers is None:
+                layers = current.get("layers")
         else:
             if len(maps) >= MAX_MAPS:
                 raise ValueError(f"A tileset can hold up to {MAX_MAPS} saved maps.")
@@ -102,6 +133,10 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
             objects = _objects(objects, layout, record)
             if objects:
                 draft["objects"] = objects
+        if layers:
+            grid = record["grid"]
+            draft["layers"] = _layers(layers, layout["width"] * layout["height"], grid["columns"] * grid["rows"])
+            draft["layer_atlas"] = tileset._atlas_revision(record)
         maps[map_id] = draft
         fsutil.write_text(_registry(directory), json.dumps({"version": 1, "maps": maps}, ensure_ascii=False))
     return _view(map_id, draft)
@@ -150,18 +185,33 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
             native["overrides"] = saved["overrides"]
         if saved.get("mix"):
             native["mix_variants"] = True
+        layers = saved.get("layers") or []
+        if layers and saved.get("layer_atlas") != atlas:
+            raise ValueError("The map's extra layers were placed on a previous tile sheet. Re-place their tiles before exporting.")
         tiled = _tiled_map(saved["name"], resolved, record["grid"])
+        if layers:
+            native["layers"] = layers
+            cells = resolved["width"] * resolved["height"]
+            for n, layer in enumerate(layers, start=3):        # ids 1 terrain, 2 objects, 3+ extra layers
+                data = [0] * cells
+                for key, tile in layer["tiles"].items():
+                    data[int(key)] = tile + 1
+                tiled["layers"].append({"type": "tilelayer", "id": n, "name": layer["name"], "visible": True,
+                                        "opacity": 1, "x": 0, "y": 0, "width": resolved["width"],
+                                        "height": resolved["height"], "data": data})
+            tiled["nextlayerid"] = 3 + len(layers)
         if objects:
             native["objects"] = objects
             tiled["layers"].append(map_objects.tiled_layer(objects, resolved["width"], record["grid"],
-                                                           record["solid_tiles"]))
-            tiled["nextlayerid"] = 3
+                                                           record["solid_tiles"]))       # objects drawn on top
+            tiled["nextlayerid"] = max(tiled["nextlayerid"], 3)
             tiled["nextobjectid"] = len(objects) + 1
         from ..export import ldtk
         files = [("map.json", native), ("map.tmj", tiled), ("tileset.json", native_tiles), ("tileset.tsj", tiled_tiles)]
         ldtk_skipped = ldtk.supported(record["grid"])
         if ldtk_skipped is None:          # LDtk 1.5: same map, tiles + collision grid (export/ldtk.py)
-            files.append(("map.ldtk", ldtk.project(saved["name"], resolved, native_tiles["tiles"], record["grid"], objects)))
+            files.append(("map.ldtk", ldtk.project(saved["name"], resolved, native_tiles["tiles"], record["grid"], objects,
+                                                   layers)))
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as package:
             for filename, data in files:

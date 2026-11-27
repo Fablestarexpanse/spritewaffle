@@ -30,6 +30,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
           <button type="button" id="terrainResize">Resize</button>
         </div>
         <div class="row">
+          <label title="Ground is the terrain. Extra layers (up to 4) sit above it for decoration and props: place, empty or restore tiles on them.">Layer
+            <select id="terrainLayer"><option value="0">Ground</option></select></label>
+          <button type="button" id="terrainLayerAdd">Add layer</button>
+          <button type="button" id="terrainLayerRemove" hidden>Remove layer</button>
+        </div>
+        <div class="row">
           <label>Cell <input type="number" id="terrainCell" min="0" max="47" value="0" step="1"></label>
           <label>Cell action
             <select id="terrainCellMode">
@@ -78,6 +84,18 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   let state, tile = 0, rules = {colors: [], tiles: {}}, vertices = lattice(), result, storage, revision = 0;
   let savedMap = null, maps = [], mapsLoaded = false, mapWorking = false;
   let overrides = {}, overrideAtlas;
+  let layers = [], activeLayer = 0;                 // extra tile layers above the terrain; 0 = Ground
+
+  function layerOptions() {
+    const select = find("#terrainLayer");
+    if (activeLayer > layers.length) activeLayer = 0;
+    select.replaceChildren(new Option("Ground", "0"), ...layers.map((layer, i) => new Option(layer.name, String(i + 1))));
+    select.value = String(activeLayer);
+    find("#terrainLayerRemove").hidden = activeLayer === 0;
+    find("#terrainLayerAdd").disabled = layers.length >= 4;
+    for (const mode of ["terrain", "stamp"]) cellMode.querySelector(`option[value="${mode}"]`).disabled = activeLayer > 0;
+    if (activeLayer > 0 && ["terrain", "stamp"].includes(cellMode.value)) cellMode.value = "tile";
+  }
   const objects = bindTilemapObjects(find("#terrainObjectPanel"), () => editMap(vertices), () => cellInput.valueAsNumber,
     request);
 
@@ -108,6 +126,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices) ||
       JSON.stringify(overrides) !== JSON.stringify(savedMap.overrides || {}) ||
       overrideAtlas !== savedMap.override_atlas || find("#terrainMapMix").checked !== !!savedMap.mix ||
+      JSON.stringify(layers) !== JSON.stringify(savedMap.layers || []) ||
       JSON.stringify(objects.entries()) !== JSON.stringify(savedMap.objects || []);
   }
 
@@ -190,6 +209,9 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         drawTilesetCell(ctx, image, grid, frameFor(id), x * w, y * h, w, h);
       }
       const cell = y * cols + x;
+      if (atlasReady) for (const layer of layers) {
+        if (Number.isInteger(layer.tiles[cell])) drawTilesetCell(ctx, image, grid, frameFor(layer.tiles[cell]), x * w, y * h, w, h);
+      }
       const object = byCell.get(cell);
       const stale = object && object.atlas !== state.atlas_revision;
       if (object && !stale && atlasReady) {
@@ -231,6 +253,14 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   function paint(id) {
     if (mapWorking || cellButton.disabled || !Number.isInteger(id) || id < 0 || id >= cols * rows) return;
     cellInput.value = id;
+    if (activeLayer > 0) {                          // extra layer: hand-placed tiles only
+      const placed = layers[activeLayer - 1].tiles;
+      if (cellMode.value === "tile") placed[id] = tile;
+      else delete placed[id];                       // empty and restore both clear the cell on a layer
+      error();
+      editMap(vertices);
+      return;
+    }
     if (cellMode.value === "stamp") {
       cellButton.disabled = true;
       mapAction(async () => {
@@ -392,6 +422,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       return error("Choose a map size of 1 to 64 tiles each way.");
     if (w === cols && h === rows) return;
     const lost = Object.keys(overrides).filter(key => (+key % cols) >= w || Math.floor(+key / cols) >= h).length
+      + layers.flatMap(layer => Object.keys(layer.tiles)).filter(key => (+key % cols) >= w || Math.floor(+key / cols) >= h).length
       + objects.entries().filter(entry => (entry.cell % cols) >= w || Math.floor(entry.cell / cols) >= h).length;
     if (lost && !confirm(`${lost} placed tile${lost === 1 ? "" : "s"} or object${lost === 1 ? "" : "s"} fall outside the new size and will be removed. Resize?`)) return;
     error();
@@ -399,6 +430,8 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     overrides = Object.fromEntries(Object.entries(overrides).map(([key, value]) => [move(+key), value])
       .filter(([key]) => key !== null));
     objects.load(objects.entries().map(entry => ({...entry, cell: move(entry.cell)})).filter(entry => entry.cell !== null));
+    layers = layers.map(layer => ({...layer, tiles: Object.fromEntries(Object.entries(layer.tiles)
+      .map(([key, value]) => [move(+key), value]).filter(([key]) => key !== null))}));
     const next = Array.from({length: h + 1}, (_, y) => Array.from({length: w + 1}, (_, x) => vertices[y]?.[x] ?? null));
     updateCellTool();
     editMap(next);
@@ -421,6 +454,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     mapName.value = "";
     mapList.value = "";
     find("#terrainMapMix").checked = false;
+    layers = []; activeLayer = 0; layerOptions();
     objects.load();
     updateCellTool();
     editMap(lattice(null, 8, 6));
@@ -433,6 +467,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       savedMap = opened;
       mapName.value = savedMap.name;
       find("#terrainMapMix").checked = !!savedMap.mix;
+      layers = structuredClone(savedMap.layers || []); activeLayer = 0; layerOptions();
       overrides = {...savedMap.overrides};
       overrideAtlas = savedMap.override_atlas;
       objects.load(savedMap.objects);
@@ -445,7 +480,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     mapAction(async () => {
       const updated = await request("/maps", {id: savedMap?.id, revision: savedMap?.revision,
         name: mapName.value, vertices, tileset_revision: state.revision, overrides, override_atlas: overrideAtlas,
-        objects: objects.entries(), mix: find("#terrainMapMix").checked});
+        objects: objects.entries(), mix: find("#terrainMapMix").checked, layers});
       if (!savedMap) forgetDraft();
       savedMap = updated;
       overrideAtlas = savedMap.override_atlas;
@@ -456,6 +491,24 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     });
   };
   find("#terrainMapEmpty").onchange = () => mapControls();
+  find("#terrainLayer").onchange = event => { activeLayer = +event.target.value; layerOptions(); updateCellTool(); };
+  find("#terrainLayerAdd").onclick = () => {
+    const name = (prompt("Name the new layer (e.g. Decor, Props):", `Layer ${layers.length + 2}`) || "").trim();
+    if (!name) return;
+    if (name.length > 40 || ["ground", ...layers.map(layer => layer.name.toLowerCase())].includes(name.toLowerCase()))
+      return error("Use a new layer name of up to 40 characters.");
+    layers.push({name, tiles: {}});
+    activeLayer = layers.length;
+    layerOptions(); updateCellTool(); mapControls();
+  };
+  find("#terrainLayerRemove").onclick = () => {
+    const layer = layers[activeLayer - 1];
+    const count = Object.keys(layer.tiles).length;
+    if (count && !confirm(`Remove layer ${layer.name} and its ${count} tile${count === 1 ? "" : "s"}?`)) return;
+    layers.splice(activeLayer - 1, 1);
+    activeLayer = 0;
+    layerOptions(); updateCellTool(); editMap(vertices);
+  };
   find("#terrainMapMix").onchange = () => { resolveMap(); mapControls(); };
   find("#terrainMapExport").onclick = () => mapAction(async () => {
     const exported = await request("/maps/" + encodeURIComponent(savedMap.id) + "/export",

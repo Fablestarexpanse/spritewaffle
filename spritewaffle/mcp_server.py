@@ -475,7 +475,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 overrides: dict | None = None, override_atlas: str | None = None,
                 objects: list[dict] | None = None, template_id: str | None = None,
                 template: dict | None = None, placement: dict | None = None,
-                allow_empty: bool = False, mix: bool | None = None) -> dict | list[dict]:
+                allow_empty: bool = False, mix: bool | None = None, layers: list[dict] | None = None) -> dict | list[dict]:
         """Manage named terrain maps and reusable object templates in a tileset job.
 
         Save takes a name and a rectangular lattice of terrain names or null. Updates need
@@ -483,6 +483,9 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         unresolved cells unless allow_empty is true (they are then left empty).
         mix (save): true picks among terrain variants (tiles with the same corners) per cell by
         tile weight (tileset weight); false uses the first; omitted keeps the saved choice.
+        layers (save): up to 4 extra tile layers above the terrain, [{"name": "Decor", "tiles": {"12": 5}}]
+        (cell ID -> atlas tile ID), bottom first; [] removes them, omitted keeps them. They export as
+        extra Tiled tile layers and LDtk Tiles layers.
         Overrides map row-major cell IDs to atlas tile IDs or null. An empty object clears
         overrides. Pass the loaded override_atlas to retain its source binding.
         Objects have an id, name, kind, cell, state, and list of named atlas states.
@@ -501,7 +504,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             return maps.load(job, map_id)
         if operation == "save":
             return maps.save(job, name, vertices, map_id, revision, tileset_revision,
-                             overrides=overrides, override_atlas=override_atlas, objects=objects, mix=mix)
+                             overrides=overrides, override_atlas=override_atlas, objects=objects, mix=mix, layers=layers)
         if operation == "export":
             return maps.export(job, map_id, revision, tileset_revision, allow_empty=allow_empty)
         if operation == "templates":

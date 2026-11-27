@@ -66,3 +66,44 @@ def test_maps_up_to_64_tiles_per_side(tmp_path):
         assert json.loads(z.read("map.ldtk"))["levels"][0]["pxWid"] == 64 * 8
     with pytest.raises(ValueError, match="1 to 64"):
         tilemap.save(job, "Too big", [["Grass"] * 66 for _ in range(2)])
+
+
+def test_extra_tile_layers_save_and_export(tmp_path):
+    import pytest
+    job = grass_variants(tmp_path)
+    field = [["Grass"] * 4 for _ in range(3)]                    # 3 x 2 cells
+    layers = [{"name": "Decor", "tiles": {"1": 3, "4": 2}}, {"name": "Top", "tiles": {"0": 3}}]
+    saved = tilemap.save(job, "Layered", field, layers=layers)
+    assert saved["layers"] == layers and saved["layer_atlas"]
+    kept = tilemap.save(job, "Layered", field, saved["id"], saved["revision"])          # layers omitted: kept
+    assert kept["layers"] == layers
+    out = tilemap.export(job, kept["id"])
+    with ZipFile(job.root / out["file"]) as z:
+        tiled, native, ldtk_map = (json.loads(z.read(n)) for n in ("map.tmj", "map.json", "map.ldtk"))
+    assert [(l["id"], l["name"]) for l in tiled["layers"]] == [(1, "Layered"), (3, "Decor"), (4, "Top")]
+    assert tiled["layers"][1]["data"] == [0, 4, 0, 0, 3, 0] and tiled["nextlayerid"] == 5
+    assert native["layers"] == layers
+    names = [d["identifier"] for d in ldtk_map["defs"]["layers"]]
+    assert names == ["Collision", "Top", "Decor", "Tiles"]                          # LDtk lists top first
+    decor = ldtk_map["levels"][0]["layerInstances"][2]
+    assert [(t["px"], t["t"]) for t in decor["gridTiles"]] == [([8, 0], 3), ([8, 8], 2)]
+    for bad in ([{"name": "", "tiles": {}}], [{"name": "A"}, {"name": "a"}], [{"name": "A", "tiles": {"6": 0}}],
+                [{"name": "A", "tiles": {"0": 9}}], [{"name": str(i)} for i in range(5)]):
+        with pytest.raises(ValueError):
+            tilemap.save(job, "Bad", field, layers=bad)
+    cleared = tilemap.save(job, "Layered", field, kept["id"], kept["revision"], layers=[])
+    assert "layers" not in cleared
+
+
+def test_layers_on_a_replaced_sheet_refuse_export(tmp_path):
+    import io as _io
+    import pytest
+    from PIL import Image as _Image
+    job = grass_variants(tmp_path)
+    saved = tilemap.save(job, "L", [["Grass"] * 3] * 2, layers=[{"name": "Decor", "tiles": {"0": 1}}])
+    other = _Image.new("RGBA", (32, 8), "#123456")
+    data = _io.BytesIO(); other.save(data, format="PNG")
+    tileset.import_bytes(job, data.getvalue(), "n.png", {"tile_width": 8, "tile_height": 8, "margin": 0, "spacing": 0})
+    tileset.update_terrain(job, {"colors": ["Grass"], "tiles": {"0": ["Grass"] * 4}})
+    with pytest.raises(ValueError, match="previous tile sheet"):
+        tilemap.export(job, saved["id"])

@@ -102,9 +102,11 @@ def _entities(objects: list[dict], by_id: dict, width: int, size: int, tileset_u
     return list(defs.values()), instances, uid
 
 
-def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: list[dict] | None = None) -> dict:
+def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: list[dict] | None = None,
+            layers: list[dict] | None = None) -> dict:
     """resolved: the map preview (width, height, tiles rows of tile id or None). tiles: the native
-    tileset entries (id, rect, solid, collision, properties). objects: the map's objects."""
+    tileset entries (id, rect, solid, collision, properties). objects: the map's objects. layers:
+    extra hand-placed tile layers above the terrain ([{name, tiles: {cell: tile}}], bottom first)."""
     size = grid["tile_width"]
     width, height = resolved["width"], resolved["height"]
     by_id = {t["id"]: t for t in tiles}
@@ -137,6 +139,19 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: l
         if data:
             custom.append({"tileId": t["id"], "data": json.dumps(data, separators=(",", ":"))})
     entity_defs, entities, next_uid = _entities(objects or [], by_id, width, size, tileset_uid, name, 10)
+    extra = []                                       # (identifier, uid, gridTiles), bottom first; uids 5-8
+    for n, layer in enumerate(layers or []):
+        ident = "".join(c if c.isalnum() else "_" for c in layer["name"]).strip("_") or f"Layer_{n + 2}"
+        ident = ("Layer_" + ident) if ident[0].isdigit() or ident in ("Objects", "Collision", "Tiles") else ident
+        while ident in {e[0] for e in extra}:          # "Decor" and "Decor!" must not share an identifier
+            ident += "_2"
+        placed = []
+        for key, tile in sorted(layer["tiles"].items(), key=lambda kv: int(kv[0])):
+            y, x = divmod(int(key), width)
+            rect = by_id.get(tile, {}).get("rect", [0, 0])
+            placed.append({"px": [x * size, y * size], "src": [rect[0], rect[1]], "f": 0, "t": tile,
+                           "d": [int(key)], "a": 1})
+        extra.append((ident, 5 + n, placed))
     values = [{"value": SOLID, "identifier": "solid", "color": "#E03C3C", "tile": None, "groupUid": 0},
               {"value": ONE_WAY, "identifier": "one_way", "color": "#3CA0E0", "tile": None, "groupUid": 0}]
     layer_inst = lambda ident_, kind, uid, extra: {   # noqa: E731
@@ -163,8 +178,9 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: l
         "flags": [], "worlds": [], "dummyWorldIid": _iid(name, "world"),
         "defs": {
             "layers": ([_layer_def("Objects", "Entities", objects_uid, size, None, [])] if entities else [])
-                      + [_layer_def("Collision", "IntGrid", collision_uid, size, None, values),
-                         _layer_def("Tiles", "Tiles", tiles_uid, size, tileset_uid, [])],
+                      + [_layer_def("Collision", "IntGrid", collision_uid, size, None, values)]
+                      + [_layer_def(ident, "Tiles", uid, size, tileset_uid, []) for ident, uid, _ in reversed(extra)]
+                      + [_layer_def("Tiles", "Tiles", tiles_uid, size, tileset_uid, [])],
             "entities": entity_defs, "enums": [], "externalEnums": [], "levelFields": [],
             "tilesets": [{"__cWid": grid["columns"], "__cHei": grid["rows"], "identifier": "Tiles",
                           "uid": tileset_uid, "relPath": "tiles.png", "embedAtlas": None,
@@ -179,6 +195,7 @@ def project(name: str, resolved: dict, tiles: list[dict], grid: dict, objects: l
                     "externalRelPath": None, "fieldInstances": [], "__neighbours": [],
                     "layerInstances": ([layer_inst("Objects", "Entities", objects_uid, {"entityInstances": entities})]
                                        if entities else [])
-                    + [layer_inst("Collision", "IntGrid", collision_uid, {"intGridCsv": int_grid}),
-                       layer_inst("Tiles", "Tiles", tiles_uid, {"gridTiles": grid_tiles})]}],
+                    + [layer_inst("Collision", "IntGrid", collision_uid, {"intGridCsv": int_grid})]
+                    + [layer_inst(ident, "Tiles", uid, {"gridTiles": placed}) for ident, uid, placed in reversed(extra)]
+                    + [layer_inst("Tiles", "Tiles", tiles_uid, {"gridTiles": grid_tiles})]}],
     }

@@ -29,7 +29,8 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 
 1. ~~Tiled `probability` per texture variant~~: done 2026-11-26 (tile **Weight**, and **mix variants** in
    SpriteWaffle's own map painter).
-2. **More than one layer per map.** (Edge sets, path generation and maps up to 64 × 64: done 2026-11-26.)
+2. ~~More than one layer per map~~: done 2026-11-26 (up to 4 extra tile layers; also edge sets, path
+   generation and maps up to 64 × 64).
 3. ~~Normal / height maps~~: done 2026-11-26 (estimated from colour; Lighting maps setting).
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
    needs Ronan's approval to install).

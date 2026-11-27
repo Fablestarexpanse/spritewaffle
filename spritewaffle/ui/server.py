@@ -629,7 +629,8 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
             return tilemap.save(job_or_404(char, jid), body.get("name"), body.get("vertices"),
                                 body.get("id"), body.get("revision"), body.get("tileset_revision"),
                                 overrides=body.get("overrides"), override_atlas=body.get("override_atlas"),
-                                objects=body.get("objects"), mix=body.get("mix") if isinstance(body.get("mix"), bool) else None)
+                                objects=body.get("objects"), mix=body.get("mix") if isinstance(body.get("mix"), bool) else None,
+                                layers=body.get("layers"))
         except (ValueError, OSError, RuntimeError) as error:
             bad(error)
 

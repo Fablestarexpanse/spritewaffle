@@ -311,6 +311,14 @@ spritewaffle tilemap load --job meadow/v1 --map-id MAP_ID
 spritewaffle tilemap export --job meadow/v1 --map-id MAP_ID
 ```
 
+**Layers:** besides the terrain (Ground) a map can have up to 4 extra tile layers for decoration and
+props. **Add layer**, name it, pick it in **Layer**, and place, empty or restore tiles on it (terrain
+painting and modules apply to Ground). The preview draws them over the ground, under objects. They
+export as extra Tiled tile layers (above the terrain, below objects), extra LDtk Tiles layers, and
+a `layers` list in map.json. Like manual placements they belong to the tile sheet they were placed
+from; after replacing the sheet, re-place them before exporting. API: `layers` on save (HTTP,
+CLI draft file, MCP `tilemap`).
+
 Maps can be up to 64 × 64 tiles: set **Size** (width × height) and **Resize** in the map panel; resizing keeps painted corners, placed tiles and objects that still fit (it asks before dropping any). The CLI and MCP accept the same sizes. To include manual placements, pass a
 JSON object with `vertices` and `overrides`, for example
 `{"vertices":[[null,null,null],[null,null,null]],"overrides":{"0":4,"1":null}}`.

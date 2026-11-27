@@ -147,7 +147,8 @@ def cmd_tilemap(a):
             mix = {"on": True, "off": False}.get(a.mix) if a.mix else draft.get("mix")
             result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
                                   overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
-                                  objects=draft.get("objects"), mix=mix if isinstance(mix, bool) else None)
+                                  objects=draft.get("objects"), mix=mix if isinstance(mix, bool) else None,
+                                  layers=draft.get("layers"))
     else:
         result = tilemap.export(job, a.map_id, allow_empty=a.allow_empty)
     _print(result)
