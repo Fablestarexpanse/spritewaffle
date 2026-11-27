@@ -19,6 +19,7 @@ class PixelParams:
     alpha_threshold: float = 0.5
     speck_px: int = 16                     # source-pixel speck removal before downscale
     despill: str = "all"                   # all (default) | edge (keeps deliberate green parts)
+    green_gaps: bool = False               # key wide dark-green gap mush (sprite has no green)
     saliency: bool = True
     hysteresis: float = 0.03               # Oklab distance a new colour must win by
     loop: bool = False
@@ -44,9 +45,9 @@ class PixelResult:
         return out
 
 
-def _ensure_rgba(f: np.ndarray, speck_px: int, despill: str = "edge") -> np.ndarray:
+def _ensure_rgba(f: np.ndarray, speck_px: int, despill: str = "edge", green_gaps: bool = False) -> np.ndarray:
     if f.shape[2] == 3 or (f[..., 3] == 255).all():
-        f = chroma.key(f[..., :3], despill=despill)
+        f = chroma.key(f[..., :3], despill=despill, green_gaps=green_gaps)
     else:
         f = f.copy()
         f[..., 3] = np.where(f[..., 3] >= 128, 255, 0)
@@ -69,7 +70,7 @@ def _fallback_grid(frames: list[np.ndarray], target_height: int | None) -> tuple
 
 def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams(), *,
              locked_grid: tuple[gridmod.Grid, float] | None = None) -> PixelResult:
-    rgba = [_ensure_rgba(f, p.speck_px, p.despill) for f in frames]
+    rgba = [_ensure_rgba(f, p.speck_px, p.despill, p.green_gaps) for f in frames]
 
     if locked_grid is not None:
         g, scale = locked_grid

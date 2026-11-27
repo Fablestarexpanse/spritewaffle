@@ -18,8 +18,8 @@ def _height(rgba: np.ndarray) -> int:
     return int(ys[-1] - ys[0] + 1) if len(ys) else 0
 
 
-def _key_frame(frame: np.ndarray, despill: str, speck_px: int) -> np.ndarray:
-    rgba = chroma.key(frame[..., :3], despill=despill) if frame.shape[2] == 3 or (frame[..., 3] == 255).all() else frame.copy()
+def _key_frame(frame: np.ndarray, despill: str, speck_px: int, green_gaps: bool = False) -> np.ndarray:
+    rgba = chroma.key(frame[..., :3], despill=despill, green_gaps=green_gaps) if frame.shape[2] == 3 or (frame[..., 3] == 255).all() else frame.copy()
     return chroma.remove_specks(rgba, speck_px) if speck_px else rgba
 
 
@@ -38,15 +38,17 @@ def _scale_frame(frame: np.ndarray, scale: float) -> np.ndarray:
     return np.dstack([np.clip(rgb, 0, 255), alpha * 255]).round().astype(np.uint8)
 
 
-def reprocess_frame(frame: np.ndarray, scale: float, despill: str, speck_px: int = 16) -> np.ndarray:
+def reprocess_frame(frame: np.ndarray, scale: float, despill: str, speck_px: int = 16,
+                    green_gaps: bool = False) -> np.ndarray:
     """Apply an existing clip scale to one frame with the normal painted-art processing."""
-    return _scale_frame(_key_frame(frame, despill, speck_px), scale)
+    return _scale_frame(_key_frame(frame, despill, speck_px, green_gaps), scale)
 
 
-def process(frames: list[np.ndarray], target_height: int, despill: str = "all", speck_px: int = 16) -> tuple[list[np.ndarray], float]:
+def process(frames: list[np.ndarray], target_height: int, despill: str = "all", speck_px: int = 16,
+            green_gaps: bool = False) -> tuple[list[np.ndarray], float]:
     """RGB/RGBA frames -> RGBA frames scaled so the median sprite is `target_height` px tall.
     Returns (frames, scale)."""
-    keyed = [_key_frame(frame, despill, speck_px) for frame in frames]
+    keyed = [_key_frame(frame, despill, speck_px, green_gaps) for frame in frames]
     heights = [h for h in map(_height, keyed) if h]
     if not heights:
         raise ValueError("no sprite found in the frames (nothing left after the chroma key)")

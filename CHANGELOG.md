@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Dark slivers between arms and body are keyed: a black fill touching the sprite outline is found inside its thin green loop, and the dark-green gap mush video models leave (far from #00FF00) is keyed when it is wider than an outline tint. The second only runs when the approved facing has no green of its own, so green clothing is never cut; the pixel report records it.
 - Showcase GIF is branded: brand-purple header with the app icon, the character and what it wears, "Made with SpriteWaffle" wordmark, the icon in each compass grid's centre, and a horizontal-logo end card. Turnaround shows the game sprite (not the source painting), actions play idle -> walk -> run -> jump -> attack.
 - Re-rendering or re-processing a direction also re-mirrors the directions mirrored from it (NE -> NW), so they don't stay flips of the old clip or block the export as stale.
 - The Animations tab shows clips still waiting in the queue as Queued cards (status now lists queued tasks).

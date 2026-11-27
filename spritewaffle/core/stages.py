@@ -98,6 +98,19 @@ def select(job: Job, facing=None, action=None, counts=(12, 24), indices: str | N
     return report
 
 
+def green_gaps(job: Job, facing: str) -> bool:
+    """Key wide dark-green gap mush in this view's clips? Only when the approved facing (keyed) has
+    no green of its own, so a deliberately green part is never cut (chroma._green_gaps)."""
+    path = job.stage_dir("02_facings") / f"{facing}.png"
+    if not path.exists():
+        return False
+    from ..pixel import chroma as _chroma
+    with Image.open(path) as im:
+        rgba = np.array(im.convert("RGBA"))
+    keyed = rgba if (rgba[..., 3] == 0).any() else _chroma.key(rgba[..., :3])
+    return not _chroma.has_green(keyed)
+
+
 def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int | None = None) -> dict:
     """Pixelize the union of all selected sets as ONE batch (one palette, temporal order), then lay
     every set out with preserve-canvas."""
@@ -114,18 +127,21 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
                "inputs": processing.snapshot(job, profile, d, inputs, palette, pal)}
     frames = video.load(list(paths.values()))
     pos = {source: n for n, source in enumerate(paths)}
+    gaps = green_gaps(job, facing)
     if st["post"] == "smooth":                       # hand-painted / anime / comic: no grid, no palette
         from ..pixel import smooth
-        art, k = smooth.process(frames, camera.character_height(job, profile) * st["scale"], despill=profile.despill)
+        art, k = smooth.process(frames, camera.character_height(job, profile) * st["scale"], despill=profile.despill,
+                                green_gaps=gaps)
         info = _write_pixel_sets(job, profile, facing, action,
                                  {n: ([art[pos[i]] for i in idxs], idxs) for n, idxs in sets.items()},
-                                 None, {"style": st["name"], "scale": round(k, 4), "processing": tracked},
+                                 None, {"style": st["name"], "scale": round(k, 4), "processing": tracked,
+                                        "green_gaps": gaps},
                                  cell=profile.cell_size * st["scale"])
         processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
         job.set_stage(f"pixelize:{facing}/{action}", "done", style=st["name"], scale=round(k, 4))
         return info
     params = PixelParams(palette=pal, pixel_size=profile.pixel_size, target_height=camera.character_height(job, profile),
-                         loop=loop, outline=profile.outline, despill=profile.despill)
+                         loop=loop, outline=profile.outline, despill=profile.despill, green_gaps=gaps)
     res = pixelize(frames, params)
     if not palette and not isinstance(pal, list):
         job_palette.lock_from_clip(job, res.palette, f"{facing}/{action}")
@@ -134,7 +150,7 @@ def pixel(job: Job, profile: GameProfile, facing=None, action=None, palette: int
             "score": round(res.grid.score, 3), "resample": res.resample}
     info = _write_pixel_sets(job, profile, facing, action,
                              {n: ([res.rgba(pos[i]) for i in idxs], idxs) for n, idxs in sets.items()},
-                             res.palette, {"grid": grid, "processing": tracked})
+                             res.palette, {"grid": grid, "processing": tracked, "green_gaps": gaps})
     processing.require_current(processing.status(job, profile, facing, action), f"{facing}/{action}")
     job.set_stage(f"pixelize:{facing}/{action}", "done", grid=info["grid"], palette_size=len(res.palette))
     return info

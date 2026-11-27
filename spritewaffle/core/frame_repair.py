@@ -87,7 +87,8 @@ def _artwork_inputs(frame: timeline.Frame, source_digest: str) -> dict[Path, str
     return inputs
 
 
-def _repair_art(master: np.ndarray, recipe: dict, size: tuple[int, int], despill: str) -> np.ndarray:
+def _repair_art(master: np.ndarray, recipe: dict, size: tuple[int, int], despill: str,
+                green_gaps: bool = False) -> np.ndarray:
     try:
         if size != (recipe["cell"], recipe["cell"]):
             raise ValueError("The recorded cell differs from this processed frame.")
@@ -100,7 +101,7 @@ def _repair_art(master: np.ndarray, recipe: dict, size: tuple[int, int], despill
             scale = float(recipe["scale"])
             if not math.isfinite(scale) or scale <= 0:
                 raise ValueError(RECIPE_ERROR)
-            art = smooth.reprocess_frame(master, scale, despill)
+            art = smooth.reprocess_frame(master, scale, despill, green_gaps=green_gaps)
         else:
             grid = recipe["grid"]
             lattice = Grid(int(grid["size"]), int(grid.get("ox", 0)), int(grid.get("oy", 0)))
@@ -108,7 +109,7 @@ def _repair_art(master: np.ndarray, recipe: dict, size: tuple[int, int], despill
             if lattice.size < 1 or not math.isfinite(scale) or scale <= 0 or not recipe["palette"]:
                 raise ValueError(RECIPE_ERROR)
             params = PixelParams(palette=recipe["palette"], outline=recipe["outline"], despill=despill,
-                                 alpha_threshold=recipe["alpha_threshold"])
+                                 alpha_threshold=recipe["alpha_threshold"], green_gaps=green_gaps)
             art = pixelize([master], params, locked_grid=(lattice, scale)).rgba(0)
         return layout._place(art, place, size)
     except (KeyError, TypeError, IndexError, OverflowError, cv2.error) as error:
@@ -160,7 +161,7 @@ def prepare(root: Path, frame_set: Path, frame: str, despill: str = "profile") -
     profile = resolve(Job(root).read_meta()["inputs"].get("profile"))
     recipe = manifest.downscale_record(report, places[slot], profile)
     cleanup = recipe["despill"] if despill == "profile" else despill
-    result = _repair_art(original, recipe, current.size, cleanup)
+    result = _repair_art(original, recipe, current.size, cleanup, report.get("green_gaps") is True)
     if not result[..., 3].any():
         raise ValueError("Reprocessing produced an empty frame. Check the retained master and crop.")
     details = {"source": master.relative_to(root).as_posix(), "despill": despill, "applied_despill": cleanup}
