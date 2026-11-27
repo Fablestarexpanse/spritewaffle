@@ -151,10 +151,14 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
                                                            record["solid_tiles"]))
             tiled["nextlayerid"] = 3
             tiled["nextobjectid"] = len(objects) + 1
+        from ..export import ldtk
+        files = [("map.json", native), ("map.tmj", tiled), ("tileset.json", native_tiles), ("tileset.tsj", tiled_tiles)]
+        ldtk_skipped = ldtk.supported(record["grid"])
+        if ldtk_skipped is None:          # LDtk 1.5: same map, tiles + collision grid (export/ldtk.py)
+            files.append(("map.ldtk", ldtk.project(saved["name"], resolved, native_tiles["tiles"], record["grid"])))
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as package:
-            for filename, data in (("map.json", native), ("map.tmj", tiled),
-                                   ("tileset.json", native_tiles), ("tileset.tsj", tiled_tiles)):
+            for filename, data in files:
                 package.writestr(filename, json.dumps(data, indent=2))
             package.writestr("tiles.png", image)
         output = job.root / "06_export" / "maps" / (map_id + ".zip")
@@ -163,4 +167,4 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
         output.parent.mkdir(parents=True, exist_ok=True)
         fsutil.write_bytes(output, buffer.getvalue())
     return {"id": map_id, "name": saved["name"], "file": output.relative_to(job.root).as_posix(),
-            "empty_cells": len(missing)}
+            "empty_cells": len(missing), **({"ldtk_skipped": ldtk_skipped} if ldtk_skipped else {})}

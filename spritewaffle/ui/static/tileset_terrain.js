@@ -118,7 +118,9 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
   function mapControls() {
     const dirty = dirtyMap();
     find("#terrainMapOpen").disabled = !mapList.value;
-    find("#terrainMapExport").disabled = !savedMap || dirty || !result || !!result.missing.length || !!objects.outdated();
+    // unresolved cells block the export unless "allow empty cells" is ticked (they export as empty)
+    find("#terrainMapExport").disabled = !savedMap || dirty || !result
+      || (!!result.missing.length && !find("#terrainMapEmpty").checked) || !!objects.outdated();
     find("#terrainMapStatus").textContent = savedMap
       ? (dirty ? "Unsaved map changes" : "Saved to the project") : "Draft · Save to add it to the project";
   }
@@ -404,14 +406,16 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       mapOptions(entry.id);
     });
   };
+  find("#terrainMapEmpty").onchange = () => mapControls();
   find("#terrainMapExport").onclick = () => mapAction(async () => {
     const exported = await request("/maps/" + encodeURIComponent(savedMap.id) + "/export",
       {revision: savedMap.revision, tileset_revision: state.revision, allow_empty: find("#terrainMapEmpty").checked});
     const download = find("#terrainMapDownload");
     download.href = exported.download;
     download.hidden = false;
-    find("#terrainMapStatus").textContent = exported.empty_cells
-      ? `Map package ready · ${exported.empty_cells} empty cell${exported.empty_cells === 1 ? "" : "s"}` : "Map package ready";
+    find("#terrainMapStatus").textContent = (exported.empty_cells
+      ? `Map package ready · ${exported.empty_cells} empty cell${exported.empty_cells === 1 ? "" : "s"}` : "Map package ready")
+      + (exported.ldtk_skipped ? ` · no LDtk file: ${exported.ldtk_skipped}` : " · Tiled + LDtk");
   });
   canvas.onclick = event => {
     const box = canvas.getBoundingClientRect();

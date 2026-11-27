@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map ZIPs include `map.ldtk` for LDtk 1.5: the tiles, a Collision IntGrid (solid / one-way), and each tile's collision polygon and properties as per-tile custom data. Square tiles only; the export says when it is left out.
+- Prepare map ZIP works with "allow empty cells" ticked (the button stayed disabled while any cell was unresolved).
 - UI polish: an imported anchor with no description says so instead of showing an example; the Sizes dialog shows "used by N jobs" with the names folded; an item whose front and back are approved hides Art style, Prompt writer and Prompts (they no longer change it).
 - Layered clothing works: fit a second item on an already-fitted body (a cloak over a vest). The showcase subtitle names every layer ("wearing leather vest + blue cloak").
 - A queued task without a profile uses the job's own profile (it fell back to the built-in 64 px one, so `spritewaffle animate` without --profile cut a 104 px job's jump off).

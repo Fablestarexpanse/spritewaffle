@@ -282,6 +282,12 @@ includes SpriteWaffle JSON, the PNG, and both tileset descriptions with collisio
 and terrain metadata. Untouched and explicitly empty cells export as empty space. Tiled 1.12.2
 imported and rendered the map and preserved the cells and tileset metadata when re-exporting it.
 
+For LDtk, open `map.ldtk` from the same folder (square tiles only; the export status says when it
+was left out). It has one level with a **Tiles** layer and a **Collision** IntGrid layer
+(1 = solid, 2 = one-way). LDtk has no collision polygons, so each tile's exact polygon, one-way
+flag and properties are stored as JSON in the tileset's per-tile custom data. Map objects stay
+in the Tiled map. LDtk 1.5.3 opened the export (2026-11-26).
+
 ```powershell
 spritewaffle tilemap save --job meadow/v1 --name "South meadow" --file vertices.json
 spritewaffle tilemap list --job meadow/v1
