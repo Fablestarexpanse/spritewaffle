@@ -1,4 +1,4 @@
-NEXT: (2026-11-26) Layered clothing done: cloak over vest (human/body1_vest_cloak) fully animated x8, exported, GIF made. Worker profile fallback fixed. The running UI worker still has old code until restarted. Next: wiki Roadmap.
+NEXT: (2026-11-27) Seamless H3 latent roll measured (helps raw seams, not wired in); N-view trim fixed (item_core keeps back-visible details). Open GPU items (wiki Roadmap): layered outfit-line default test, more than 8 directions + depth/normal maps, motion library clips, multi-image style guidance, sprite stack spikes.
 
 # SpriteWaffle decisions log
 
