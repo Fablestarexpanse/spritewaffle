@@ -29,7 +29,9 @@ Read this before changing a prompt in `prompts/builder.py`.
 - **Straight back view (N) of a fitted item goes by words.** With the back picture, H3 drew the
   base's belt across the cape 5/5 times; in words 0/2. NE/NW keep the picture.
 - **Back views lose front details only in words:** "a golden breastplate" for N, not the full
-  description with the gem (it put the gem on the back).
+  description with the gem (it put the gem on the back). But keep what wraps round or hangs behind:
+  "a long red velvet cape with gold trim along the edges" drew the trim on N (2/2; without it 0/2),
+  and "reaching to the knees" kept the cloak's length (2026-11-27).
 - **Plain bodies and four-legged animals don't turn one facing at a time** (only the head turned;
   7/7 copies). A **turnaround sheet** drawn in one go turns them. On a sheet, "only plain
   undergarments" came out as bare mannequins; named, coloured garments are drawn.

@@ -116,6 +116,17 @@ def test_back_views_get_the_item_without_its_front_details():
     assert variant.item_core("a plain iron helmet") == "a plain iron helmet"
 
 
+def test_back_views_keep_details_that_show_from_behind():
+    """2026-11-27: N by words lost the cape's trim; details that wrap round stay, front-only ones go."""
+    assert (variant.item_core("a long red velvet cape with a gold clasp at the neck and gold trim along the edges")
+            == "a long red velvet cape with gold trim along the edges")
+    assert (variant.item_core("a dark blue wool travel cloak with the hood down, fastened at the collarbones with "
+                              "a round brass clasp, open at the front, reaching to the knees")
+            == "a dark blue wool travel cloak with the hood down and reaching to the knees")
+    assert (variant.item_core("a brown leather armor vest with a laced front, small shoulder pads and a wide belt "
+                              "with a brass buckle") == "a brown leather armor vest with small shoulder pads and a wide belt")
+
+
 def test_item_variant_sends_the_item_as_picture_2(tmp_path, monkeypatch):
     from spritewaffle.prompts import writer
     b = _base(tmp_path)

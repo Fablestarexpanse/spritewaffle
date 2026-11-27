@@ -39,11 +39,29 @@ def item_edit(instruction: str, description: str) -> str:
     return f"{instruction} {d}"
 
 
+# Details that wrap round or hang behind, so a back view still shows them; and words that mark a detail
+# as front-only even when it also names one of those.
+BACK_SEEN = re.compile(r"\b(?:trim\w*|edg\w*|hem\w*|border\w*|lin(?:ed|ing)|hood\w*|fur|collar|belt\w*|sash\w*|"
+                       r"strap\w*|shoulder\w*|pattern\w*|stripe\w*|reach\w*|knee\w*|ankle\w*|floor|waist\w*|"
+                       r"length|long|short|tattered|frayed|torn)\b", re.I)
+FRONT_ONLY = re.compile(r"\b(?:front|clasp\w*|buckle\w*|gem\w*|jewel\w*|emblem\w*|crest\w*|badge\w*|brooch\w*|"
+                        r"button\w*|lac(?:e|ed|es|ing)|chest|central|centre|center|face|pommel\w*|open)\b", re.I)
+
+
 def item_core(description: str) -> str:
-    """The item without its front details ('a golden breastplate featuring a central red gem' ->
-    'a golden breastplate'), for back views. Measured 2026-11-21: with the full description every
-    back view showed the gem on the back, even when told front details are hidden."""
-    return re.split(r"\s+(?:featuring|with|detailed|decorated|adorned|that|which)\b|,", description, maxsplit=1)[0].strip()
+    """The item without its front details, for back views ('a long red velvet cape with a gold clasp at
+    the neck and gold trim along the edges' -> 'a long red velvet cape with gold trim along the edges').
+    Measured 2026-11-21: with the full description every back view showed the gem on the back, even
+    when told front details are hidden. 2026-11-27: cutting at the first 'with' also lost the trim, hood
+    and length on N, so later details naming something that shows from behind (BACK_SEEN) are kept
+    unless they name a front-only part (FRONT_ONLY)."""
+    joins = r"(?:featuring|with|detailed with|decorated with|adorned with|that|which|and)"
+    parts = re.split(rf",\s*(?:{joins}\s+)?|\s+{joins}\s+", description.strip().rstrip("."))
+    head, rest = parts[0].strip(), [p.strip() for p in parts[1:] if p and p.strip()]
+    kept = [p for p in rest if BACK_SEEN.search(p) and not FRONT_ONLY.search(p)]
+    if not kept:
+        return head
+    return head + " with " + (kept[0] if len(kept) == 1 else ", ".join(kept[:-1]) + " and " + kept[-1])
 
 
 def item_reference(item: Path, dest: Path, size: int = 1024, frac: float = 0.35) -> Path:
