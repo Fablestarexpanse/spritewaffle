@@ -96,6 +96,9 @@ at the command line. The HTTP API uses `/api/project/references`. MCP provides
 `project_references` for managing entries and `project_reference_image` for previews.
 For generation, use `spritewaffle anchor --job hero/new --describe "a teal courier" --project-reference ID`
 or pass `project_reference_id` to MCP `generate` or the HTTP anchor stage arguments.
+To follow the style several references share (a **style set**), pick one under Style reference and up
+to two more under **Also match**; or use `--style-set ID,ID[,ID]` / `project_reference_ids`. With
+three painted references a new character kept the painted look without copying any of them.
 
 Under **Export**, use **Check freshness** to compare the latest character bundle with its
 processed frames, palette, QA inputs, timing, maps, and attachments. It also checks that

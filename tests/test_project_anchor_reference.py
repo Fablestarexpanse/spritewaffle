@@ -178,3 +178,78 @@ def test_cli_and_mcp_preserve_saved_item_type(library, monkeypatch):
     Worker(queue)._execute(task)
     assert queue.get(task["id"])["status"] == "done"
     assert client.calls[-1][0] == "anchor_still"
+
+
+@pytest.fixture
+def style_set(library):
+    """Three project references in one collection (a style set)."""
+    base, first, _ = library
+    ids = [first]
+    for colour in ("#3355aa", "#aa7733"):
+        p = base.parent / f"{colour[1:]}.png"
+        Image.new("RGBA", (72, 72), colour).save(p)
+        ids.append(project_references.import_file(base, p, collection="Characters")["id"])
+    return base, ids
+
+
+def test_style_set_anchor_sends_every_reference_and_records_them(style_set):
+    """2026-11-27: three painted references kept the shared style (2/2, no design copied)."""
+    base, ids = style_set
+    job = Job.create("dwarf", "one", base=base)
+    client = StubClient()
+    generate.anchor(job, GameProfile(name="default"), client, description="a dwarf smith", seed=7,
+                    project_reference_ids=ids)
+    [(slot, values)] = client.calls
+    assert slot == "facing_multiref" and values["ref_images"] == [project_references.image(base, i) for i in ids]
+    assert values["prompt"].startswith("<Picture 1>, <Picture 2> and <Picture 3> are art style references")
+    assert "a dwarf smith" in values["prompt"] and "Do not copy any reference" in values["prompt"]
+    meta = job.read_meta()
+    assert meta["inputs"]["project_reference_ids"] == ids and "project_reference_id" not in meta["inputs"]
+    assert meta["provenance"][-1]["project_reference_ids"] == ids
+    assert manifest.read(job)["project_reference_ids"] == ids
+    generate.anchor(job, GameProfile(name="default"), client, description="no references now")
+    assert "project_reference_ids" not in job.read_meta()["inputs"]
+
+
+def test_style_set_refuses_bad_sets_before_queueing(style_set):
+    base, ids = style_set
+    job = Job.create("dwarf", "two", base=base)
+    queue = Queue(base)
+    args = {"describe": "a dwarf smith"}
+    for bad in ([ids[0]], ids + ids[:1], [ids[0], ids[0]]):          # one, four, a repeat
+        with pytest.raises(ValueError, match="style set"):
+            queue.submit(job.root, "anchor", args | {"project_reference_ids": bad})
+    with pytest.raises(ValueError, match="not both"):
+        queue.submit(job.root, "anchor", args | {"project_reference_ids": ids[:2], "project_reference_id": ids[2]})
+    with pytest.raises(ValueError, match="anchor"):
+        queue.submit(job.root, "facings", args | {"project_reference_ids": ids[:2]})
+    assert queue.list() == []
+    task = queue.submit(job.root, "anchor", args | {"project_reference_ids": ids[:2]})
+    assert task["args"]["project_reference_ids"] == ids[:2]
+
+
+def test_item_style_set_uses_the_colours_of_every_reference(style_set):
+    base, ids = style_set
+    job = Job.create("scarf", "one", base=base, asset_type="item")
+    client = StubClient()
+    generate.anchor(job, GameProfile(name="default"), client, description="a scarf", project_reference_ids=ids[1:])
+    [(slot, values)] = client.calls
+    assert slot == "anchor_still" and "#3355aa" in values["prompt"] and "#aa7733" in values["prompt"]
+
+
+def test_http_mcp_cli_take_a_style_set(style_set, monkeypatch):
+    from spritewaffle import cli
+    base, ids = style_set
+    Job.create("dwarf", "three", base=base)
+    with TestClient(create_app(base, worker=False)) as client:
+        assert 'id="styleRef2"' in client.get("/").text
+        r = client.post("/api/jobs/dwarf/three/run", json={"stage": "anchor", "args": {"describe": "a dwarf", "project_reference_ids": ids}})
+        assert r.status_code == 200 and Queue(base).get(r.json()[0])["args"]["project_reference_ids"] == ids
+    mcp, queue = build(base)
+    response = text(call(mcp, "generate", character="dwarf", job_id="three", description="a dwarf", project_reference_ids=ids[:2]))
+    assert queue.get(response["tasks"][0])["args"]["project_reference_ids"] == ids[:2]
+    monkeypatch.setenv("SPRITEWAFFLE_JOBS", str(base))
+    stub = StubClient()
+    monkeypatch.setattr(generate, "ComfyClient", lambda: stub)
+    assert cli.main(["anchor", "--job", "dwarf/three", "--describe", "a dwarf", "--style-set", ",".join(ids)]) == 0
+    assert len(stub.calls[0][1]["ref_images"]) == 3

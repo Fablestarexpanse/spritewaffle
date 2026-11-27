@@ -916,7 +916,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
         profile = job_profile(j, body)
         try:
             if "image_data" in args:
-                if stage != "anchor" or any(key in args for key in ("image", "style_ref", "project_reference_id")):
+                if stage != "anchor" or any(key in args for key in ("image", "style_ref", "project_reference_id", "project_reference_ids")):
                     raise ValueError("An uploaded image can only be used on its own for the anchor stage.")
                 if j.read_meta()["inputs"].get("asset_type") in ("tileset", "effect"):
                     raise ValueError("Open the asset's own workspace to import its artwork.")

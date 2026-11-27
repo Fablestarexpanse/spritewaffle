@@ -29,7 +29,8 @@ def _seed(seed: int | None) -> int:
 
 
 def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path, *,
-         project_reference_id: str | None = None, style_palette: list[str] | None = None) -> dict:
+         project_reference_id: str | None = None, style_palette: list[str] | None = None,
+         project_reference_ids: list[str] | None = None) -> dict:
     """One image generation. A project/asset camera profile adds its sentence to the prompt here, so
     every still (anchor, facings, items, variants) gets it; none set -> the prompt is unchanged."""
     from . import camera, prompt_edit
@@ -49,6 +50,8 @@ def _run(client: ComfyClient, job: Job, slot: str, values: dict, dest: Path, *,
                       for k, v in prov["values"].items()}
     if project_reference_id is not None:
         prov["project_reference_id"] = project_reference_id
+    if project_reference_ids:
+        prov["project_reference_ids"] = list(project_reference_ids)
     if style_palette is not None:
         prov["style_palette"] = style_palette
     if custom:
@@ -82,23 +85,47 @@ def anchor_reference(base: Path, reference_id: str, *, description: str | None, 
     return project_references.image(base, reference_id, active_only=True)
 
 
+MAX_STYLE_SET = 3          # facing_multiref has three picture slots
+
+
+def style_set(base: Path, reference_ids: list[str], *, description: str | None, asset_type: str = "character",
+              image=None, style_ref=None, project_reference_id=None) -> list[Path]:
+    """Resolve 2-3 project library images used together as one style (multi-image guidance)."""
+    ids = list(reference_ids or [])
+    if len(ids) < 2 or len(ids) > MAX_STYLE_SET:
+        raise ValueError(f"A style set uses 2 to {MAX_STYLE_SET} project references (one reference: use project_reference_id).")
+    if len(set(ids)) != len(ids):
+        raise ValueError("Each project reference can be used once in a style set.")
+    if project_reference_id is not None:
+        raise ValueError("Choose one project reference or a style set, not both.")
+    return [anchor_reference(base, i, description=description, asset_type=asset_type, image=image, style_ref=style_ref)
+            for i in ids]
+
+
 def anchor_asset_type(job: Job, asset_type: str | None) -> str:
     return asset_type or job.read_meta()["inputs"].get("asset_type") or "character"
 
 
 def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, description: str | None = None,
            image: str | Path | None = None, seed: int | None = None, asset_type: str | None = None,
-           style_ref: str | Path | None = None, project_reference_id: str | None = None) -> Path:
+           style_ref: str | Path | None = None, project_reference_id: str | None = None,
+           project_reference_ids: list[str] | None = None) -> Path:
     """Generate the anchor from a description, or import an existing image. Not approved yet.
 
     style_ref: an approved hero anchor (path or job folder).
     project_reference_id: one active image in the project's library.
+    project_reference_ids: 2-3 library images whose SHARED style is used (measured 2026-11-27: with
+    three painted references the new character kept the style and copied no reference's design, 2/2,
+    and its scale followed the set instead of one picture).
     Items use only the reference palette. Other assets use the image-edit template."""
     styles.use(styles.of_job(job))
     asset_type = anchor_asset_type(job, asset_type)
     builder.asset(asset_type)
     ref = (anchor_reference(job.root.parent.parent, project_reference_id, description=description,
                             asset_type=asset_type, image=image, style_ref=style_ref) if project_reference_id is not None else None)
+    group = (style_set(job.root.parent.parent, project_reference_ids, description=description, asset_type=asset_type,
+                       image=image, style_ref=style_ref, project_reference_id=project_reference_id)
+             if project_reference_ids else None)
     dest = job.stage_dir("01_anchor") / "anchor.png"
     if image:
         takes.stash(job, dest)
@@ -108,7 +135,18 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
         if not description:
             raise ValueError("anchor needs --describe or --image")
         client = client or ComfyClient()
-        if style_ref or ref is not None:
+        if group:
+            if asset_type == "item":
+                from .item import reference_palette
+                palette = list(dict.fromkeys(c for p in group for c in reference_palette(p)))[:24]
+                _run(client, job, "anchor_still",
+                     {"prompt": builder.item_anchor(description, profile, palette), "seed": _seed(seed)}, dest,
+                     project_reference_ids=project_reference_ids, style_palette=palette)
+            else:
+                _run(client, job, "facing_multiref",
+                     {"prompt": builder.anchor_from_style_set(description, profile, len(group), asset_type),
+                      "ref_images": group, "seed": _seed(seed)}, dest, project_reference_ids=project_reference_ids)
+        elif style_ref or ref is not None:
             if ref is None:
                 ref = Path(style_ref)
                 if ref.is_dir():
@@ -139,6 +177,11 @@ def anchor(job: Job, profile: GameProfile, client: ComfyClient | None = None, de
             _run(client, job, "anchor_still", {"prompt": prompt, "seed": _seed(seed)}, dest)
     job.update_inputs(description=description, asset_type=asset_type, style_ref=str(style_ref) if style_ref else None)
     with job.mutate() as meta:                         # a new anchor invalidates AI text written for the old one
+        if project_reference_ids:
+            meta["inputs"]["project_reference_ids"] = list(project_reference_ids)
+            meta["inputs"].pop("style_ref", None)
+        else:
+            meta["inputs"].pop("project_reference_ids", None)
         if project_reference_id is None:
             meta["inputs"].pop("project_reference_id", None)
         else:

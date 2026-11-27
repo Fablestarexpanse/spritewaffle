@@ -69,12 +69,13 @@ def _stages():
 
     def anchor(job, prof, a):
         if (job.read_meta()["inputs"].get("base_job") and not (a.get("describe") or a.get("image"))
-                and a.get("project_reference_id") is None):
+                and a.get("project_reference_id") is None and not a.get("project_reference_ids")):
             from . import variant                          # a variant re-rolls its edited anchor
             return str(variant.anchor(job, prof, seed=a.get("seed")))
         return str(generate.anchor(job, prof, description=a.get("describe"), image=a.get("image"), seed=a.get("seed"),
                                    asset_type=a.get("asset_type"), style_ref=a.get("style_ref"),
-                                   project_reference_id=a.get("project_reference_id")))
+                                   project_reference_id=a.get("project_reference_id"),
+                                   project_reference_ids=a.get("project_reference_ids")))
 
     def facings(job, prof, a):
         return generate.facings(job, prof, only=a.get("only"), seed=a.get("seed"),
@@ -229,6 +230,14 @@ class Queue:
             anchor_reference(existing.root.parent.parent, args["project_reference_id"], description=args.get("describe"),
                              asset_type=anchor_asset_type(existing, args.get("asset_type")),
                              image=args.get("image"), style_ref=args.get("style_ref"))
+        if args.get("project_reference_ids"):                 # checked now, not when the GPU picks it up
+            if stage != "anchor":
+                raise ValueError("A style set can only be used for the anchor stage.")
+            from .generate import anchor_asset_type, style_set
+            existing = Job.open(job)
+            style_set(existing.root.parent.parent, args["project_reference_ids"], description=args.get("describe"),
+                      asset_type=anchor_asset_type(existing, args.get("asset_type")), image=args.get("image"),
+                      style_ref=args.get("style_ref"), project_reference_id=args.get("project_reference_id"))
         for a in after or []:
             if not self._path(a).exists():
                 raise ValueError(f"unknown task in after: {a}")

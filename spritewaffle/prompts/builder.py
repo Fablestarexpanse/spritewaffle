@@ -132,6 +132,19 @@ def anchor_from_hero(description: str, profile: GameProfile, asset_type: str = "
             f"{a['pose'].format(view=VIEW['S'])} {FRAMING}")
 
 
+def anchor_from_style_set(description: str, profile: GameProfile, count: int, asset_type: str = "character") -> str:
+    """Draw a new anchor in the art style SHARED by `count` (2-3) project reference pictures."""
+    a = asset(asset_type)
+    pics = [f"<Picture {i}>" for i in range(1, count + 1)]
+    names = ", ".join(pics[:-1]) + f" and {pics[-1]}"
+    return (f"{names} are art style references for this game: different subjects drawn in one shared art style. "
+            f"Draw a new, different {a['subject'].lower()}: {description.strip().rstrip('.')}. "
+            "Use the art style they all share: the same "
+            + ("pixel size, " if styles.get()["post"] == "pixel" else "") + "outline weight, shading and "
+            "palette feel, and the same scale on the canvas. Do not copy any reference's subject, design, "
+            f"colours of clothing or features. {a['pose'].format(view=VIEW['S'])} {FRAMING}")
+
+
 # Facings under a raised camera (top-down, isometric). Measured 2026-11-20 (knight, seed 21):
 # side-view words alone -> E/W dropped to an eye-level profile, diagonals copied their reference;
 # screen-direction words ("toward the lower-right corner") -> nothing rotated at all. This keeps

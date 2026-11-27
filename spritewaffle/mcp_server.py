@@ -79,7 +79,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
     def generate(character: str, stage: str = "anchor", description: str | None = None,
                  job_id: str | None = None, asset_type: str | None = None, style_ref: str | None = None,
                  image: str | None = None, seed: int | None = None, only: list[str] | None = None,
-                 style: str | None = None, profile: str | None = None, project_reference_id: str | None = None) -> dict:
+                 style: str | None = None, profile: str | None = None, project_reference_id: str | None = None,
+                 project_reference_ids: list[str] | None = None) -> dict:
         """Queue a still-image stage.
 
         stage='anchor': creates the job when job_id is omitted. Needs `description` (or `image`, a path
@@ -88,6 +89,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         'character/job_id' (or an image path) to draw this asset in the hero's style.
         project_reference_id selects one active project library image instead of style_ref. Item anchors
         take only colour cues from either reference and draw the described object on its own.
+        project_reference_ids: 2-3 project library images used together; the anchor takes the style
+        they share (instead of one picture's), e.g. three characters drawn in the game's style.
         stage='facings': needs an approved anchor; `only` re-rolls specific facings, e.g. ['SW'].
         style (anchor and sheet): pixel, painted, anime, or comic. Omit style and profile to use the
         project defaults on new assets. Pass profile='' for built-in sizes.
@@ -103,6 +106,11 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                 raise ValueError("A project reference can only be selected for the anchor stage.")
             gen.anchor_reference(base, project_reference_id, description=description, asset_type=asset_type,
                                  image=image, style_ref=style_ref)
+        if project_reference_ids:
+            if stage != "anchor":
+                raise ValueError("A style set can only be used for the anchor stage.")
+            gen.style_set(base, project_reference_ids, description=description, asset_type=asset_type, image=image,
+                          style_ref=style_ref, project_reference_id=project_reference_id)
         inputs = {}
         if stage != "facings" and style:
             inputs["style"] = styles.get(style)["name"]
@@ -118,7 +126,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
             builder.asset(asset_type)
             job = existing or Job.create(character, base=base, asset_type=asset_type, **inputs)
             args = {"describe": description, "image": image, "seed": seed, "asset_type": asset_type,
-                    "project_reference_id": project_reference_id}
+                    "project_reference_id": project_reference_id,
+                    **({"project_reference_ids": list(project_reference_ids)} if project_reference_ids else {})}
             if style_ref:
                 ref = base / style_ref if "/" in style_ref and not Path(style_ref).exists() else Path(style_ref)
                 args["style_ref"] = str(ref)

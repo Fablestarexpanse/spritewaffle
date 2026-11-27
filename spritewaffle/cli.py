@@ -288,12 +288,15 @@ def cmd_comfy_check(a):
 def cmd_anchor(a):
     from .core import generate, manifest
     job = _job(a.job, create=True, **({"profile": a.profile} if a.profile else {}))
-    had_reference = job.read_meta()["inputs"].get("project_reference_id") is not None
+    inputs = job.read_meta()["inputs"]
+    had_reference = inputs.get("project_reference_id") is not None or bool(inputs.get("project_reference_ids"))
     if a.profile:
         job.update_inputs(profile=a.profile)
+    group = _csv(a.style_set) if a.style_set else None
     print(generate.anchor(job, _profile(a, job), description=a.describe, image=a.image, seed=a.seed,
-                          asset_type=a.asset_type, style_ref=a.style_ref, project_reference_id=a.project_reference))
-    if had_reference or a.project_reference is not None:
+                          asset_type=a.asset_type, style_ref=a.style_ref, project_reference_id=a.project_reference,
+                          project_reference_ids=group))
+    if had_reference or a.project_reference is not None or group:
         manifest.refresh(job)
 
 
@@ -907,7 +910,8 @@ def build() -> argparse.ArgumentParser:
         (("--asset-type",), {"choices": ("character", "creature", "prop", "item"),
                               "help": "defaults to the saved job type, or character for new jobs"}),
         (("--style-ref",), {"help": "approved hero job (<character>/<job_id>) to copy the art style from"}),
-        (("--project-reference",), {"metavar": "ID", "help": "use one active project library image to guide the art style"}))
+        (("--project-reference",), {"metavar": "ID", "help": "use one active project library image to guide the art style"}),
+        (("--style-set",), {"metavar": "ID,ID[,ID]", "help": "2-3 project library images; the anchor uses the style they share"}))
     cmd("sheet-import", cmd_sheet_import, "use YOUR character sheet (views side by side, any background) as anchor + facings",
         (("image",), {}), JOB,
         (("--views",), {"required": True, "help": "facing of each figure left to right, e.g. S,SE,E,N (S becomes the anchor)"}),

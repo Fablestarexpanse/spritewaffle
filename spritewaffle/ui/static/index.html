@@ -1519,6 +1519,9 @@ function paneAnchor(j, st) {
             ${heroes.length ? `<optgroup label="Approved hero jobs">${heroes.map(h => `<option value="${esc(h.character)}/${esc(h.job_id)}">${esc(h.character)} · ${esc(h.job_id)}</option>`).join("")}</optgroup>` : ""}
             ${projectRefsAllowed ? '<optgroup id="projectReferenceOptions" label="Project references" hidden></optgroup>' : ""}</select></label>
           <a id="anchorReferencePreview" data-view="" aria-label="Preview selected project reference" hidden><img alt=""></a>
+          <span id="styleSetExtras" hidden title="Up to two more project references: the anchor uses the style all of them share">
+            <label>Also match <select id="styleRef2" aria-label="Second style reference"><option value="">None</option></select></label>
+            <label><select id="styleRef3" aria-label="Third style reference"><option value="">None</option></select></label></span>
           <label title="Use the same seed and settings to reproduce a generation">Seed <input id="seed" type="number" placeholder="Random" style="width:110px"></label>
         </div>
         ${j.asset_type === "item" ? `<p class="hint">The reference provides colour cues. Your description defines the item.</p>` : ""}
@@ -1538,10 +1541,24 @@ function paneAnchor(j, st) {
   const key = `${j.character}/${j.job_id}`, prefix = "project:";
   const savedHero = j.inputs.style_ref?.replaceAll("\\", "/").replace(/\/$/, "");
   const hero = heroes.find(h => savedHero?.endsWith(`/${h.character}/${h.job_id}`) || savedHero === `${h.character}/${h.job_id}`);
-  const saved = j.inputs.project_reference_id && projectRefsAllowed ? prefix + j.inputs.project_reference_id
+  const saved = (j.inputs.project_reference_id || (j.inputs.project_reference_ids || [])[0]) && projectRefsAllowed
+    ? prefix + (j.inputs.project_reference_id || j.inputs.project_reference_ids[0])
     : hero ? `${hero.character}/${hero.job_id}` : "";
   let entries = [];
+  const extras = [$("#styleRef2"), $("#styleRef3")];
+  const savedSet = (j.inputs.project_reference_ids || []);
+  const fillExtras = () => {
+    const first = select.value.startsWith(prefix) ? select.value.slice(prefix.length) : "";
+    $("#styleSetExtras").hidden = !first || entries.length < 2;
+    extras.forEach((sel, k) => {
+      const keep = sel.value || savedSet[k + 1] || "";
+      sel.replaceChildren(new Option("None", ""), ...entries.filter(r => r.id !== first).map(r => new Option(`${r.collection} · ${r.name}`, r.id)));
+      sel.value = entries.some(r => r.id === keep && r.id !== first) ? keep : "";
+    });
+  };
+  extras.forEach(sel => sel.onchange = fillExtras);
   const showSelection = () => {
+    fillExtras();
     const reference = entries.find(item => prefix + item.id === select.value);
     generate.disabled = status.comfy?.ok === false || (select.value.startsWith(prefix) && !reference);
     preview.hidden = !reference;
@@ -1588,7 +1605,11 @@ function paneAnchor(j, st) {
     const describe = $("#desc").value.trim();
     if (!describe) return toast("Describe the asset first", true);
     const args = {describe, asset_type: j.asset_type};
-    if (select.value.startsWith(prefix)) args.project_reference_id = select.value.slice(prefix.length);
+    if (select.value.startsWith(prefix)) {
+      const set = [select.value.slice(prefix.length), ...extras.map(s => s.value).filter(Boolean)];
+      const unique = [...new Set(set)];
+      if (unique.length > 1) args.project_reference_ids = unique; else args.project_reference_id = unique[0];
+    }
     else if (select.value) args.style_ref = status.jobs + "/" + select.value;
     if ($("#seed").value) args.seed = +$("#seed").value;
     run("anchor", args, "Anchor queued");
