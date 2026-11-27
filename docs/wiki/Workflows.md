@@ -497,7 +497,19 @@ MCP: `transition(a, b, names, tile_size, roughness, seed, ...)`. Both textures n
 
 Limits: the border wobble repeats every tile, so a long straight border shows a regular pattern
 (change the seed for another shape). Pixel art can leave single-pixel specks along the border.
-Corner (16) and blob (47 + plain) sets; no edge-only sets yet.
+Corner (16) and blob (47 + plain) sets are generated here. Edge sets are drawn by you (see below).
+
+#### Edge sets (paths, fences, roads)
+
+For things that connect along tile sides rather than blend at corners, set **Set type** to
+**Edges** in the tileset's Terrain panel and name what each side of a tile connects to (Top, Right,
+Bottom, Left; leave a side unassigned if it doesn't matter). A straight north-south path is
+Path, Grass, Path, Grass. The export writes them as a Tiled **edge** Wang set and a Godot
+**Match Sides** terrain set (checked by loading the TileSet in Godot 4.6: mode, sides and centre
+terrain read back as written). SpriteWaffle's map preview paints corners, so paint edge-set maps in
+Tiled or Godot. A tile whose sides tie (two path, two grass) gets the later terrain as its centre,
+so it counts as a path tile. API: `"mode": "edge"` in the terrain rules (HTTP, MCP `tileset`
+terrain, CLI `tileset terrain --file`).
 
 #### Blob sets, edge lip, palette
 

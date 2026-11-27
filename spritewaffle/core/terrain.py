@@ -1,9 +1,10 @@
 """Rectangular terrain transitions with shared, named corner assignments.
 
-Two rule modes: "corner" (default; each tile lists NW, NE, SE, SW) and "mixed" (blob / 47-tile
-sets: each tile lists N, NE, E, SE, S, SW, W, NW, Tiled's mixed Wang order). SpriteWaffle's map
-preview paints corners, so it resolves corner sets; mixed sets are painted in Tiled or Godot
-(audit 2026-11-26 P1 #3), and both exports carry them.
+Three rule modes: "corner" (default; each tile lists NW, NE, SE, SW), "edge" (paths, fences,
+roads: each tile lists N, E, S, W) and "mixed" (blob / 47-tile sets: each tile lists N, NE, E,
+SE, S, SW, W, NW, Tiled's mixed Wang order). SpriteWaffle's map preview paints corners, so it
+resolves corner sets; edge and mixed sets are painted in Tiled or Godot (audit 2026-11-26 P1 #3),
+and both exports carry them.
 """
 from __future__ import annotations
 
@@ -16,9 +17,9 @@ def normalize(value: dict, count: int) -> dict:
     if not isinstance(value, dict) or value.keys() - {"colors", "tiles", "mode", "centers"}:
         raise ValueError("Terrain needs a colors list and tile corner assignments.")
     mode = value.get("mode") or "corner"
-    if mode not in ("corner", "mixed"):
-        raise ValueError("Terrain mode must be corner or mixed.")
-    slots = 4 if mode == "corner" else 8
+    if mode not in ("corner", "edge", "mixed"):
+        raise ValueError("Terrain mode must be corner, edge or mixed.")
+    slots = 8 if mode == "mixed" else 4
     names, tiles = value.get("colors"), value.get("tiles", {})
     if (not isinstance(names, list) or len(names) > MAX_COLORS
             or any(not isinstance(name, str) or not name.strip() or len(name) > 40 or len(name.splitlines()) != 1
@@ -38,8 +39,9 @@ def normalize(value: dict, count: int) -> dict:
         if str(i) != key or not 0 <= i < count:
             raise ValueError(f"Tile {key} is outside the grid.")
         if not isinstance(corners, list) or len(corners) != slots:
-            raise ValueError(f"Tile {i} needs four corners in NW, NE, SE, SW order." if slots == 4 else
-                             f"Tile {i} needs eight entries in N, NE, E, SE, S, SW, W, NW order.")
+            raise ValueError({"corner": f"Tile {i} needs four corners in NW, NE, SE, SW order.",
+                              "edge": f"Tile {i} needs four edges in N, E, S, W order.",
+                              "mixed": f"Tile {i} needs eight entries in N, NE, E, SE, S, SW, W, NW order."}[mode])
         for name in corners:
             if name is not None and (not isinstance(name, str) or name not in valid):
                 raise ValueError(f"Tile {i} has an unknown terrain {name!r}. Clear its corners before removing a terrain.")
@@ -49,7 +51,7 @@ def normalize(value: dict, count: int) -> dict:
     if not isinstance(centers, dict) or any(not str(k).isdecimal() or not 0 <= int(k) < count or n not in valid
                                             for k, n in centers.items()):
         raise ValueError("Tile centres must map tile IDs in the grid to terrain names.")
-    return {"colors": names, "tiles": assigned, **({"mode": "mixed"} if mode == "mixed" else {}),
+    return {"colors": names, "tiles": assigned, **({"mode": mode} if mode != "corner" else {}),
             **({"centers": {str(int(k)): n for k, n in centers.items()}} if centers else {})}
 
 
@@ -87,8 +89,9 @@ def _pick(tiles: list[int], weights: dict[int, float], x: int, y: int) -> int:
 def preview(rules: dict, vertices: list, *, allow_unknown: bool = False, weights: dict[int, float] | None = None) -> dict:
     """weights: mix variants (tiles with the same corners) by tile weight, per cell; None keeps the
     first tile for every corner pattern (maps saved before mixing look the same)."""
-    if rules.get("mode") == "mixed":
-        raise ValueError("This tileset uses a blob (mixed) terrain set: paint maps with it in Tiled or Godot. "
+    if rules.get("mode") in ("mixed", "edge"):
+        kind = "a blob (mixed)" if rules["mode"] == "mixed" else "an edge (paths, fences)"
+        raise ValueError(f"This tileset uses {kind} terrain set: paint maps with it in Tiled or Godot. "
                          "SpriteWaffle's map preview paints corner sets.")
     if (not isinstance(vertices, list) or not 2 <= len(vertices) <= MAX_SIDE + 1
             or not isinstance(vertices[0], list) or not 2 <= len(vertices[0]) <= MAX_SIDE + 1
@@ -119,15 +122,19 @@ def tiled_wangset(rules: dict) -> dict:
     colors = {name: i + 1 for i, name in enumerate(rules["colors"])}
     matches = _matches(rules)
     wangtiles = []
-    mixed = rules.get("mode") == "mixed"
+    mixed, edge = rules.get("mode") == "mixed", rules.get("mode") == "edge"
     for key in sorted(rules["tiles"], key=int):
         if mixed:                                               # already Tiled's order: N NE E SE S SW W NW
             wangtiles.append({"tileid": int(key), "wangid": [colors.get(name, 0) for name in rules["tiles"][key]]})
             continue
+        if edge:                                                # N E S W -> Tiled's sides, corners unused
+            n, e, s, w = (colors.get(name, 0) for name in rules["tiles"][key])
+            wangtiles.append({"tileid": int(key), "wangid": [n, 0, e, 0, s, 0, w, 0]})
+            continue
         nw, ne, se, sw = (colors.get(name, 0) for name in rules["tiles"][key])
         wangtiles.append({"tileid": int(key), "wangid": [0, ne, 0, se, 0, sw, 0, nw]})
     icons = [matches.get((name,) * (8 if mixed else 4), -1) for name in colors]
-    return {"name": "Terrain", "type": "mixed" if mixed else "corner",
+    return {"name": "Terrain", "type": rules.get("mode") or "corner",
             "tile": next((t for t in icons if t >= 0), -1),           # the set's icon in Tiled's terrain panel
             "colors": [{"name": name, "color": swatch, "probability": 1, "tile": icon}
                        for name, swatch, icon in zip(colors, SWATCHES, icons)], "wangtiles": wangtiles}

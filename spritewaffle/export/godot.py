@@ -86,6 +86,7 @@ def write(out_dir: Path, meta: dict, pixel: bool) -> list[Path]:
 # --- TileSet ----------------------------------------------------------------------------------
 # Godot's peering bits for square tiles, in the order SpriteWaffle's rules list them
 CORNER_BITS = ("top_left_corner", "top_right_corner", "bottom_right_corner", "bottom_left_corner")  # NW NE SE SW
+EDGE_BITS = ("top_side", "right_side", "bottom_side", "left_side")                                   # N E S W
 MIXED_BITS = ("top_side", "top_right_corner", "right_side", "bottom_right_corner", "bottom_side",
               "bottom_left_corner", "left_side", "top_left_corner")                                # N NE E SE S SW W NW
 
@@ -112,14 +113,15 @@ def tileset(record: dict, image: str = "tiles.png") -> str:
     """Godot 4 TileSet .tres for a tileset workspace record: one atlas source over the PNG,
     collision polygons for solid tiles (full square, slope / half presets or custom points; one-way
     where set), tile properties as typed custom data layers, and the terrain rules as a terrain set
-    (corner rules -> Match Corners, mixed / blob rules -> Match Corners and Sides)."""
+    (corner rules -> Match Corners, edge rules -> Match Sides, mixed / blob rules -> Match Corners and Sides)."""
     from ..core import terrain as terrain_mod
     from ..core import tile_collision as tc
     g = record["grid"]
     w, h = g["tile_width"], g["tile_height"]
     solid, empty = set(record.get("solid_tiles") or []), set(record.get("empty_tiles") or [])
     rules = record.get("terrain")
-    mixed = bool(rules) and rules.get("mode") == "mixed"
+    mode = (rules or {}).get("mode") or "corner"
+    mixed = mode == "mixed"
     names = rules["colors"] if rules else []
     index = {n: i for i, n in enumerate(names)}
     lines = ['[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]', 'texture = ExtResource("1_tiles")',
@@ -139,9 +141,11 @@ def tileset(record: dict, image: str = "tiles.png") -> str:
             corners = [names[0]] * (8 if mixed else 4)
         if corners:
             known = [n for n in corners if n is not None]
-            centre = centres.get(str(i)) or max(set(known), key=known.count)
+            # ties go to the later terrain (a path tile with two path and two grass sides is path);
+            # sorted, so the same rules always export the same file (a bare set's order varied per run)
+            centre = centres.get(str(i)) or max(sorted(set(known), key=index.get), key=lambda n: (known.count(n), index[n]))
             lines += [f"{c}/terrain_set = 0", f"{c}/terrain = {index[centre]}"]
-            for bit, n in zip(MIXED_BITS if mixed else CORNER_BITS, corners):
+            for bit, n in zip({"mixed": MIXED_BITS, "edge": EDGE_BITS}.get(mode, CORNER_BITS), corners):
                 if n is not None:
                     lines.append(f"{c}/terrains_peering_bit/{bit} = {index[n]}")
         if i in solid:
@@ -160,7 +164,7 @@ def tileset(record: dict, image: str = "tiles.png") -> str:
     for n, (k, kind) in enumerate(layers):
         res += [f'custom_data_layer_{n}/name = "{_q(k)}"', f"custom_data_layer_{n}/type = {gd_type[kind]}"]
     if names:
-        res.append(f"terrain_set_0/mode = {0 if mixed else 1}")
+        res.append(f"terrain_set_0/mode = {({'mixed': 0, 'corner': 1, 'edge': 2})[mode]}")    # Godot TerrainMode
         for i, n in enumerate(names):
             res += [f'terrain_set_0/terrain_{i}/name = "{_q(n)}"',
                     f"terrain_set_0/terrain_{i}/color = {_color(terrain_mod.SWATCHES[i % len(terrain_mod.SWATCHES)])}"]

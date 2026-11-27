@@ -29,11 +29,13 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 
 1. ~~Tiled `probability` per texture variant~~: done 2026-11-26 (tile **Weight**, and **mix variants** in
    SpriteWaffle's own map painter).
-2. **Edge-only terrain sets**, more than one layer per map. (Maps up to 64 × 64 with a Size control: done 2026-11-26.)
+2. **More than one layer per map.** (Edge sets and maps up to 64 × 64: done 2026-11-26.) Generating edge
+   sets (paths) from two textures is open; today they are drawn by hand.
 3. ~~Normal / height maps~~: done 2026-11-26 (estimated from colour; Lighting maps setting).
 4. **DiT-aware seamless generation** for H3 (ComfyUI-AdvancedTiling or Universal-Seamless-Tiles;
    needs Ronan's approval to install).
-5. **Target engine** setting picking an export preset (Godot files are always written now).
+5. **Target engine** setting picking an export preset (Godot files are always written now). Waiting on a
+   measured need: which settings a Unity or GameMaker project wants different (pot, extrude, mirror?).
 6. **Engine checks:** done 2026-11-26 (Tiled read shaped collision; LDtk 1.5.3 opened the new map.ldtk).
    LDtk entities for map objects: done 2026-11-26. Open: non-square tiles in LDtk.
    (Unity `.aseprite` one-shot tags and pivots: checked 2026-11-26.)

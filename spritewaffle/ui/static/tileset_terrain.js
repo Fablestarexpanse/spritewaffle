@@ -5,10 +5,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
         <div class="field"><label for="terrainNames">Terrain names, one per line</label>
           <textarea id="terrainNames" rows="3" placeholder="Grass&#10;Water"></textarea></div>
         <button id="terrainSaveNames" type="button">Save terrain names</button>
+        <label title="Corners: ground that blends (grass into water). Edges: things that connect along tile sides (paths, fences, roads, rivers); painted in Tiled or Godot.">Set type
+          <select id="terrainMode"><option value="corner">Corners</option><option value="edge">Edges (paths, fences)</option></select></label>
         <div id="terrainCorners" hidden>
           <h3 id="terrainTileHeading">Tile corners</h3>
           <div class="tileset-form">${["Top left", "Top right", "Bottom right", "Bottom left"].map((label, i) =>
-            `<label class="field">${label}<select data-corner="${i}"></select></label>`).join("")}</div>
+            `<label class="field"><span data-slot-label="${i}">${label}</span><select data-corner="${i}"></select></label>`).join("")}</div>
           <div class="row"><button id="terrainSaveTile" type="button">Save tile corners</button></div>
         </div>
         <p id="terrainError" class="warn" role="alert" hidden></p>
@@ -273,7 +275,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     if (id === tile && !reset) return;
     tile = id;
     updateCellTool();
-    find("#terrainTileHeading").textContent = `Tile ${id} corners`;
+    find("#terrainTileHeading").textContent = `Tile ${id} ${rules.mode === "edge" ? "edges" : "corners"}`;
     const saved = rules.tiles[id] || [null, null, null, null];
     corners.forEach((select, i) => select.value = saved[i] ?? "");
   }
@@ -324,8 +326,14 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     cellMode.querySelector('option[value="stamp"]').hidden = !modules.length;
     if (!modules.length && cellMode.value === "stamp") cellMode.value = "terrain";
     if (JSON.stringify(before) !== JSON.stringify(rules.colors)) names.value = rules.colors.join("\n");
-    // blob (mixed) sets are painted in Tiled or Godot; the corner editor and preview don't apply
-    const blob = rules.mode === "mixed";
+    // blob (mixed) sets are painted in Tiled or Godot; the corner editor and preview don't apply.
+    // Edge sets keep the 4-slot editor (Top, Right, Bottom, Left) but no corner preview either.
+    const blob = rules.mode === "mixed", edges = rules.mode === "edge";
+    find("#terrainMode").value = edges ? "edge" : "corner";
+    find("#terrainMode").disabled = blob;
+    const slotNames = edges ? ["Top", "Right", "Bottom", "Left"] : ["Top left", "Top right", "Bottom right", "Bottom left"];
+    panel.querySelectorAll("[data-slot-label]").forEach(label => { label.textContent = slotNames[+label.dataset.slotLabel]; });
+    find("#terrainSaveTile").textContent = edges ? "Save tile edges" : "Save tile corners";
     let note = find("#terrainBlobNote");
     if (!note) { note = document.createElement("p"); note.id = "terrainBlobNote"; note.className = "hint"; find("#terrainError").before(note); }
     note.hidden = !blob;
@@ -334,7 +342,12 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       The corner editor and the map preview here work with corner sets.` : "";
     names.disabled = find("#terrainSaveNames").disabled = blob;
     find("#terrainCorners").hidden = !rules.colors.length || blob;
-    find("#terrainPreview").hidden = blob;
+    find("#terrainPreview").hidden = blob || edges;
+    let edgeNote = find("#terrainEdgeNote");
+    if (!edgeNote) { edgeNote = document.createElement("p"); edgeNote.id = "terrainEdgeNote"; edgeNote.className = "hint"; find("#terrainError").before(edgeNote); }
+    edgeNote.hidden = !edges;
+    edgeNote.innerHTML = edges ? `This is an <b>edge</b> set: name what each side of a tile connects to.
+      Paint maps with it in <b>Tiled</b> (edge Wang set) or <b>Godot</b> (Match Sides terrain): export the tileset.` : "";
     if (blob) { find("#terrainError").hidden = true; return; }      // no corner preview to request
     const options = rules.colors.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
     for (const select of corners) select.innerHTML = '<option value="">Unassigned</option>' + options;
@@ -343,16 +356,25 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     brush.value = rules.colors.includes(previousBrush) ? previousBrush : rules.colors[0] || "";
     brush.disabled = find("#terrainFill").disabled = !rules.colors.length;
     selectTile(tile, true);
+    if (edges) { error(); return; }                  // no corner preview to request for an edge set
     editMap(vertices);
   }
 
   find("#terrainSaveNames").onclick = event => {
     const colors = names.value.split(/\r?\n/).map(name => name.trim()).filter(Boolean);
-    save(event.currentTarget, {colors, tiles: rules.tiles});
+    save(event.currentTarget, {colors, tiles: rules.tiles, ...(rules.mode ? {mode: rules.mode} : {})});
   };
   find("#terrainSaveTile").onclick = event => {
     const tiles = {...rules.tiles, [tile]: corners.map(select => select.value || null)};
-    save(event.currentTarget, {colors: rules.colors, tiles});
+    save(event.currentTarget, {colors: rules.colors, tiles, ...(rules.mode ? {mode: rules.mode} : {})});
+  };
+  find("#terrainMode").onchange = event => {
+    const mode = event.target.value, assigned = Object.keys(rules.tiles).length;
+    if (assigned && !confirm(`${assigned} tile${assigned === 1 ? "" : "s"} keep their four names, read as ${mode === "edge" ? "top, right, bottom, left sides" : "corners"} from now on. Switch?`)) {
+      event.target.value = rules.mode === "edge" ? "edge" : "corner";
+      return;
+    }
+    save(event.target, {colors: rules.colors, tiles: rules.tiles, ...(mode === "edge" ? {mode} : {})});
   };
   find("#terrainFill").onclick = () => { if (!mapWorking) { error(); editMap(lattice(brush.value)); } };
   find("#terrainClear").onclick = () => {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Edge terrain sets** (paths, fences, roads): set type Edges in the Terrain panel; exported as a Tiled edge Wang set and a Godot Match Sides terrain set.
+- The Godot TileSet export no longer varies between runs when a tile's terrains tie (its centre came from a set whose order changed per run); the later terrain wins.
 - LDtk export includes map objects as entities (one per object kind, with name, state, states, solid and id fields), drawn with each object's current tile.
 - Maps up to **64 × 64** (was 32 × 32), with a **Size** control in the map panel; resizing keeps painted corners, placed tiles and objects that still fit and asks before dropping any. New maps in the panel were fixed at 8 × 6 before.
 - Textures can export **lighting maps**: a height and a normal map (OpenGL, green up) per tile and as sheets, seamless like the tile, estimated from the colour. Off by default.
