@@ -43,6 +43,6 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 
 ## Studio (from the upgrade roadmap)
 
-- Saved layouts and resizable panels.
-- Desktop shortcut and installer integration.
+- ~~Resizable panels~~: the job list's width is dragged, remembered and reset (2026-11-26).
+- ~~Desktop shortcut~~: `spritewaffle shortcut` (2026-11-26). A packaged installer is open.
 - Multi-image generation and family palette rules.

@@ -27,8 +27,9 @@ python -m venv .venv
 .venv\Scripts\spritewaffle ui
 ```
 
-Open <http://127.0.0.1:8765> and choose **New asset**. Editing and export work locally without
-ComfyUI. Set up [ComfyUI](docs/COMFYUI_SETUP.md) when you want to generate artwork.
+Open <http://127.0.0.1:8765> and choose **New asset**. On Windows, `.venv\Scripts\spritewaffle shortcut`
+adds Desktop and Start Menu shortcuts that start the app (`--remove` takes them away). Editing and
+export work locally without ComfyUI. Set up [ComfyUI](docs/COMFYUI_SETUP.md) when you want to generate artwork.
 
 ## Documentation
 

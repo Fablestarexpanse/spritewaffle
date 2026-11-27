@@ -77,6 +77,10 @@
   .about-badge { display: block; width: min(10rem, 100%); height: auto; margin: 0 auto var(--space); }
   header .ver { color: var(--muted); font-size: .85rem; margin-right: auto; }
   aside { grid-area: side; border-right: 1px solid var(--line); overflow: auto; padding: var(--space); background: var(--panel); }
+.sidebar-resize { grid-area: side; justify-self: end; align-self: stretch; width: 7px; margin-right: -3px; cursor: col-resize; z-index: 2; touch-action: none; }
+:root[data-sidebar="false"] .sidebar-resize { display: none; }
+.sidebar-resize:hover, .sidebar-resize:focus-visible { background: var(--accent); opacity: .5; outline: none; }
+@media (max-width: 760px) { .sidebar-resize { display: none; } }
   #search { flex: 1; min-width: 7rem; }
   main { grid-area: main; overflow: auto; padding: var(--space) calc(var(--space) * 1.5) 3rem; }
   :root[data-sidebar="false"] aside { display: none; }

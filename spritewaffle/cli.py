@@ -195,6 +195,13 @@ def _task_line(t) -> str:
 
 # --- setup ------------------------------------------------------------------------------------
 
+def cmd_shortcut(a):
+    from . import shortcut
+    folders = [Path(a.dir)] if a.dir else None
+    done = shortcut.remove(folders) if a.remove else shortcut.create(folders)
+    print(("removed: " if a.remove else "created: ") + (", ".join(done) or "nothing"))
+
+
 def cmd_doctor(a):
     from . import doctor
     rows = doctor.check(a.url)
@@ -831,6 +838,9 @@ def build() -> argparse.ArgumentParser:
         (("--allow-empty",), {"action": "store_true", "help": "export: leave unresolved cells empty instead of refusing"}))
 
     # setup
+    cmd("shortcut", cmd_shortcut, "Windows: add (or --remove) Desktop and Start Menu shortcuts that start the app",
+        (("--remove",), {"action": "store_true", "help": "delete the shortcuts this made"}),
+        (("--dir",), {"help": "make the shortcut in this folder instead of Desktop + Start Menu"}))
     cmd("doctor", cmd_doctor, "check ComfyUI, templates, models, folders and the queue worker",
         (("--url",), {"default": DEFAULT_URL, "help": "ComfyUI address ($SPRITEWAFFLE_COMFY)"}))
     pp = sub.add_parser("profile", help="game profiles: list, show, new").add_subparsers(dest="sub", required=True)
