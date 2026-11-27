@@ -207,3 +207,22 @@ def test_rerendering_a_view_also_refreshes_its_mirrors(env):
                      ("mirror", "NW"), ("qa", "NW"), ("export", "NW")]
     assert tasks[5]["args"]["source"] == "NE" and tasks[5]["after"] == [tasks[4]["id"]]
     assert [t["stage"] for t in q.submit_action_pipeline(job.root, "S", "walk")] == ["action", "select", "pixelize", "qa", "export"]
+
+
+def test_task_without_profile_uses_the_jobs_profile(env, tmp_path):
+    """`spritewaffle animate` without --profile queued profile=None; the worker then used the
+    built-in 64 px profile for a 104 px job (2026-11-26)."""
+    import json
+    from dataclasses import asdict
+    from spritewaffle.core.profile import resolve
+    base, job, q = env
+    prof = {**asdict(resolve(None)), "name": "t104", "cell_size": 104}
+    path = tmp_path / "t104.json"
+    path.write_text(json.dumps(prof), encoding="utf-8")
+    job.update_inputs(profile=str(path))
+    seen = []
+    reg = {"pixelize": ("cpu", lambda j, p, a: seen.append(p.cell_size) or {})}
+    q.submit(job.root, "pixelize", {})
+    q.submit(job.root, "pixelize", {}, str(resolve(None).name))   # an explicit profile still wins
+    Worker(q, poll=0.02, registry=reg).run_until_idle(timeout=10)
+    assert sorted(seen) == sorted([104, resolve(None).cell_size])

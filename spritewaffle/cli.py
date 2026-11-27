@@ -327,7 +327,8 @@ def cmd_animate(a):
         raise ValueError(f"unknown facings {bad}; use {','.join(FACINGS)}")
     job = _job(a.job)
     args = {"seconds": a.seconds} if not a.motion else {}
-    ts = Queue().submit_animate(job.root, facings, _csv(a.actions), a.profile, mirror=not a.no_mirror,
+    ts = Queue().submit_animate(job.root, facings, _csv(a.actions), a.profile or job.read_meta()["inputs"].get("profile"),
+                                mirror=not a.no_mirror,
                                 motion=a.motion, method=a.method, **args)
     for t in ts:
         print(_task_line(t))

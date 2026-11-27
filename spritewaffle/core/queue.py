@@ -500,7 +500,9 @@ class Worker:
         try:
             _, fn = reg[t["stage"]]
             job = Job.open(t["job"])
-            result = fn(job, resolve(t.get("profile")), t["args"])
+            # a task queued without a profile uses the job's own (it used to fall back to the built-in
+            # 64 px profile: `spritewaffle animate` without --profile cut a 104 px job's jump off)
+            result = fn(job, resolve(t.get("profile") or job.read_meta()["inputs"].get("profile")), t["args"])
             self.q.update(t["id"], status="done", finished=_now(), result=result)
             if t["stage"] in MANIFEST_STAGES:              # keep the asset manifest current (JSON only)
                 from . import manifest
