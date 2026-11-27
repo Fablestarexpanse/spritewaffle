@@ -85,3 +85,30 @@ def fit(lab: np.ndarray, alpha: np.ndarray, k: int, saliency: bool = True, seed:
         xs[:, c] = np.bincount(inv, weights=x[:, c] * w) / ws
     pal = kmeans(xs, ws, k, seed=seed)
     return merge_close(pal, xs, ws, min_delta) if min_delta > 0 else pal
+
+
+def extend(lab: np.ndarray, alpha: np.ndarray, base: np.ndarray, k_new: int, keep_delta: float = 0.06,
+           saliency: bool = True, seed: int = 0, min_delta: float = 0.04) -> np.ndarray:
+    """Family palette: keep `base` (n,3 Oklab) exactly and add at most k_new colours for the cells the
+    base cannot draw (nearest base colour further than keep_delta), e.g. a cloak fitted on a body.
+    New colours closer than min_delta to a base colour are dropped. Returns (n+m,3), base first."""
+    x = lab[alpha]
+    if not len(x) or k_new < 1:
+        return base
+    w = saliency_weights(lab, alpha)[alpha] if saliency else np.ones(len(x))
+    near = np.sqrt(((x[:, None] - base[None]) ** 2).sum(-1)).min(1)
+    miss = near > keep_delta
+    if miss.sum() < 4:
+        return base
+    xm, wm = x[miss], w[miss]
+    q = np.round(xm, 3)
+    uq, inv = np.unique(q, axis=0, return_inverse=True)
+    inv = inv.ravel()
+    ws = np.bincount(inv, weights=wm)
+    xs = np.zeros_like(uq)
+    for c in range(3):
+        xs[:, c] = np.bincount(inv, weights=xm[:, c] * wm) / ws
+    new = kmeans(xs, ws, k_new, seed=seed)
+    new = merge_close(new, xs, ws, min_delta) if min_delta > 0 else new
+    far = np.sqrt(((new[:, None] - base[None]) ** 2).sum(-1)).min(1) >= min_delta
+    return np.concatenate([base, new[far]]) if far.any() else base

@@ -10,7 +10,7 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
    done 2026-11-27 (Lighting maps; not yet checked in an engine).
 2. **Style sets** (backlog #13): the local library, palette inheritance, and style checks
    are available. Anchors take one saved image or, since 2026-11-27, a style set of 2-3 (Also match). Family
-   palette rules remain open.
+   palette rule done 2026-11-27 (a variant keeps its base's colours exactly).
    Terrain and tiles that match a character's style and palette are still open (#8, items done).
 3. **Motion library** (#2, #11): 2026-11-27 idle, run, attack (front-facing) and jump mannequin clips added
    (in review), each with a recommended transfer (flow for idle; TARA for run, attack, jump). Open: other
@@ -47,4 +47,4 @@ export, the game-developer audit's P1 and P2 lists (docs/AUDIT_GAMEDEV_2026-11-2
 
 - ~~Resizable panels~~: the job list's width is dragged, remembered and reset (2026-11-26).
 - ~~Desktop shortcut~~: `spritewaffle shortcut` (2026-11-26). A packaged installer is open.
-- ~~Multi-image generation~~ (style sets, 2026-11-27); family palette rules open.
+- ~~Multi-image generation~~ (style sets, 2026-11-27); family palette rule done (2026-11-27).

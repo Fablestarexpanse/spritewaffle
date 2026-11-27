@@ -137,3 +137,39 @@ def test_shifted_action_keeps_off_the_border():
     cells, _ = layout.preserve_canvas([f], (64, 64))
     a = cells[0][..., 3] > 0
     assert not (a[:, 0].any() or a[:, -1].any())
+
+
+def test_extend_keeps_the_base_and_adds_only_what_is_new():
+    from spritewaffle.pixel import palette as palmod
+    from spritewaffle.pixel.color import srgb_to_oklab
+    base = srgb_to_oklab(np.array([[220, 150, 127], [40, 30, 30]], float))
+    img = np.zeros((1, 8, 8, 3))
+    img[0, :, :4] = [220, 150, 127]                     # skin: the base draws it
+    img[0, :, 4:] = [60, 80, 160]                       # a blue cloak: new
+    lab = srgb_to_oklab(img)
+    alpha = np.ones((1, 8, 8), bool)
+    out = palmod.extend(lab, alpha, base, 4)
+    assert np.allclose(out[:2], base) and len(out) == 3                 # base first, exactly; one blue added
+    assert len(palmod.extend(lab[:, :, :4], alpha[:, :, :4], base, 4)) == 2   # nothing new -> base only
+
+
+def test_variant_palette_keeps_its_base_colours_exactly(tmp_path):
+    """2026-11-27: the vest body and the cloak body over it shared 0 of 15 colours (the skin moved)."""
+    prof = GameProfile(name="p", cell_size=64, sprite_height_px=40)
+    base = Job.create("hero", "base", base=tmp_path, description="hero")
+    _stills(base)
+    job_palette.rebuild(base, prof)
+    var = Job.create("hero", "cloak", base=tmp_path, base_job=str(base.root), item_description="a blue cloak")
+    for p in sorted((base.root / "01_anchor").glob("*.png")) + sorted((base.root / "02_facings").glob("*.png")):
+        a = np.array(Image.open(p).convert("RGB"))
+        keyed = (a[..., 1] > 200) & (a[..., 0] < 90)
+        ys, xs = np.where(~keyed)
+        a[ys.min():ys.min() + (ys.max() - ys.min()) // 2, xs.min():xs.max()] = [40, 60, 170]   # cloak on top half
+        dest = var.root / p.relative_to(base.root)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(a).save(dest)
+    got = job_palette.rebuild(var, prof)
+    base_cols = job_palette.get(base)["colours"]
+    assert got["colours"][:len(base_cols)] == base_cols                 # every base colour, same hex, same order
+    assert 0 < len(got["colours"]) - len(base_cols) <= prof.palette_size // 2
+    assert "family" in got["source"] and "hero/base" in got["source"]

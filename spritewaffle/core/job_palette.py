@@ -101,9 +101,24 @@ def stills(job: Job) -> list[np.ndarray]:
     return [np.array(Image.open(p).convert("RGB")) for p in files if p.exists()]
 
 
+def family_base(job: Job, profile) -> tuple[list[str], str] | None:
+    """(colours, name) of the base job's palette when this job is a variant (fitted item, edit):
+    the base's saved or effective palette, else built from its stills (nothing is written there)."""
+    from . import variant
+    base = variant.base_of(job)
+    if base is None:
+        return None
+    have = current(base, profile)
+    colours = have["colours"] if have else from_stills(base, profile)
+    return (colours, f"{base.root.parent.name}/{base.root.name}") if colours else None
+
+
 def from_stills(job: Job, profile) -> list[str] | None:
     """Fit profile.palette_size colours on the anchor and all facings, at the profile's sprite
-    height (the same scale the clips are pixelized at). None when the job has no stills."""
+    height (the same scale the clips are pixelized at). None when the job has no stills.
+    A variant keeps its base's colours exactly and adds at most palette_size // 2 for what is new
+    (family rule). Measured 2026-11-27: the vest body and the cloak body over it shared 0 of 15
+    colours (skin #df967f vs #da876e), so the face changed colour when the cloak went on."""
     from ..pixel import chroma
     from ..pixel.pipeline import PixelParams, pixelize
     imgs = stills(job)
@@ -113,16 +128,25 @@ def from_stills(job: Job, profile) -> list[str] | None:
     if not len(ys):
         return None
     size = profile.pixel_size or max(1, round((ys[-1] - ys[0] + 1) / profile.sprite_height_px))
+    fam = family_base(job, profile)
     res = pixelize(imgs, PixelParams(palette=profile.palette_size, pixel_size=size, outline=profile.outline,
-                                     despill=profile.despill))
+                                     despill=profile.despill, base_palette=fam[0] if fam else None))
     return _hex(res.palette)
+
+
+def _source(job: Job, profile, colours: list[str]) -> str:
+    fam = family_base(job, profile)
+    src = f"anchor + facings ({len(stills(job))} stills)"
+    if fam:
+        src += f", family: {len(fam[0])} colours from {fam[1]} + {len(colours) - len(fam[0])} new"
+    return src
 
 
 def rebuild(job: Job, profile) -> dict:
     colours = from_stills(job, profile)
     if not colours:
         raise FileNotFoundError("no anchor or facing stills to build from")
-    return save(job, colours, f"anchor + facings ({len(stills(job))} stills)")
+    return save(job, colours, _source(job, profile, colours))
 
 
 def current(job: Job, profile) -> dict | None:
@@ -144,7 +168,7 @@ def resolve(job: Job, profile) -> tuple[list[str] | int, bool]:
         return have["colours"], False
     built = from_stills(job, profile)
     if built:
-        return save(job, built, f"anchor + facings ({len(stills(job))} stills)")["colours"], True
+        return save(job, built, _source(job, profile, built))["colours"], True
     return profile.palette_size, False
 
 

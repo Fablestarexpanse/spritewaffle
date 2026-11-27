@@ -13,6 +13,7 @@ from .color import hex_to_rgb, oklab_to_srgb, srgb_to_oklab
 @dataclass
 class PixelParams:
     palette: int | list[str] = 16          # size N, or locked master palette (hex list)
+    base_palette: list[str] | None = None  # family: keep these exactly, fit up to N//2 new colours for the rest
     pixel_size: int | None = None          # manual grid override
     grid_offset: tuple[int, int] = (0, 0)  # phase for manual override
     target_height: int | None = None       # sprite height in art px; used when no grid is detected
@@ -91,8 +92,13 @@ def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams(), *,
     alpha = small[..., 3] > 0
     lab = srgb_to_oklab(small[..., :3].astype(float))
 
+    base_rgb = None
     if isinstance(p.palette, list):
         pal_lab = srgb_to_oklab(np.array([hex_to_rgb(h) for h in p.palette], float))
+    elif p.base_palette and alpha.any():
+        base_rgb = np.array([hex_to_rgb(h) for h in p.base_palette], np.uint8)
+        pal_lab = palmod.extend(lab, alpha, srgb_to_oklab(base_rgb.astype(float)), max(1, int(p.palette) // 2),
+                                saliency=p.saliency, seed=p.seed)
     elif alpha.any():
         pal_lab = palmod.fit(lab, alpha, int(p.palette), saliency=p.saliency, seed=p.seed)
     else:
@@ -103,6 +109,9 @@ def pixelize(frames: list[np.ndarray], p: PixelParams = PixelParams(), *,
         idx = np.stack([cleanup.remove_orphans(i, pal_lab, p.orphan_delta) for i in idx])
     if isinstance(p.palette, list):
         pal_rgb = np.array([hex_to_rgb(h) for h in p.palette], np.uint8)
+    elif base_rgb is not None:                       # base colours stay exact (no Oklab round trip)
+        extra = np.clip(np.rint(oklab_to_srgb(pal_lab[len(base_rgb):])), 0, 255).astype(np.uint8)
+        pal_rgb = np.concatenate([base_rgb, extra.reshape(-1, 3)])
     else:
         pal_rgb = np.clip(np.rint(oklab_to_srgb(pal_lab)), 0, 255).astype(np.uint8)
     if p.outline != "none":
