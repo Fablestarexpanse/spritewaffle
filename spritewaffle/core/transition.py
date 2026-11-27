@@ -61,7 +61,48 @@ def masks(size: int, roughness: float = 0.5, seed: int = 0, soft: float = 0.0, s
     return out
 
 
-KINDS = {"corner": 4, "blob": 8}         # sheet columns: 16 tiles in 4 x 4, 48 in 8 x 6
+KINDS = {"corner": 4, "blob": 8, "edge": 4}   # sheet columns: 16 tiles in 4 x 4, 48 in 8 x 6
+SIDES = ("N", "E", "S", "W")
+
+
+def edge_masks(size: int, roughness: float = 0.5, seed: int = 0, soft: float = 0.0, shape: bool = True,
+               width: float = 0.4) -> list[np.ndarray]:
+    """16 path masks (0 = ground A, 1 = path B), index = N*8 + E*4 + S*2 + W*1 (that side carries
+    the path). B is everything within width/2 of arms running from the tile centre to the middle of
+    each path side. On a shared edge the arm's distance depends only on that edge's bit, and the
+    wobble field repeats once per tile, so neighbouring tiles meet pixel for pixel. Tile 0 (no
+    path side) is plain A."""
+    if not 0 <= roughness <= 1:
+        raise ValueError("roughness must be 0..1")
+    if not 0.1 <= width <= 0.8:
+        raise ValueError("path width must be 0.1-0.8 of a tile")
+    y, x = np.mgrid[0:size, 0:size] + 0.5
+    u, v = x / size, y / size
+    arms = {"N": np.where(v <= 0.5, np.abs(u - 0.5), np.hypot(u - 0.5, v - 0.5)),
+            "S": np.where(v >= 0.5, np.abs(u - 0.5), np.hypot(u - 0.5, v - 0.5)),
+            "E": np.where(u >= 0.5, np.abs(v - 0.5), np.hypot(u - 0.5, v - 0.5)),
+            "W": np.where(u <= 0.5, np.abs(v - 0.5), np.hypot(u - 0.5, v - 0.5))}
+    wobble = 0.42 * roughness * 0.5 * width * _noise(size, seed, octaves=3 if size <= 32 else 4)
+    out = []
+    for i in range(16):
+        bits = ((i >> 3) & 1, (i >> 2) & 1, (i >> 1) & 1, i & 1)
+        if not any(bits):
+            t = np.zeros((size, size)) if shape else np.full((size, size), -1.0)
+            out.append(t)
+            continue
+        d = np.min([arms[side] for side, bit in zip(SIDES, bits) if bit], axis=0)
+        t = 0.5 + (width / 2 - d + wobble) / width                  # 0.5 exactly on the path border
+        out.append(_shape(t, size, soft) if shape else t)
+    return out
+
+
+def edge_rules(name_a: str, name_b: str) -> dict:
+    """Edge terrain rules for the path sheet: tile i's sides in N, E, S, W order."""
+    tiles = {}
+    for i in range(16):
+        bits = ((i >> 3) & 1, (i >> 2) & 1, (i >> 1) & 1, i & 1)
+        tiles[str(i)] = [name_b if bit else name_a for bit in bits]
+    return {"colors": [name_a, name_b], "tiles": tiles, "mode": "edge"}
 
 
 def build(a: np.ndarray, b: np.ndarray, roughness: float = 0.5, seed: int = 0, soft: float = 0.0,
@@ -75,7 +116,7 @@ def build(a: np.ndarray, b: np.ndarray, roughness: float = 0.5, seed: int = 0, s
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {sorted(KINDS)}")
     size = a.shape[0]
-    fields = (masks if kind == "corner" else blob_masks)(size, roughness, seed, soft, shape=False)
+    fields = {"corner": masks, "blob": blob_masks, "edge": edge_masks}[kind](size, roughness, seed, soft, shape=False)
     lower = a[..., :3].astype(float)
     tiles = []
     for t in fields:
@@ -163,8 +204,8 @@ def _tile(job, variant: int, size: int) -> np.ndarray:
 def make(a_job, b_job, name: str | None = None, job_id: str | None = None, names: tuple[str, str] | None = None,
          tile_size: int | None = None, roughness: float = 0.5, seed: int = 0, variant_a: int = 0,
          variant_b: int = 0, kind: str = "corner", band: float | None = None) -> dict:
-    """A tileset job holding the 16-tile corner transition between two approved texture jobs,
-    with its terrain rules filled in. Re-running it on the same tileset job replaces the sheet."""
+    """A tileset job holding the transition between two approved texture jobs (corner: 16 tiles;
+    blob: 48; edge: 16 path tiles, B = the path on ground A), with its terrain rules filled in. Re-running it on the same tileset job replaces the sheet."""
     from PIL import Image
 
     from . import texture, tileset
@@ -198,10 +239,10 @@ def make(a_job, b_job, name: str | None = None, job_id: str | None = None, names
     sheet_path = out / f"{name}_transition.png"
     Image.fromarray(sheet).save(sheet_path)
     tileset.import_file(ts, sheet_path, {"tile_width": size, "tile_height": size, "margin": 0, "spacing": 0})
-    tileset.update_terrain(ts, (rules if kind == "corner" else blob_rules)(na.strip(), nb.strip()))
+    tileset.update_terrain(ts, {"corner": rules, "blob": blob_rules, "edge": edge_rules}[kind](na.strip(), nb.strip()))
     info = {"a": f"{a_job.root.parent.name}/{a_job.root.name}", "b": f"{b_job.root.parent.name}/{b_job.root.name}",
             "names": [na.strip(), nb.strip()], "tile_size": size, "roughness": roughness, "seed": seed,
             "variants": [variant_a, variant_b], "soft_px": soft, "kind": kind, "band_px": band}
     ts.update_inputs(transition=info)
     (out / f"{name}_transition.json").write_text(json.dumps(info, indent=2))
-    return {"character": name, "job_id": ts.root.name, "tiles": 16 if kind == "corner" else 48, **info}
+    return {"character": name, "job_id": ts.root.name, "tiles": 48 if kind == "blob" else 16, **info}

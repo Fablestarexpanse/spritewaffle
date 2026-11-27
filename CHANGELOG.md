@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Path sets** from two textures: Transition → Set: Path makes the 16 edge tiles (straights, bends, junctions, crossing, ends) with edge terrain rules, ready for Tiled and Godot.
 - **Edge terrain sets** (paths, fences, roads): set type Edges in the Terrain panel; exported as a Tiled edge Wang set and a Godot Match Sides terrain set.
 - The Godot TileSet export no longer varies between runs when a tile's terrains tie (its centre came from a set whose order changed per run); the later terrain wins.
 - LDtk export includes map objects as entities (one per object kind, with name, state, states, solid and id fields), drawn with each object's current tile.

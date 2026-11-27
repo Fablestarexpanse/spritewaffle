@@ -106,3 +106,28 @@ def test_app_page_versions_its_scripts(tmp_path):
         assert r.headers["cache-control"] == "no-cache"
         assert '/static/tileset_terrain.js?v=' in r.text and '/static/texture.js?v=' in r.text
         assert c.get("/static/texture.js").headers["cache-control"] == "no-cache"
+
+
+def test_path_set_tiles_meet_at_every_edge():
+    """Edge (path) set: 16 tiles; where two tiles share an edge with the same bit, the path crosses
+    at the same rows on both sides; where the bit is 0 the edge is plain ground."""
+    from spritewaffle.core import transition as tr2
+    for roughness, slack in ((0.0, 0), (0.6, 2)):
+        m = tr2.edge_masks(32, roughness=roughness, seed=3)
+        assert len(m) == 16 and not m[0].any()                         # tile 0: plain ground
+        assert m[15][16, 16] == 1                                      # crossing: path in the middle
+        for left in range(16):
+            for right in range(16):
+                east, west = (left >> 2) & 1, right & 1
+                if east != west:
+                    continue
+                a, b = m[left][:, -1], m[right][:, 0]
+                if not east:
+                    assert not a.any() and not b.any()                 # no path at that edge, either side
+                else:
+                    assert a.sum() > 0 and int(np.abs(a - b).sum()) <= slack
+    rules = tr2.edge_rules("grass", "path")
+    assert rules["mode"] == "edge" and rules["tiles"]["10"] == ["path", "grass", "path", "grass"]   # N+S straight
+    assert terrain.tiled_wangset(terrain.normalize(rules, 16))["type"] == "edge"
+    sheet = tr2.build(np.full((16, 16, 3), 40, np.uint8), np.full((16, 16, 3), 200, np.uint8), kind="edge")
+    assert sheet.shape == (4 * 16, 4 * 16, 3) and (sheet[:16, :16] < 60).all()

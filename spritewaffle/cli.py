@@ -970,7 +970,7 @@ def build() -> argparse.ArgumentParser:
         (("--name",), {"help": "tileset name (default: <a>_<b>)"}), (("--job-id",), {"help": "default: transition"}),
         (("--tile-size",), {"type": int}), (("--roughness",), {"type": float, "default": 0.5, "help": "0 straight .. 1 ragged border"}),
         SEED, (("--variant-a",), {"type": int, "default": 1}), (("--variant-b",), {"type": int, "default": 1}),
-        (("--kind",), {"choices": ("corner", "blob"), "default": "corner", "help": "corner: 16 tiles; blob: 47 + plain (48)"}),
+        (("--kind",), {"choices": ("corner", "blob", "edge"), "default": "corner", "help": "corner: 16 tiles; blob: 47 + plain (48); edge: 16 path tiles (B is the path)"}),
         (("--band",), {"type": float, "help": "darker lip on the lower terrain, px (default 1 for pixel art; 0 = none)"}))
     cmd("manifest", cmd_manifest, "write asset manifests (angles, foot points, maps, masters): one job, or all (migration)",
         (("--job",), {"help": "jobs/<character>/<job_id>; default: every job"}),

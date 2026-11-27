@@ -115,8 +115,8 @@ function texTransitionDialog(j) {
       <label class="field"><span>Border shape (seed)</span><input id="trSeed" type="number" value="0"></label>
       <label class="field"><span>Variant of ${esc(j.character)}</span><input id="trVa" type="number" min="1" value="1"></label>
       <label class="field"><span>Variant of the other</span><input id="trVb" type="number" min="1" value="1"></label>
-      <label class="field" title="Corner: 16 tiles, painted in SpriteWaffle's map preview, Tiled and Godot. Blob: 47 + plain tiles with rounded inner corners, painted in Tiled or Godot"><span>Set</span>
-        <select id="trKind"><option value="corner">Corner (16 tiles)</option><option value="blob">Blob (47 + plain)</option></select></label>
+      <label class="field" title="Corner: 16 tiles, painted in SpriteWaffle's map preview, Tiled and Godot. Blob: 47 + plain tiles with rounded inner corners, painted in Tiled or Godot. Path: 16 tiles where the other texture is a path on this one (straights, bends, T-junctions, crossing, ends), painted in Tiled or Godot"><span>Set</span>
+        <select id="trKind"><option value="corner">Corner (16 tiles)</option><option value="blob">Blob (47 + plain)</option><option value="edge">Path (16, edges)</option></select></label>
       <label class="field" title="A darker lip on the lower terrain along the border"><span>Edge lip (px)</span><input id="trBand" type="number" min="0" max="16" step="0.5" placeholder="auto"></label>
     </div>
     <div class="row"><button class="primary" id="trGo">Make transition tileset</button></div>`

@@ -497,11 +497,17 @@ MCP: `transition(a, b, names, tile_size, roughness, seed, ...)`. Both textures n
 
 Limits: the border wobble repeats every tile, so a long straight border shows a regular pattern
 (change the seed for another shape). Pixel art can leave single-pixel specks along the border.
-Corner (16) and blob (47 + plain) sets are generated here. Edge sets are drawn by you (see below).
+Corner (16), blob (47 + plain) and path (16 edge tiles) sets are generated here.
 
 #### Edge sets (paths, fences, roads)
 
-For things that connect along tile sides rather than blend at corners, set **Set type** to
+**Generated:** in Texture → Transition pick **Set: Path (16, edges)** (CLI `transition --kind edge`, MCP
+`transition` kind `edge`). The other texture becomes a path on this one: all 16 combinations of
+N/E/S/W (straights, bends, T-junctions, crossing, dead ends with a rounded cap), path width 0.4 of a
+tile, with the same border wobble and lip as corner sets. Where two tiles share an edge the path
+crosses at the same rows on both sides.
+
+**By hand:** for things that connect along tile sides rather than blend at corners, set **Set type** to
 **Edges** in the tileset's Terrain panel and name what each side of a tile connects to (Top, Right,
 Bottom, Left; leave a side unassigned if it doesn't matter). A straight north-south path is
 Path, Grass, Path, Grass. The export writes them as a Tiled **edge** Wang set and a Godot

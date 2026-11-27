@@ -629,7 +629,8 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
         """Terrain transition: two approved seamless texture jobs ('character/job_id') -> a tileset job
         with the 16-tile corner set (every corner combination) and its corner terrain rules filled in,
         ready for the terrain map preview and Tiled export. roughness 0 (straight border) .. 1 (ragged).
-        kind 'corner' (16 tiles) or 'blob' (47 blob tiles + plain, painted in Tiled/Godot). band: darker
+        kind 'corner' (16 tiles), 'blob' (47 blob tiles + plain, painted in Tiled/Godot) or 'edge' (16 path
+        tiles: b is the path on ground a, every N/E/S/W combination; painted in Tiled/Godot). band: darker
         lip on the lower terrain in px. Variants are 1-based."""
         from .core import transition as tr
         ja, jb = (job_for(*x.split("/", 1)) for x in (a, b))
