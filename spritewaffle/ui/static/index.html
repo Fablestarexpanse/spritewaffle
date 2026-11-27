@@ -1751,8 +1751,9 @@ function paneAnimations(j, st) {
         ${j.inputs.prompt_writer === "ai" ? `<div class="row" style="margin-top:4px"><input id="customAct" aria-label="Custom action name" placeholder="e.g. cast spell" style="width:170px"><button class="ghost" id="addAct">Add action</button></div>` : ""}</div>
       <div class="field" style="gap:10px">
         <label>Motion source <select id="src"><option value="">Generate with H3</option>
-          ${j.motions.map(m => `<option value="flow|${esc(m)}" ${source === "flow|" + m ? "selected" : ""}>Optical flow · ${esc(m)} (experimental)</option>
-            <option value="tara|${esc(m)}" ${source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (experimental)</option>`).join("")}</select></label>
+          ${j.motions.map(m => { const rec = (j.motion_methods || {})[m], tag = k => rec === k ? "recommended" : "experimental";
+            return `<option value="flow|${esc(m)}" ${source === "flow|" + m ? "selected" : ""}>Optical flow · ${esc(m)} (${tag("flow")})</option>
+            <option value="tara|${esc(m)}" ${source === "tara|" + m ? "selected" : ""}>TARA · ${esc(m)} (${tag("tara")})</option>`; }).join("")}</select></label>
         <div><button id="animLibrary" type="button" aria-haspopup="dialog">Motion library…</button></div>
         <label>Clip length <input id="secs" type="number" value="${form.seconds}" min="1" max="8" step="0.5" style="width:70px"> s</label>
         ${mirrorPolicyHtml(j)}
@@ -1900,6 +1901,7 @@ function showAnim(a) {
       <button id="dReproc" ${a.has_clip || ["mirror", "flow"].includes(r.mode_used) ? "" : "disabled"}>Re-process frames</button>
       <span class="spacer"></span>
       <input id="dLibName" aria-label="Motion library name" value="${esc(a.action)}_${esc(a.facing)}_${esc(job.character)}" style="width:220px" ${a.has_clip ? "" : "disabled"}>
+      <select id="dLibMethod" aria-label="Recommended transfer" ${a.has_clip ? "" : "disabled"}><option value="">No recommendation</option><option value="flow">Recommend optical flow (small moves: idle)</option><option value="tara">Recommend TARA (big moves: run, attack, jump)</option></select>
       <button id="dLib" ${a.has_clip ? "" : "disabled"} title="Reuse this clip's motion for other characters">Add to motion library</button>
     </div>`;
   openWorkspaceDialog(d);
@@ -1949,7 +1951,7 @@ function showAnim(a) {
   $("#dRegen").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action}, "Re-render queued"); };
   $("#dReproc").onclick = () => { d.close(); run("pipeline", {facing: a.facing, action: a.action, generate: false}, "Re-processing queued"); };
   $("#dLib").onclick = async () => {
-    await api("/api/motions", {name: $("#dLibName").value.trim(), character: job.character, job_id: job.job_id, facing: a.facing, action: a.action});
+    await api("/api/motions", {name: $("#dLibName").value.trim(), character: job.character, job_id: job.job_id, facing: a.facing, action: a.action, method: $("#dLibMethod").value});
     toast("Added to the motion library (approve it there)"); d.close();
   };
 }

@@ -699,7 +699,7 @@ def build(base: str | Path | None = None) -> tuple[FastMCP, Queue]:
                      "stages": {k: v["status"] for k, v in json.loads(p.read_text())["stages"].items()}}
                     for p in sorted(base.glob("*/*/job.json"))]
             from .core import motion as motion_lib
-            motions = [{k: m[k] for k in ("name", "status", "action", "facing", "frames")} for m in motion_lib.list_all(base)]
+            motions = [{k: m[k] for k in ("name", "status", "action", "facing", "frames", "method")} for m in motion_lib.list_all(base)]
             return [json.dumps({"jobs": jobs, "motions": motions, "open_tasks": open_tasks()}, indent=1)]
         job = job_for(character, job_id)
         deadline = time.time() + min(max(wait_seconds, 0), 900)

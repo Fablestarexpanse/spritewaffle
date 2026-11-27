@@ -12,8 +12,9 @@ Everything else in [docs/BACKLOG.md](../BACKLOG.md) and the audits is done. Sugg
    are available. Anchor generation accepts one saved image. Multi-image guidance and family
    palette rules remain open.
    Terrain and tiles that match a character's style and palette are still open (#8, items done).
-3. **Motion library** (#2, #11): more driving clips (idle, run, attack, jump); flow vs TARA per
-   action; optional mannequin conversion of added clips.
+3. **Motion library** (#2, #11): 2026-11-27 idle, run, attack (front-facing) and jump mannequin clips added
+   (in review), each with a recommended transfer (flow for idle; TARA for run, attack, jump). Open: other
+   facings, mannequin conversion of added clips.
 4. ~~Effects: flat auras, slash~~: done 2026-11-26 (Lies flat on the ground, aura preset, slash reworded).
 5. **QA-fail auto re-roll** (optional, off by default; Ronan prefers human review).
 6. **Sprite stacks:** spikes at thin tips; colours follow the render unless a palette is set.

@@ -1,6 +1,7 @@
 """Generation stages with a stub ComfyUI client (no network)."""
 from pathlib import Path
 
+import json
 import numpy as np
 import pytest
 from PIL import Image
@@ -186,6 +187,21 @@ def test_motion_library_add_approve_list(ready, tmp_path):
         motion.add("bad name!", ready, "S", "walk", base=tmp_path)
     assert motion.approve("walk_S", tmp_path)["status"] == "approved"
     assert [m["name"] for m in motion.list_all(tmp_path)] == ["walk_S"]
+    assert motion.get("walk_S", tmp_path)["method"] is None          # no recommendation unless given
+
+
+def test_motion_records_its_recommended_transfer(ready, tmp_path):
+    """2026-11-27 (pixel knight): flow suits idle, run/attack/jump need TARA; the library says which."""
+    src = Job.create("mannequin", "m2", base=tmp_path)
+    write_clip(src.action_dir("S", "idle") / "raw.mp4", frames=30)
+    assert motion.add("idle_S", src, "S", "idle", base=tmp_path, method="flow")["method"] == "flow"
+    with pytest.raises(ValueError):
+        motion.add("idle_S2", src, "S", "idle", base=tmp_path, method="warp")
+    p = motion.library(tmp_path) / "idle_S" / "motion.json"
+    old = json.loads(p.read_text())
+    old.pop("method")                                                  # an older motion without the field
+    p.write_text(json.dumps(old))
+    assert motion.get("idle_S", tmp_path)["method"] is None
 
 
 def test_transfer_needs_approved_motion_and_uses_facing_as_identity(ready, tmp_path):

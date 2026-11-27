@@ -714,12 +714,13 @@ def cmd_timeline(a):
 def cmd_motion(a):
     from .core import motion
     if a.sub == "add":
-        _print(motion.add(a.name, _job(a.job), a.facing, a.action, notes=a.notes or ""))
+        _print(motion.add(a.name, _job(a.job), a.facing, a.action, notes=a.notes or "", method=a.method))
     elif a.sub == "approve":
         _print(motion.approve(a.name))
     else:
         for m in motion.list_all():
-            print(f"{m['name']:<22} {m['status']:<9} {m['action']}/{m['facing']} {m['frames']}f  {m['notes']}")
+            rec = f"  [{m['method']} recommended]" if m.get("method") else ""
+            print(f"{m['name']:<22} {m['status']:<9} {m['action']}/{m['facing']} {m['frames']}f  {m['notes']}{rec}")
 
 
 def cmd_transfer(a):
@@ -1069,6 +1070,7 @@ def build() -> argparse.ArgumentParser:
     ma.add_argument("--facing", required=True, choices=FACINGS)
     ma.add_argument("--action", required=True)
     ma.add_argument("--notes")
+    ma.add_argument("--method", choices=("flow", "tara"), help="recommended transfer for this motion")
     mp.add_parser("approve", help="approve a motion for use").add_argument("name")
     mp.add_parser("list", help="list motions")
     for spp in mp.choices.values():

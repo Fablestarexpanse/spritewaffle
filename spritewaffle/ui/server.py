@@ -397,6 +397,7 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
                             if meta["inputs"].get("base_job") else None),
                 "actions": actions,
                 "motions": [m["name"] for m in motion_lib.list_all(base) if m["status"] == "approved"],
+                "motion_methods": {m["name"]: m["method"] for m in motion_lib.list_all(base) if m["status"] == "approved"},
                 "stack": {"views": {v: crop(j.root / "02_ortho" / f"{v}.png") for v in ("front", "back", "right", "top")},
                           "turntable": next((url(p) for p in st.glob("*_turntable.gif")), None) if st.is_dir() else None,
                           "rotations": next((url(p) for p in st.glob("*_rotations.png")), None) if st.is_dir() else None,
@@ -1232,14 +1233,15 @@ def create_app(base: str | Path | None = None, worker: bool = True, limits: dict
     # --- motion library -------------------------------------------------------------------
     @app.get("/api/motions")
     def motions():
-        return [{k: m[k] for k in ("name", "status", "action", "facing", "frames", "notes")} | {"clip": url(Path(m["clip"]))}
+        return [{k: m[k] for k in ("name", "status", "action", "facing", "frames", "notes", "method")} | {"clip": url(Path(m["clip"]))}
                 for m in motion_lib.list_all(base)]
 
     @app.post("/api/motions")
     def add_motion(body: dict = Body(...)):
         try:
             j = job_or_404(body["character"], body["job_id"])
-            return motion_lib.add(body["name"], j, body["facing"], body["action"], base, body.get("notes", ""))
+            return motion_lib.add(body["name"], j, body["facing"], body["action"], base, body.get("notes", ""),
+                                  body.get("method") or None)
         except (KeyError, ValueError, FileNotFoundError) as e:
             bad(e)
 

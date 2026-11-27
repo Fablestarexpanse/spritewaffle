@@ -34,10 +34,18 @@ def _count_frames(clip: Path) -> int:
     return n
 
 
-def add(name: str, job: Job, facing: str, action: str, base: str | Path | None = None, notes: str = "") -> dict:
-    """Copy a job's rendered clip into the library as a motion (status 'review')."""
+METHODS = ("flow", "tara")
+
+
+def add(name: str, job: Job, facing: str, action: str, base: str | Path | None = None, notes: str = "",
+        method: str | None = None) -> dict:
+    """Copy a job's rendered clip into the library as a motion (status 'review'). method: the
+    recommended transfer ('flow' or 'tara'), shown as such in the studio. Measured 2026-11-27 on the
+    pixel knight: flow suits small motions (idle); run, attack and jump tear with flow and need TARA."""
     if not NAME.match(name):
         raise ValueError("motion name: letters, digits, _ and - only")
+    if method is not None and method not in METHODS:
+        raise ValueError(f"method must be one of {METHODS}")
     src = job.root / "03_actions" / facing / action / "raw.mp4"
     if not src.exists():
         raise FileNotFoundError(f"no clip at {src}")
@@ -45,7 +53,7 @@ def add(name: str, job: Job, facing: str, action: str, base: str | Path | None =
     d.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, d / "clip.mp4")
     meta = {"name": name, "action": action, "facing": facing, "frames": _count_frames(d / "clip.mp4"),
-            "source": str(src), "status": "review", "notes": notes, "added": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            "source": str(src), "status": "review", "notes": notes, "method": method, "added": time.strftime("%Y-%m-%dT%H:%M:%S")}
     (d / "motion.json").write_text(json.dumps(meta, indent=2))
     return meta
 
@@ -61,6 +69,7 @@ def get(name: str, base: str | Path | None = None) -> dict:
     if not p.exists():
         raise KeyError(f"no motion '{name}' in the library")
     meta = json.loads(p.read_text(encoding="utf-8"))
+    meta.setdefault("method", None)                 # older motions: no recommendation
     meta["clip"] = str(clip)
     return meta
 
