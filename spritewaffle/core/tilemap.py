@@ -69,7 +69,8 @@ def _objects(entries: list, layout: dict, record: dict) -> list[dict]:
 
 def save(job: Job, name: str, vertices: list, map_id: str | None = None, revision: str | None = None,
          tileset_revision: str | None = None, *, overrides: dict | None = None,
-         override_atlas: str | None = None, objects: list | None = None) -> dict:
+         override_atlas: str | None = None, objects: list | None = None, mix: bool | None = None) -> dict:
+    """mix: pick among terrain variants by tile weight (None keeps the saved map's choice)."""
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or len(name.strip().splitlines()) != 1:
         raise ValueError("Enter a map name of 1 to 80 characters on one line.")
     with tileset._locked_record(job) as (directory, record):
@@ -84,12 +85,15 @@ def save(job: Job, name: str, vertices: list, map_id: str | None = None, revisio
                 overrides, override_atlas = current.get("overrides"), current.get("override_atlas")
             if objects is None:
                 objects = current.get("objects")
+            if mix is None:
+                mix = current.get("mix", False)
         else:
             if len(maps) >= MAX_MAPS:
                 raise ValueError(f"A tileset can hold up to {MAX_MAPS} saved maps.")
             map_id = uuid4().hex
-        layout = tileset._preview(record, vertices, overrides=overrides, override_atlas=override_atlas)
-        draft = {"name": name.strip(), "vertices": vertices}
+        mix = mix is True
+        layout = tileset._preview(record, vertices, overrides=overrides, override_atlas=override_atlas, mix=mix)
+        draft = {"name": name.strip(), "vertices": vertices, **({"mix": True} if mix else {})}
         if overrides:
             draft["overrides"] = overrides
             if any(tile is not None for tile in overrides.values()):
@@ -127,7 +131,7 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
             raise ValueError("The tileset changed. Reload it before exporting the map.")
         corners = saved["vertices"]
         resolved = tileset._preview(record, corners, allow_unknown=True, overrides=saved.get("overrides"),
-                                    override_atlas=saved.get("override_atlas"))
+                                    override_atlas=saved.get("override_atlas"), mix=saved.get("mix") is True)
         objects = _objects(saved.get("objects", []), resolved, record)
         atlas = tileset._atlas_revision(record)
         outdated = next((entry for entry in objects if entry["atlas"] != atlas), None)
@@ -144,6 +148,8 @@ def export(job: Job, map_id: str, revision: str | None = None, tileset_revision:
             native["empty_cells"] = missing
         if "overrides" in saved:
             native["overrides"] = saved["overrides"]
+        if saved.get("mix"):
+            native["mix_variants"] = True
         tiled = _tiled_map(saved["name"], resolved, record["grid"])
         if objects:
             native["objects"] = objects

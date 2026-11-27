@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Maps can **mix variants**: tiles with the same terrain corners are picked per cell by tile weight. Off by default; maps saved before keep their first-tile look.
 - Tile **Weight** (tileset panel, `tileset weight`, `/tileset/probability`, MCP `weight`): how often Tiled picks a tile among tiles that fit the same place, exported as Tiled's `probability`. Lets a filled area mix texture variants.
 - Map ZIPs include `map.ldtk` for LDtk 1.5: the tiles, a Collision IntGrid (solid / one-way), and each tile's collision polygon and properties as per-tile custom data. Square tiles only; the export says when it is left out.
 - Prepare map ZIP works with "allow empty cells" ticked (the button stayed disabled while any cell was unresolved).

@@ -49,6 +49,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
           </div>
           <form id="terrainMapForm" class="row">
             <label>Map name <input id="terrainMapName" required maxlength="80"></label>
+            <label title="Tiles with the same corners are variants: pick one per cell by tile Weight (Tile collision panel) instead of always the first"><input type="checkbox" id="terrainMapMix"> mix variants</label>
             <button type="submit">Save map</button>
             <button type="button" id="terrainMapExport" disabled>Prepare map ZIP</button>
             <label title="Cells no tile matches are left empty instead of stopping the export"><input type="checkbox" id="terrainMapEmpty"> allow empty cells</label>
@@ -100,7 +101,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     return mapName.value.trim() !== savedMap.name ||
       JSON.stringify(vertices) !== JSON.stringify(savedMap.vertices) ||
       JSON.stringify(overrides) !== JSON.stringify(savedMap.overrides || {}) ||
-      overrideAtlas !== savedMap.override_atlas ||
+      overrideAtlas !== savedMap.override_atlas || find("#terrainMapMix").checked !== !!savedMap.mix ||
       JSON.stringify(objects.entries()) !== JSON.stringify(savedMap.objects || []);
   }
 
@@ -202,7 +203,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     }
     try {
       const resolved = await request("/preview", {vertices, revision: state.revision, allow_unknown: true,
-        overrides, override_atlas: overrideAtlas});
+        overrides, override_atlas: overrideAtlas, mix: find("#terrainMapMix").checked});
       if (id !== revision) return;
       result = resolved;
       const count = result.tiles.flat().filter(id => id !== null).length;
@@ -373,6 +374,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     overrideAtlas = undefined;
     mapName.value = "";
     mapList.value = "";
+    find("#terrainMapMix").checked = false;
     objects.load();
     updateCellTool();
     editMap(lattice(null, 8, 6));
@@ -384,6 +386,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
       if (!savedMap) forgetDraft();
       savedMap = opened;
       mapName.value = savedMap.name;
+      find("#terrainMapMix").checked = !!savedMap.mix;
       overrides = {...savedMap.overrides};
       overrideAtlas = savedMap.override_atlas;
       objects.load(savedMap.objects);
@@ -396,7 +399,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     mapAction(async () => {
       const updated = await request("/maps", {id: savedMap?.id, revision: savedMap?.revision,
         name: mapName.value, vertices, tileset_revision: state.revision, overrides, override_atlas: overrideAtlas,
-        objects: objects.entries()});
+        objects: objects.entries(), mix: find("#terrainMapMix").checked});
       if (!savedMap) forgetDraft();
       savedMap = updated;
       overrideAtlas = savedMap.override_atlas;
@@ -407,6 +410,7 @@ function bindTilesetTerrain(panel, route, request, image, apply, frameFor) {
     });
   };
   find("#terrainMapEmpty").onchange = () => mapControls();
+  find("#terrainMapMix").onchange = () => { resolveMap(); mapControls(); };
   find("#terrainMapExport").onclick = () => mapAction(async () => {
     const exported = await request("/maps/" + encodeURIComponent(savedMap.id) + "/export",
       {revision: savedMap.revision, tileset_revision: state.revision, allow_empty: find("#terrainMapEmpty").checked});

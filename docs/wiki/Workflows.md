@@ -216,6 +216,13 @@ brush and its terrain fill. 1 is normal, 2 twice as often, 0 never at random. It
 tile's `probability` in `tileset.tsj` and `tileset.json`. Use it on texture variants that share
 edges (Texture → Make a tileset) so a filled area mixes them, the plain one most often.
 
+SpriteWaffle's own map painter can mix them too: give the variants the same terrain corners and
+tick **mix variants** on the map. Each cell then picks one of the tiles with matching corners by
+weight (0 = never). The pick depends only on the cell's position and the weights, so preview,
+save and export agree. Without the tick (the default, and every map saved before it) each corner
+pattern uses its first tile. CLI `tilemap save --mix on`, MCP `tilemap` `mix`, HTTP `mix` on
+`/tileset/preview` and `/tileset/maps`.
+
 **Export tileset** writes `tiles.png`, `tileset.json`, and `tileset.tsj` to the job's
 `06_export/tileset` folder. Keep the PNG next to either metadata file. Collision changes
 flag the previous export as stale. The PNG in the bundle is an exact copy of the source.

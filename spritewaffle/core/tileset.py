@@ -318,13 +318,14 @@ def update_animation(job: Job, tile: int, frames: list, revision: str | None = N
 
 
 def preview(job: Job, vertices: list, revision: str | None = None, *, allow_unknown: bool = False,
-            overrides: dict | None = None, override_atlas: str | None = None) -> dict:
+            overrides: dict | None = None, override_atlas: str | None = None, mix: bool = False) -> dict:
     record = _read(_workspace(job))
     if record is None:
         raise ValueError("Import a tile sheet first.")
     if revision is not None and revision != _revision(record):
         raise ValueError("The tileset changed. Reload it before previewing.")
-    return _preview(record, vertices, allow_unknown=allow_unknown, overrides=overrides, override_atlas=override_atlas)
+    return _preview(record, vertices, allow_unknown=allow_unknown, overrides=overrides, override_atlas=override_atlas,
+                    mix=mix)
 
 
 def _atlas_revision(record: dict) -> str:
@@ -418,8 +419,10 @@ def stamp(job: Job, name: str, cell: int, vertices: list, overrides: dict | None
 
 
 def _preview(record: dict, vertices: list, *, allow_unknown: bool = False,
-             overrides: dict | None = None, override_atlas: str | None = None) -> dict:
-    result = terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown)
+             overrides: dict | None = None, override_atlas: str | None = None, mix: bool = False) -> dict:
+    weights = {int(k): w for k, w in (record.get("tile_probability") or {}).items()} if mix else None
+    result = terrain.preview(record.get("terrain", {"colors": [], "tiles": {}}), vertices, allow_unknown=allow_unknown,
+                             weights=weights)
     if overrides is None:
         return result
     width, height = result["width"], result["height"]

@@ -61,7 +61,32 @@ def _matches(rules: dict) -> dict[tuple, int]:
     return matches
 
 
-def preview(rules: dict, vertices: list, *, allow_unknown: bool = False) -> dict:
+def _all_matches(rules: dict) -> dict[tuple, list[int]]:
+    """Every tile for each assignment (variants share one), in tile order."""
+    matches: dict[tuple, list[int]] = {}
+    for key in sorted(rules["tiles"], key=int):
+        matches.setdefault(tuple(rules["tiles"][key]), []).append(int(key))
+    return matches
+
+
+def _pick(tiles: list[int], weights: dict[int, float], x: int, y: int) -> int:
+    """One of the variants for cell (x, y), by tile weight (default 1; 0 = only if nothing else).
+    The same cell always gets the same tile for the same weights, so saving and exporting agree."""
+    from hashlib import sha256
+    live = [(t, weights.get(t, 1.0)) for t in tiles if weights.get(t, 1.0) > 0]
+    if len(live) <= 1:
+        return live[0][0] if live else tiles[0]
+    u = int.from_bytes(sha256(f"{x},{y}".encode()).digest()[:8], "big") / 2 ** 64 * sum(w for _, w in live)
+    for tile, w in live:
+        u -= w
+        if u < 0:
+            return tile
+    return live[-1][0]
+
+
+def preview(rules: dict, vertices: list, *, allow_unknown: bool = False, weights: dict[int, float] | None = None) -> dict:
+    """weights: mix variants (tiles with the same corners) by tile weight, per cell; None keeps the
+    first tile for every corner pattern (maps saved before mixing look the same)."""
     if rules.get("mode") == "mixed":
         raise ValueError("This tileset uses a blob (mixed) terrain set: paint maps with it in Tiled or Godot. "
                          "SpriteWaffle's map preview paints corner sets.")
@@ -75,13 +100,14 @@ def preview(rules: dict, vertices: list, *, allow_unknown: bool = False) -> dict
            for row in vertices for name in row):
         raise ValueError("The preview uses terrain names from the tileset or null for an unpainted corner.")
     matches = _matches(rules)
+    variants = _all_matches(rules) if weights is not None else {}
     width, height = len(vertices[0]) - 1, len(vertices) - 1
     cells, missing = [], []
     for y in range(height):
         row = []
         for x in range(width):
             corners = (vertices[y][x], vertices[y][x+1], vertices[y+1][x+1], vertices[y+1][x])
-            tile = matches.get(corners)
+            tile = _pick(variants[corners], weights, x, y) if corners in variants else matches.get(corners)
             row.append(tile)
             if tile is None and any(name is not None for name in corners):
                 missing.append([x, y])

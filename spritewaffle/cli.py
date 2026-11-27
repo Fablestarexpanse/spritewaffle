@@ -144,9 +144,10 @@ def cmd_tilemap(a):
             result = object_templates.save(job, data)
         else:
             draft = data if isinstance(data, dict) else {"vertices": data}
+            mix = {"on": True, "off": False}.get(a.mix) if a.mix else draft.get("mix")
             result = tilemap.save(job, a.name, draft.get("vertices"), a.map_id, a.revision,
                                   overrides=draft.get("overrides"), override_atlas=draft.get("override_atlas"),
-                                  objects=draft.get("objects"))
+                                  objects=draft.get("objects"), mix=mix if isinstance(mix, bool) else None)
     else:
         result = tilemap.export(job, a.map_id, allow_empty=a.allow_empty)
     _print(result)
@@ -819,6 +820,7 @@ def build() -> argparse.ArgumentParser:
         (("--name",), {"help": "display name when saving a map"}),
         (("--file",), {"help": "JSON terrain corners, map draft, or object template to save"}),
         (("--map-id",), {"help": "saved map ID for load, update, or export"}),
+        (("--mix",), {"choices": ("on", "off"), "help": "save: mix terrain variants by tile weight (default: keep)"}),
         (("--revision",), {"help": "required revision when updating a saved map"}),
         (("--template-id",), {"help": "ID of the object template to instantiate"}),
         (("--cell",), {"type": int, "help": "zero-based cell for the new object"}),
